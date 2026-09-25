@@ -138,6 +138,7 @@ fun UpdateScreen(vm: MainViewModel, onBack: () -> Unit) {
                 placeholder = painterResource(R.drawable.update_banner),
                 error = painterResource(R.drawable.update_banner),
                 contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxWidth().aspectRatio(928f / 700f).clip(RoundedCornerShape(18.dp)),
             )
             XyCard {
