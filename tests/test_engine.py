@@ -144,7 +144,8 @@ def test_platform_detection_and_catalog():
     assert detect_platform('https://x.com/a/status/1')['id'] == 'twitter'
     assert detect_platform('https://v.qq.com/x/page/a.html')['id'] == 'vqq'
     regions = {r['id'] for r in catalog()['regions']}
-    assert regions == {'id', 'cn', 'sg', 'us', 'global'}
+    assert regions == {'id', 'cn', 'jp', 'sg', 'us', 'global'}
+    assert detect_platform('https://www.pixiv.net/artworks/1')['id'] == 'pixiv'
 
 
 def test_site_suffix():
@@ -159,3 +160,24 @@ def test_friendly_errors():
     assert engine.friendly_error('Unsupported URL: https://x')[0] == 'unsupported'
     assert engine.friendly_error('This video is private')[0] == 'private'
     assert engine.friendly_error('HTTP Error 404: Not Found')[0] == 'notfound'
+
+
+def test_pixiv_image_entry_and_ugoira():
+    img = {'id': '1_p0', 'title': 'Karya p1', 'xy_image': True, 'thumbnail': 'https://i.pximg.net/s.jpg',
+           'webpage_url': 'https://www.pixiv.net/artworks/1',
+           'formats': [fmt('original', 'https://i.pximg.net/img-original/1_p0.png', ext='png', width=1400, height=1900,
+                           http_headers={'Referer': 'https://www.pixiv.net/'})]}
+    e = engine.build_entry(ctx(img), img)
+    assert not e['video'] and not e['audio'] and len(e['images']) == 1
+    im = e['images'][0]
+    assert im['ext'] == 'png' and im['filename'] == 'Karya p1.png' and im['width'] == 1400
+    payload = signer.verify(im['url'].split('t=', 1)[1])
+    assert payload['h']['Referer'] == 'https://www.pixiv.net/' and payload['a'] == ['pximg.net']
+
+    ug = {'id': '2', 'title': 'Anim', 'duration': 0.75, 'webpage_url': 'https://www.pixiv.net/artworks/2',
+          'xy_ugoira': {'frames': [{'file': '000000.jpg', 'delay': 120}, {'file': '000001.jpg', 'delay': 130}]},
+          'formats': [fmt('ugoira', 'https://i.pximg.net/img-zip-ugoira/2.zip', ext='bin', width=720, height=720)]}
+    e = engine.build_entry(ctx(ug), ug)
+    assert [v['ext'] for v in e['video']] == ['mp4', 'gif']
+    assert all(v['mode'] == 'ugoira' for v in e['video'])
+    assert len(e['ugoira']['frames']) == 2 and not e['images']

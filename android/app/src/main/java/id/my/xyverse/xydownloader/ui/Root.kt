@@ -17,8 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -39,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,44 +58,46 @@ fun XyRoot(vm: MainViewModel) {
     val running = records.count { it.status == DlRecord.STATUS_RUNNING || it.status == DlRecord.STATUS_QUEUED }
     var showSplash by rememberSaveable { mutableStateOf(true) }
     LaunchedEffect(Unit) {
-        delay(1300)
+        delay(1200)
         showSplash = false
     }
+    val cs = MaterialTheme.colorScheme
 
-    Box(Modifier.fillMaxSize().background(XyBg)) {
+    Box(Modifier.fillMaxSize().background(cs.background)) {
         Scaffold(
-            containerColor = XyBg,
+            containerColor = cs.background,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
-                NavigationBar(containerColor = Color(0xFF0F1224), tonalElevation = 0.dp) {
-                    val colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color.White,
-                        indicatorColor = XyPrimary.copy(alpha = 0.35f),
-                        unselectedIconColor = XyMuted,
-                        unselectedTextColor = XyMuted,
-                    )
-                    NavigationBarItem(
-                        selected = vm.tab == 0, onClick = { vm.tab = 0 }, colors = colors,
-                        icon = { Icon(Icons.Filled.Home, null) }, label = { Text("Beranda") },
-                    )
-                    NavigationBarItem(
-                        selected = vm.tab == 1, onClick = { vm.tab = 1 }, colors = colors,
-                        icon = { Icon(painterResource(R.drawable.ic_download), null) },
-                        label = { Text(if (running > 0) "Unduhan ($running)" else "Unduhan") },
-                    )
-                    NavigationBarItem(
-                        selected = vm.tab == 2, onClick = { vm.tab = 2 }, colors = colors,
-                        icon = { Icon(Icons.Filled.Info, null) }, label = { Text("Tentang") },
-                    )
+                Column {
+                    HorizontalDivider(color = cs.outlineVariant)
+                    NavigationBar(containerColor = cs.background, tonalElevation = 0.dp) {
+                        val colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = cs.primary,
+                            selectedTextColor = cs.onSurface,
+                            indicatorColor = cs.primaryContainer,
+                            unselectedIconColor = cs.onSurfaceVariant,
+                            unselectedTextColor = cs.onSurfaceVariant,
+                        )
+                        NavigationBarItem(
+                            selected = vm.tab == 0, onClick = { vm.tab = 0 }, colors = colors,
+                            icon = { Icon(Icons.Outlined.Home, null) }, label = { Text("Beranda") },
+                        )
+                        NavigationBarItem(
+                            selected = vm.tab == 1, onClick = { vm.tab = 1 }, colors = colors,
+                            icon = { Icon(painterResource(R.drawable.ic_download), null) },
+                            label = { Text(if (running > 0) "Unduhan ($running)" else "Unduhan") },
+                        )
+                        NavigationBarItem(
+                            selected = vm.tab == 2, onClick = { vm.tab = 2 }, colors = colors,
+                            icon = { Icon(Icons.Outlined.Info, null) }, label = { Text("Tentang") },
+                        )
+                    }
                 }
             },
         ) { padding ->
             Box(Modifier.padding(padding)) {
                 when (vm.tab) {
-                    0 -> HomeScreen(vm) { msg ->
-                        scope.launch { snackbar.showSnackbar(msg) }
-                    }
+                    0 -> HomeScreen(vm) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
                     1 -> DownloadsScreen(vm)
                     else -> AboutScreen(vm)
                 }
@@ -110,34 +112,36 @@ fun XyRoot(vm: MainViewModel) {
 /** Layar pembuka dengan kredit XyVerse. */
 @Composable
 fun SplashCredit() {
-    Box(Modifier.fillMaxSize().background(XyBg), contentAlignment = Alignment.Center) {
+    val cs = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxSize().background(cs.background), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(painterResource(R.drawable.ic_splash), null, Modifier.size(128.dp))
-            Spacer(Modifier.height(8.dp))
-            Text("XyDownloader", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Semua platform, satu aplikasi", color = XyMuted, fontSize = 14.sp)
+            Image(painterResource(R.drawable.ic_splash), null, Modifier.size(112.dp))
+            Spacer(Modifier.height(4.dp))
+            Text("XyDownloader", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = cs.onBackground)
+            Text("Semua platform, satu aplikasi", color = cs.onSurfaceVariant, fontSize = 14.sp)
         }
         Row(
             Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 36.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Image(painterResource(R.drawable.ic_xyverse), null, Modifier.size(26.dp))
+            Image(painterResource(R.drawable.ic_xyverse), null, Modifier.size(22.dp))
             Spacer(Modifier.width(8.dp))
-            Text("built in ", color = XyMuted, fontSize = 13.sp)
-            Text("XyVerse", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("built in ", color = cs.onSurfaceVariant, fontSize = 13.sp)
+            Text("XyVerse", color = cs.onBackground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
 fun BrandHeader(modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.ic_splash), null, Modifier.size(44.dp))
-        Spacer(Modifier.width(10.dp))
+        Image(painterResource(R.drawable.ic_splash), null, Modifier.size(40.dp))
+        Spacer(Modifier.width(8.dp))
         Column {
-            Text("XyDownloader", style = MaterialTheme.typography.titleLarge, color = Color.White)
-            Text("by XyVerse", color = XyMuted, fontSize = 12.sp)
+            Text("XyDownloader", style = MaterialTheme.typography.titleLarge, color = cs.onBackground)
+            Text("by XyVerse", color = cs.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }

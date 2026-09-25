@@ -3,8 +3,8 @@
 </p>
 
 <h1 align="center">XyDownloader</h1>
-<p align="center"><b>Download video & MP3 dari semua platform — Web + Android native</b><br>
-TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · X/Twitter · Facebook · Threads · Vidio · Weibo · 1.700+ situs</p>
+<p align="center"><b>Download video, MP3 & gambar dari semua platform — Web + Android native</b><br>
+TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · X/Twitter · Facebook · Threads · pixiv · Vidio · Weibo · 1.700+ situs</p>
 
 <p align="center">
   <a href="https://xydl.vercel.app"><b>🌐 Buka versi web</b></a> ·
@@ -12,7 +12,7 @@ TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · X/Twitter ·
   <a href="#-cara-kerjanya">⚙️ Cara kerja</a>
 </p>
 
-<p align="center"><sub>Built with 💜 by <b>XyVerse</b></sub></p>
+<p align="center"><sub>Built in <b>XyVerse</b></sub></p>
 
 ---
 
@@ -22,6 +22,8 @@ TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · X/Twitter ·
 - **Video sampai 4K** (tergantung sumber) — video & audio yang terpisah (YouTube, Bilibili, FB DASH) digabung otomatis.
 - **MP3 320/192/128 kbps** + audio asli (M4A).
 - **Tanpa watermark** untuk TikTok & Douyin.
+- **pixiv:** ilustrasi & manga resolusi asli (semua halaman, sekaligus dalam ZIP) + ugoira otomatis jadi **MP4/GIF**.
+- **UI clean & modern:** tanpa gradasi, ikon garis (tanpa emoji), otomatis terang/gelap, **logo asli tiap platform** (ikon aplikasi resmi).
 - **Web:** tanpa install, proses merge/MP3 jalan di browser (ffmpeg.wasm + lamejs) — file tidak disimpan di server.
 - **Android native:** Kotlin + Jetpack Compose, engine Python/yt-dlp/FFmpeg jalan **langsung di HP** (paling stabil untuk YouTube), share-to-download, notifikasi progress, update engine dari aplikasi.
 
@@ -31,8 +33,9 @@ TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · X/Twitter ·
 |---|---|
 | 🇮🇩 Indonesia | Vidio (konten gratis), SnackVideo, RCTI+, Liputan6, detik, Kompas, CNN Indonesia |
 | 🇨🇳 China | **Douyin** (plugin), **Kuaishou** (plugin), Bilibili (plugin fallback), Xiaohongshu, Weibo, Youku, Tencent Video, Zhihu, AcFun, Toutiao, Xigua, NetEase Music, Huya, Douyu |
+| 🇯🇵 Jepang | **pixiv** (plugin: ilustrasi, manga, ugoira), Niconico |
 | 🇸🇬 Singapura & SEA | Likee, Bigo Live, meWATCH, Kwai, Shopee Video |
-| 🇺🇸 US | YouTube, Instagram, Facebook, X/Twitter, **Threads** (plugin), Reddit, Pinterest, Snapchat, Twitch, Vimeo, SoundCloud, LinkedIn, Bluesky, Tumblr, Rumble, Imgur, Streamable |
+| 🇺🇸 US | YouTube, Instagram, Facebook, X/Twitter, **Threads** (plugin), Reddit, Pinterest, Snapchat, Twitch, Vimeo, SoundCloud, LinkedIn, Bluesky, Tumblr, Rumble, Imgur |
 | 🌍 Global | TikTok, Dailymotion, Kick, 9GAG + semua situs lain yang didukung yt-dlp |
 
 > Daftar hasil uji nyata ada di bagian [Status & keterbatasan](#-status--keterbatasan).
@@ -88,8 +91,9 @@ api/index.py            Vercel Function (ASGI murni): /api/extract, /api/stream,
 xydl/engine.py          Normalisasi hasil yt-dlp → opsi video/audio, pilih format terbaik, bungkus link
 xydl/signer.py          Token HMAC-SHA256 (dipakai juga oleh Worker)
 xydl/platforms.py       Katalog platform per region
-plugins/yt_dlp_plugins/ Plugin extractor yt-dlp XyDownloader (dipakai web DAN Android)
-public/                 Web UI (HTML/CSS/JS murni) + vendor ffmpeg.wasm loader & lamejs
+plugins/yt_dlp_plugins/ Plugin extractor + postprocessor yt-dlp XyDownloader (dipakai web DAN Android)
+public/                 Web UI (HTML/CSS/JS murni) + logos/ (logo asli platform) + flags/ + vendor ffmpeg.wasm & lamejs
+scripts/                fetch_logos.py (ambil ikon aplikasi resmi) · sync_android.py (katalog + logo -> Android)
 worker/                 Cloudflare Worker proxy streaming
 android/                Aplikasi Android (Kotlin, Jetpack Compose, WorkManager, youtubedl-android)
 tests/                  Tes offline logika pemilihan format & token
@@ -104,6 +108,8 @@ tests/                  Tes offline logika pemilihan format & token
 | `xy:kuaishou` | Belum ada extractor | Ambil `INIT_STATE` dari halaman share mobile |
 | `xy:threads` | Belum ada extractor | Ambil JSON SSR halaman post (termasuk carousel) |
 | `xy:bilibili` | HTTP 412 dari IP tertentu | Fallback ke API resmi `x/player/playurl` (MP4 720p + DASH) |
+| `xy:pixiv` | Belum ada extractor | API ajax pixiv: gambar asli semua halaman + ugoira (ZIP frame + delay) |
+| `XyUgoiraPP` (postprocessor) | — | Di Android: ZIP frame ugoira → MP4 (H.264) dengan FFmpeg. Di web dilakukan ffmpeg.wasm |
 
 ---
 
@@ -162,10 +168,10 @@ Hasil uji nyata dari server produksi (Vercel `sin1`) — September 2026:
 
 | Status | Platform |
 |---|---|
-| ✅ Web lancar | TikTok, Instagram, Facebook, X/Twitter, Threads, Kuaishou, Weibo, Vidio (HLS), Pinterest, Bluesky, SoundCloud, Dailymotion |
+| ✅ Web lancar | TikTok, Instagram, Facebook, X/Twitter, Threads, Kuaishou, Weibo, Vidio (HLS), Pinterest, Bluesky, SoundCloud, Dailymotion, pixiv |
 | ⚠️ Web tidak stabil | Douyin (kadang ditolak dari IP cloud), Xiaohongshu (wajib link share asli ber-`xsec_token`) |
 | 📱 Pakai Android | **YouTube**, **Bilibili**, Reddit, Vimeo — memblokir semua IP cloud (Vercel/AWS & Cloudflare). Di aplikasi Android berjalan normal karena memakai IP pengguna. |
-| ❌ Tidak didukung | Konten DRM/berbayar (Vidio Premier, iQIYI VIP, Netflix, dsb) & konten privat |
+| ❌ Tidak didukung | Konten DRM/berbayar (Vidio Premier, iQIYI VIP, Netflix, dsb), konten privat, karya pixiv R-18 (butuh login) |
 
 Catatan lain:
 - Merge/MP3 di browser memakai RAM perangkat — untuk file > ±1,5 GB gunakan aplikasi Android.
@@ -178,6 +184,8 @@ Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengund
 
 ## 📜 Lisensi & kredit
 
-**GPL-3.0** (mengikuti youtubedl-android). Dibangun di atas: [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (GPL-3.0), [FFmpeg](https://ffmpeg.org) / [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm), [lamejs](https://github.com/zhuker/lamejs) (LGPL), Jetpack Compose, Cloudflare Workers, Vercel.
+**GPL-3.0** (mengikuti youtubedl-android). Dibangun di atas: [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (GPL-3.0), [FFmpeg](https://ffmpeg.org) / [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm), [lamejs](https://github.com/zhuker/lamejs) (LGPL), [flag-icons](https://github.com/lipis/flag-icons) (MIT), ikon garis gaya [Lucide](https://lucide.dev) (ISC), Jetpack Compose, Cloudflare Workers, Vercel.
 
-<p align="center"><img src="public/xyverse.svg" width="40" alt="XyVerse"><br><sub>Built with 💜 by <b>XyVerse</b></sub></p>
+**Logo platform** di `public/logos/` adalah ikon aplikasi resmi (App Store / situs resmi, lihat `scripts/fetch_logos.py`) dan merupakan merek milik pemiliknya masing-masing — dipakai hanya untuk menunjukkan kompatibilitas. Tambah platform baru: edit `xydl/platforms.py` → `python scripts/fetch_logos.py <id>` → `python scripts/sync_android.py`.
+
+<p align="center"><img src="public/xyverse.svg" width="40" alt="XyVerse"><br><sub>Built in <b>XyVerse</b></sub></p>

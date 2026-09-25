@@ -1,13 +1,16 @@
-// XyDownloader — web client (by XyVerse)
-// Semua proses berat (merge video+audio, remux HLS, konversi MP3) berjalan di browser.
+// XyDownloader — web client (Built in XyVerse)
+// Proses berat (merge video+audio, remux HLS, ugoira, konversi MP3) berjalan di browser.
 
 const API = '/api';
 const FFMPEG_CORE_BASES = [
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm',
   'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm',
 ];
-const RANGE_CHUNK = 32 * 1024 * 1024; // untuk /api/stream (tiap request < batas waktu function)
+const RANGE_CHUNK = 32 * 1024 * 1024; // untuk /api/stream (tiap request tetap di bawah batas waktu function)
 const BROWSER_LIMIT = 1.6 * 1024 * 1024 * 1024;
+const FLAGGED_REGIONS = new Set(['id', 'cn', 'jp', 'sg', 'us']);
+const STRIP = ['tiktok', 'youtube', 'instagram', 'facebook', 'twitter', 'douyin', 'bilibili', 'kuaishou',
+  'threads', 'pixiv', 'xiaohongshu', 'weibo', 'vidio', 'reddit', 'pinterest', 'soundcloud'];
 
 const $ = (s, el = document) => el.querySelector(s);
 const form = $('#form');
@@ -18,7 +21,7 @@ const detectedEl = $('#detected');
 let platformList = [];
 let busy = false;
 
-// ------------------------------------------------------------------ utils
+// ------------------------------------------------------------------ util
 function fmtBytes(n) {
   if (!n && n !== 0) return '';
   const u = ['B', 'KB', 'MB', 'GB'];
@@ -60,8 +63,41 @@ function el(tag, cls, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
+const SVGNS = 'http://www.w3.org/2000/svg';
+function icon(name, cls = 'icon') {
+  const s = document.createElementNS(SVGNS, 'svg');
+  s.setAttribute('class', cls);
+  s.setAttribute('aria-hidden', 'true');
+  const u = document.createElementNS(SVGNS, 'use');
+  u.setAttribute('href', `#i-${name}`);
+  s.append(u);
+  return s;
+}
+function btn(label, iconName, cls = 'btn btn-primary btn-sm') {
+  const b = el('button', cls);
+  b.type = 'button';
+  if (iconName) b.append(icon(iconName));
+  b.append(document.createTextNode(label));
+  return b;
+}
+function logoImg(p, cls = 'plogo') {
+  if (p && p.logo) {
+    const img = el('img', cls);
+    img.src = p.logo;
+    img.alt = '';
+    img.width = 20;
+    img.height = 20;
+    img.loading = 'lazy';
+    return img;
+  }
+  return icon('globe', `icon ${cls}`);
+}
 function mimeFor(ext) {
-  return ({ mp4: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska', mp3: 'audio/mpeg', m4a: 'audio/mp4', ts: 'video/mp2t', opus: 'audio/ogg' })[ext] || 'application/octet-stream';
+  return ({
+    mp4: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska', mp3: 'audio/mpeg', m4a: 'audio/mp4',
+    ts: 'video/mp2t', gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
+    zip: 'application/zip',
+  })[ext] || 'application/octet-stream';
 }
 function saveBlob(blob, filename) {
   const a = document.createElement('a');
@@ -99,6 +135,89 @@ async function fetchRetry(url, opts = {}, tries = 3) {
   throw last;
 }
 
+// ------------------------------------------------------------------ ZIP (baca ugoira, tulis galeri)
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8) {
+  let c = 0xffffffff;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+async function unzip(blob) {
+  const buf = await blob.arrayBuffer();
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('File ZIP rusak');
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const out = new Map();
+  const dec = new TextDecoder();
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true);
+    const csize = dv.getUint32(off + 20, true);
+    const nameLen = dv.getUint16(off + 28, true);
+    const extraLen = dv.getUint16(off + 30, true);
+    const commentLen = dv.getUint16(off + 32, true);
+    const lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(u8.subarray(off + 46, off + 46 + nameLen));
+    const start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    // slice() = salinan buffer sendiri (ffmpeg.wasm men-transfer buffer saat writeFile)
+    let data = u8.slice(start, start + csize);
+    if (method === 8) {
+      const ds = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      data = new Uint8Array(await new Response(ds).arrayBuffer());
+    } else if (method !== 0) {
+      throw new Error('Format kompresi ZIP tidak didukung');
+    }
+    out.set(name, data);
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
+}
+
+function zipStore(files) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name);
+    const crc = crc32(f.data);
+    const size = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true); lh.setUint16(10, 0, true); lh.setUint16(12, 0x21, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true);
+    lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true); ch.setUint16(12, 0, true); ch.setUint16(14, 0x21, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true);
+    ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + size;
+  }
+  const cdSize = central.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+
 // ------------------------------------------------------------------ task UI
 class Task {
   constructor(card, label) {
@@ -117,8 +236,13 @@ class Task {
     this.stage(label);
   }
   get signal() { return this.ctrl.signal; }
+  setLabel(text, iconName) {
+    this.labelEl.textContent = '';
+    if (iconName) this.labelEl.append(icon(iconName));
+    this.labelEl.append(document.createTextNode(text));
+  }
   stage(text) {
-    this.labelEl.textContent = text;
+    this.setLabel(text);
     this.pctEl.textContent = '';
     this.subEl.textContent = '';
     this.bar.classList.add('indeterminate');
@@ -130,21 +254,21 @@ class Task {
     this.pctEl.textContent = `${Math.round(p * 100)}%`;
     if (sub !== undefined) this.subEl.textContent = sub;
   }
-  finish(cls, text, sub = '') {
+  finish(cls, text, sub, iconName) {
     this.bar.classList.remove('indeterminate');
     this.el.classList.add(cls);
     $('b', this.bar).style.width = '100%';
-    this.labelEl.textContent = text;
+    this.setLabel(text, iconName);
     this.pctEl.textContent = '';
-    this.subEl.textContent = sub;
+    this.subEl.textContent = sub || '';
     this.cancelBtn.classList.add('hidden');
     this.card._task = null;
   }
-  done(text, sub) { this.finish('done', text, sub); }
-  fail(text, sub) { this.finish('error', text, sub); }
+  done(text, sub) { this.finish('done', text, sub, 'check-circle'); }
+  fail(text, sub) { this.finish('error', text, sub, 'alert'); }
 }
 
-// ------------------------------------------------------------------ fetching sources
+// ------------------------------------------------------------------ mengambil sumber
 async function readWithProgress(res, onBytes, signal) {
   const reader = res.body.getReader();
   const chunks = [];
@@ -163,13 +287,13 @@ async function readWithProgress(res, onBytes, signal) {
 async function fetchDirect(url, task, label, p0, p1, sizeHint) {
   const res = await fetchRetry(url, { signal: task.signal });
   const total = +res.headers.get('content-length') || sizeHint || 0;
-  if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader ya.');
+  if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader.');
   return readWithProgress(res, (l) => {
     task.progress(total ? p0 + (p1 - p0) * (l / total) : p0, `${label} · ${fmtBytes(l)}${total ? ' / ' + fmtBytes(total) : ''}`);
   }, task.signal);
 }
 
-// Sumber lewat server (/api/stream): diambil per-potongan dengan header Range
+// Sumber lewat server (/api/stream): diambil per potongan dengan header Range
 async function fetchRanged(url, task, label, p0, p1, sizeHint) {
   const parts = [];
   let start = 0;
@@ -179,14 +303,12 @@ async function fetchRanged(url, task, label, p0, p1, sizeHint) {
     const end = total ? Math.min(start + RANGE_CHUNK, total) - 1 : start + RANGE_CHUNK - 1;
     const res = await fetchRetry(url, { headers: { Range: `bytes=${start}-${end}` }, signal: task.signal });
     if (res.status === 200) {
-      // server tidak mendukung Range: ambil sekaligus
       const t = +res.headers.get('content-length') || total || 0;
       return readWithProgress(res, (l) => task.progress(t ? p0 + (p1 - p0) * (l / t) : p0, `${label} · ${fmtBytes(l)}`), task.signal);
     }
-    const cr = res.headers.get('content-range') || '';
-    const t = parseInt(cr.split('/')[1], 10);
+    const t = parseInt((res.headers.get('content-range') || '').split('/')[1], 10);
     if (t) total = t;
-    if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader ya.');
+    if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader.');
     const blob = await readWithProgress(res, (l) => {
       const now = loadedAll + l;
       task.progress(total ? p0 + (p1 - p0) * (now / total) : p0, `${label} · ${fmtBytes(now)}${total ? ' / ' + fmtBytes(total) : ''}`);
@@ -232,7 +354,7 @@ async function fetchHls(url, task, label, p0, p1) {
       const method = hlsAttr(line, 'METHOD');
       if (!method || method === 'NONE') key = null;
       else if (method === 'AES-128') key = { uri: new URL(hlsAttr(line, 'URI'), url).href, iv: hlsAttr(line, 'IV') };
-      else throw new Error('Video ini terenkripsi DRM/SAMPLE-AES — tidak didukung.');
+      else throw new Error('Video ini terenkripsi DRM — tidak didukung.');
     } else if (line.startsWith('#EXT-X-MAP')) {
       map = new URL(hlsAttr(line, 'URI'), url).href;
     } else if (!line.startsWith('#')) {
@@ -241,14 +363,14 @@ async function fetchHls(url, task, label, p0, p1) {
   }
   if (!segs.length) throw new Error('Playlist HLS kosong');
   const keyCache = new Map();
-  async function getKey(k) {
+  const getKey = (k) => {
     if (!keyCache.has(k.uri)) {
       keyCache.set(k.uri, fetchRetry(k.uri, { signal: task.signal })
         .then((r) => r.arrayBuffer())
         .then((raw) => crypto.subtle.importKey('raw', raw, 'AES-CBC', false, ['decrypt'])));
     }
     return keyCache.get(k.uri);
-  }
+  };
   const results = new Array(segs.length);
   let next = 0, done = 0, bytes = 0;
   const worker = async () => {
@@ -270,7 +392,7 @@ async function fetchHls(url, task, label, p0, p1) {
       results[i] = data;
       done++;
       bytes += data.length;
-      if (bytes > BROWSER_LIMIT) throw new Error('Video terlalu besar untuk diproses di browser. Pakai aplikasi Android ya.');
+      if (bytes > BROWSER_LIMIT) throw new Error('Video terlalu besar untuk diproses di browser. Pakai aplikasi Android.');
       task.progress(p0 + (p1 - p0) * (done / segs.length), `${label} · ${done}/${segs.length} segmen · ${fmtBytes(bytes)}`);
     }
   };
@@ -280,14 +402,14 @@ async function fetchHls(url, task, label, p0, p1) {
   let container = 'ts';
   if (map) container = 'mp4';
   else if (b0[0] === 0xff && (b0[1] & 0xf0) === 0xf0) container = 'aac';
-  else if (b0[0] === 0x49 && b0[1] === 0x44 && b0[2] === 0x33) container = 'aac'; // ID3 + ADTS
+  else if (b0[0] === 0x49 && b0[1] === 0x44 && b0[2] === 0x33) container = 'aac';
   return { blob: new Blob(parts), container };
 }
 
 async function probeOk(url, signal) {
   try {
     const res = await fetch(url, { headers: { Range: 'bytes=0-0' }, signal });
-    try { res.body?.cancel(); } catch { /* ignore */ }
+    try { res.body?.cancel(); } catch { /* abaikan */ }
     return res.ok || res.status === 206;
   } catch (e) {
     if (e.name === 'AbortError') throw e;
@@ -295,7 +417,6 @@ async function probeOk(url, signal) {
   }
 }
 
-// Ambil satu sumber (video / audio / av) -> {blob, container}
 async function getSource(src, task, label, p0, p1) {
   if (src.proto === 'hls') return fetchHls(src.url, task, label, p0, p1);
   if (src.via === 'server') return { blob: await fetchRanged(src.url, task, label, p0, p1, src.size), container: src.ext || 'mp4' };
@@ -346,12 +467,8 @@ function getFFmpeg(task) {
   return ffPromise;
 }
 
-// Jalankan job ffmpeg satu per satu (instance dipakai bersama)
 function withFFmpeg(task, fn) {
-  const run = ffQueue.then(async () => {
-    const ff = await getFFmpeg(task);
-    return fn(ff);
-  });
+  const run = ffQueue.then(async () => fn(await getFFmpeg(task)));
   ffQueue = run.catch(() => {});
   return run;
 }
@@ -359,8 +476,8 @@ function withFFmpeg(task, fn) {
 async function ffRun(ff, task, args, inputs, output, durationHint, label) {
   const names = [];
   try {
-    for (const [name, blob] of inputs) {
-      await ff.writeFile(name, new Uint8Array(await blob.arrayBuffer()));
+    for (const [name, data] of inputs) {
+      await ff.writeFile(name, data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : new Uint8Array(data));
       names.push(name);
     }
     const onProgress = ({ progress, time }) => {
@@ -377,7 +494,7 @@ async function ffRun(ff, task, args, inputs, output, durationHint, label) {
     names.push(output);
     return data;
   } finally {
-    for (const n of names) { try { await ff.deleteFile(n); } catch { /* ignore */ } }
+    for (const n of names) { try { await ff.deleteFile(n); } catch { /* abaikan */ } }
   }
 }
 
@@ -386,7 +503,7 @@ function inName(prefix, src) {
   return `${prefix}.${ext}`;
 }
 
-async function ffMerge(task, v, a, ext, duration) {
+function ffMerge(task, v, a, ext, duration) {
   return withFFmpeg(task, async (ff) => {
     const vn = inName('v', v), an = inName('a', a);
     const out = `out.${ext}`;
@@ -398,19 +515,19 @@ async function ffMerge(task, v, a, ext, duration) {
   });
 }
 
-async function ffRemux(task, src, ext, duration) {
+function ffRemux(task, src, ext, duration) {
   return withFFmpeg(task, async (ff) => {
     const n = inName('in', src);
     const out = `out.${ext}`;
     const args = ['-i', n, '-c', 'copy'];
-    if (ext === 'mp4') args.push('-bsf:a', 'aac_adtstoasc');
+    if (ext === 'mp4' || ext === 'm4a') args.push('-bsf:a', 'aac_adtstoasc');
     args.push(out);
-    const data = await ffRun(ff, task, args, [[n, src.blob]], out, duration, 'Mengemas ulang ke MP4…');
+    const data = await ffRun(ff, task, args, [[n, src.blob]], out, duration, 'Mengemas ulang file…');
     return new Blob([data.buffer], { type: mimeFor(ext) });
   });
 }
 
-async function ffMp3(task, src, kbps, duration) {
+function ffMp3(task, src, kbps, duration) {
   return withFFmpeg(task, async (ff) => {
     const n = inName('in', src);
     const data = await ffRun(ff, task, ['-i', n, '-vn', '-c:a', 'libmp3lame', '-b:a', `${kbps}k`, 'out.mp3'],
@@ -419,7 +536,35 @@ async function ffMp3(task, src, kbps, duration) {
   });
 }
 
-// ------------------------------------------------------------------ MP3 (lamejs, cepat untuk audio pendek)
+// Ugoira pixiv: ZIP frame + delay -> MP4 (H.264) / GIF
+async function ugoiraConvert(task, zipBlob, frames, ext) {
+  task.stage('Membuka frame ugoira…');
+  const files = await unzip(zipBlob);
+  const total = frames.reduce((a, f) => a + Math.max(f.delay || 100, 20), 0) / 1000;
+  return withFFmpeg(task, async (ff) => {
+    const inputs = [];
+    const seen = new Set();
+    for (const fr of frames) {
+      if (seen.has(fr.file) || !files.has(fr.file)) continue;
+      seen.add(fr.file);
+      inputs.push([fr.file, files.get(fr.file)]);
+    }
+    let list = 'ffconcat version 1.0\n';
+    for (const fr of frames) list += `file '${fr.file}'\nduration ${(Math.max(fr.delay || 100, 20) / 1000).toFixed(3)}\n`;
+    list += `file '${frames[frames.length - 1].file}'\n`;
+    inputs.push(['list.txt', new TextEncoder().encode(list)]);
+    const out = `out.${ext}`;
+    const src = ['-f', 'concat', '-safe', '0', '-i', 'list.txt'];
+    const args = ext === 'gif'
+      ? [...src, '-vf', 'split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-loop', '0', out]
+      : [...src, '-fps_mode', 'vfr', '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', '-c:v', 'libx264', '-preset', 'veryfast',
+        '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out];
+    const data = await ffRun(ff, task, args, inputs, out, total, ext === 'gif' ? 'Membuat GIF…' : 'Membuat video MP4…');
+    return new Blob([data.buffer], { type: mimeFor(ext) });
+  });
+}
+
+// ------------------------------------------------------------------ MP3 (lamejs untuk audio pendek)
 function lameEncode(audioBuffer, kbps, task) {
   return new Promise((resolve, reject) => {
     const w = new Worker('mp3-worker.js');
@@ -447,15 +592,15 @@ async function toMp3(task, src, kbps, duration) {
       return await lameEncode(audio, kbps, task);
     } catch (e) {
       if (e.name === 'AbortError') throw e;
-      console.warn('decodeAudioData gagal, fallback ffmpeg:', e);
+      console.warn('decodeAudioData gagal, pakai ffmpeg:', e);
     }
   }
   return ffMp3(task, src, kbps, duration);
 }
 
-// ------------------------------------------------------------------ download orchestration
+// ------------------------------------------------------------------ orkestrasi download
 async function startDownload(card, entry, opt) {
-  if (card._task) { toast('Tunggu proses sebelumnya selesai dulu ya'); return; }
+  if (card._task) { toast('Tunggu proses sebelumnya selesai dulu'); return; }
   const task = new Task(card, `Menyiapkan ${opt.label}…`);
   const duration = entry.duration;
   try {
@@ -465,7 +610,7 @@ async function startDownload(card, entry, opt) {
       task.stage('Mengecek link…');
       if (await probeOk(src.url, task.signal)) {
         navDownload(`${src.url}&dl=1`);
-        task.done('Download dimulai ✅', 'Cek notifikasi / folder Download di perangkat kamu.');
+        task.done('Download dimulai', 'Cek notifikasi atau folder Download di perangkat kamu.');
         return;
       }
       if (!src.alt) throw new Error('Link download ditolak oleh platform. Coba proses ulang link-nya.');
@@ -486,30 +631,58 @@ async function startDownload(card, entry, opt) {
         } catch (e) {
           console.warn(e);
           name = name.replace(/\.\w+$/, got.container === 'aac' ? '.aac' : '.ts');
-          toast('Gagal remux, file disimpan dalam format asli');
+          toast('Gagal mengemas ulang, file disimpan dalam format asli');
         }
       }
       saveBlob(blob, name);
     } else if (opt.mode === 'merge') {
       const [vs, as] = srcs;
-      const total = (vs.size || 0) + (as.size || 0);
-      if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader ya.');
+      if ((vs.size || 0) + (as.size || 0) > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader.');
       const v = await getSource(vs, task, 'Mengunduh video', 0, 0.82);
       const a = await getSource(as, task, 'Mengunduh audio', 0.82, 0.97);
-      const out = await ffMerge(task, v, a, opt.ext, duration);
-      saveBlob(out, opt.filename);
+      saveBlob(await ffMerge(task, v, a, opt.ext, duration), opt.filename);
     } else if (opt.mode === 'mp3') {
       const src = await getSource(srcs[0], task, 'Mengunduh audio', 0, 1);
-      const mp3 = await toMp3(task, src, opt.bitrate || 192, duration);
-      saveBlob(mp3, opt.filename);
+      saveBlob(await toMp3(task, src, opt.bitrate || 192, duration), opt.filename);
+    } else if (opt.mode === 'ugoira') {
+      const frames = (entry.ugoira || {}).frames || [];
+      if (!frames.length) throw new Error('Data frame ugoira tidak ada');
+      const zip = await getSource(srcs[0], task, 'Mengunduh frame', 0, 1);
+      saveBlob(await ugoiraConvert(task, zip.blob, frames, opt.ext), opt.filename);
     } else {
       throw new Error(`Mode tidak dikenal: ${opt.mode}`);
     }
-    task.done('Selesai! ✅', `${opt.filename} tersimpan di folder Download.`);
+    task.done('Selesai', `${opt.filename} tersimpan di folder Download.`);
   } catch (e) {
     console.error(e);
     if (e.name === 'AbortError') task.fail('Dibatalkan');
-    else task.fail('Gagal ❌', e.message || String(e));
+    else task.fail('Gagal', e.message || String(e));
+  }
+}
+
+async function downloadAllImages(card, entry) {
+  if (card._task) { toast('Tunggu proses sebelumnya selesai dulu'); return; }
+  const imgs = entry.images || [];
+  const task = new Task(card, `Mengunduh ${imgs.length} gambar…`);
+  try {
+    const files = [];
+    const used = new Set();
+    for (let i = 0; i < imgs.length; i++) {
+      const im = imgs[i];
+      const blob = await fetchDirect(im.url, task, `Gambar ${i + 1}/${imgs.length}`, i / imgs.length, (i + 1) / imgs.length, im.size);
+      let name = im.filename;
+      while (used.has(name)) name = name.replace(/(\.\w+)$/, `_${i + 1}$1`);
+      used.add(name);
+      files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+    }
+    task.stage('Membuat ZIP…');
+    const base = (entry.title || 'gambar').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 80).trim() || 'gambar';
+    saveBlob(zipStore(files), `${base}.zip`);
+    task.done('Selesai', `${files.length} gambar tersimpan dalam ${base}.zip`);
+  } catch (e) {
+    console.error(e);
+    if (e.name === 'AbortError') task.fail('Dibatalkan');
+    else task.fail('Gagal', e.message || String(e));
   }
 }
 
@@ -517,12 +690,12 @@ async function startDownload(card, entry, opt) {
 function renderSkeleton() {
   resultEl.classList.remove('hidden');
   resultEl.innerHTML = `
-    <div class="skeleton"><div class="s-thumb shimmer"></div>
-      <div class="s-lines"><div class="shimmer" style="height:14px;width:30%"></div>
-      <div class="shimmer" style="height:18px;width:90%"></div><div class="shimmer" style="height:18px;width:70%"></div>
-      <div class="shimmer" style="height:40px;margin-top:10px"></div><div class="shimmer" style="height:40px"></div></div></div>
-    <p class="loading-tip" id="tip">Membaca link & mencari semua kualitas…</p>`;
-  const tips = ['Membaca link & mencari semua kualitas…', 'Menghubungi server platform…', 'Mencari versi tanpa watermark…', 'Hampir selesai…'];
+    <div class="card loading-card"><div class="sk sk-thumb"></div>
+      <div class="sk-lines"><div class="sk" style="height:12px;width:28%"></div>
+      <div class="sk" style="height:16px;width:88%"></div><div class="sk" style="height:16px;width:64%"></div>
+      <div class="sk" style="height:40px;margin-top:10px"></div><div class="sk" style="height:40px"></div></div></div>
+    <p class="loading-tip" id="tip">Membaca link dan mencari semua kualitas…</p>`;
+  const tips = ['Membaca link dan mencari semua kualitas…', 'Menghubungi server platform…', 'Mencari versi tanpa watermark…', 'Hampir selesai…'];
   let i = 0;
   clearInterval(renderSkeleton.timer);
   renderSkeleton.timer = setInterval(() => {
@@ -538,46 +711,86 @@ function renderError(err) {
   resultEl.classList.remove('hidden');
   resultEl.innerHTML = '';
   const card = el('div', 'error-card');
-  card.append(el('h3', '', 'Waduh, gagal memproses link 😕'));
-  card.append(el('p', '', err.error || err.message || 'Terjadi kesalahan.'));
+  const h = el('h3');
+  h.append(icon('alert'), document.createTextNode('Gagal memproses link'));
+  card.append(h, el('p', '', err.error || err.message || 'Terjadi kesalahan.'));
   if (err.code === 'blocked' || err.code === 'private') {
-    const cta = el('a', 'btn-primary', '📱 Pakai aplikasi Android XyDownloader');
+    const cta = el('a', 'btn btn-secondary btn-sm');
     cta.href = '#android';
-    cta.style.marginTop = '12px';
+    cta.append(icon('phone'), document.createTextNode('Pakai aplikasi Android'));
     card.append(cta);
   }
   if (err.detail) {
     const d = el('details');
-    d.append(el('summary', '', 'Detail teknis'));
-    d.append(el('div', '', err.detail));
+    d.append(el('summary', '', 'Detail teknis'), el('div', '', err.detail));
     card.append(d);
   }
   resultEl.append(card);
 }
 
-function tag(text, cls = '') { return el('span', `tag ${cls}`.trim(), text); }
-
 function optionRow(card, entry, opt, isAudio) {
   const row = el('div', 'opt');
-  row.append(el('span', 'q', isAudio ? (opt.kind === 'mp3' ? 'MP3' : (opt.ext || '').toUpperCase()) : opt.label));
-  const info = el('span', 'info');
+  const main = el('div', 'opt-main');
+  const bits = [];
   if (isAudio) {
-    info.append(el('span', '', opt.kind === 'mp3' ? `${opt.bitrate} kbps` : opt.label));
+    main.append(el('span', 'q', opt.kind === 'mp3' ? 'MP3' : (opt.ext || '').toUpperCase()));
+    bits.push(opt.kind === 'mp3' ? `${opt.bitrate} kbps` : opt.label);
   } else {
-    info.append(tag(opt.ext.toUpperCase(), opt.quality >= 720 ? 'hd' : ''));
-    if (opt.codec) info.append(tag(opt.codec));
-    if (opt.no_audio) info.append(tag('tanpa audio', 'warn'));
+    main.append(el('span', 'q', opt.label));
+    bits.push((opt.ext || '').toUpperCase());
+    if (opt.codec) bits.push(opt.codec);
   }
-  if (opt.size) info.append(el('span', '', `${opt.mode === 'mp3' ? '±' : ''}${fmtBytes(opt.size)}`));
-  if (opt.mode === 'merge') info.append(tag('merge di browser'));
-  if (opt.mode === 'hls') info.append(tag('HLS'));
-  if ((opt.sources || []).some((s) => s.via === 'server')) info.append(tag('jalur server'));
-  row.append(info);
-  const btn = el('button', 'btn-primary dl', '⬇ Download');
-  btn.type = 'button';
-  btn.onclick = () => startDownload(card, entry, opt);
-  row.append(btn);
+  if (opt.size) bits.push(`${opt.mode === 'mp3' ? '±' : ''}${fmtBytes(opt.size)}`);
+  main.append(el('span', 'desc', bits.join(' · ')));
+  row.append(main);
+  const badges = [];
+  if (opt.no_audio) badges.push(['Tanpa audio', '']);
+  if (opt.mode === 'merge') badges.push(['Merge di browser', 'accent']);
+  if (opt.mode === 'ugoira') badges.push(['Animasi', 'accent']);
+  if ((opt.sources || []).some((s) => s.via === 'server')) badges.push(['Jalur server', '']);
+  for (const [text, cls] of badges) row.append(el('span', `badge ${cls}`.trim(), text));
+  const b = btn('Download', 'download');
+  b.onclick = () => startDownload(card, entry, opt);
+  row.append(b);
   return row;
+}
+
+function renderImages(card, entry, panel) {
+  const imgs = entry.images || [];
+  const head = el('div', 'gallery-head');
+  head.append(el('span', 'muted small', `${imgs.length} gambar · resolusi asli`));
+  if (imgs.length > 1) {
+    const all = btn(`Download semua (ZIP)`, 'archive');
+    all.onclick = () => downloadAllImages(card, entry);
+    head.append(all);
+  }
+  panel.append(head);
+  const grid = el('div', 'gallery');
+  imgs.forEach((im, i) => {
+    const fig = el('figure', 'gimg');
+    const ph = el('div', 'ph');
+    if (im.thumb) {
+      const img = el('img');
+      img.src = im.thumb;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.onerror = () => img.remove();
+      ph.append(img);
+    }
+    fig.append(ph);
+    const cap = el('figcaption');
+    const dims = im.width && im.height ? `${im.width}×${im.height}` : '';
+    cap.append(el('span', '', [imgs.length > 1 ? `p${i + 1}` : '', dims, (im.ext || '').toUpperCase()].filter(Boolean).join(' · ')));
+    const dl = el('button', 'icon-btn');
+    dl.type = 'button';
+    dl.title = 'Download';
+    dl.append(icon('download'));
+    dl.onclick = () => { navDownload(`${im.url}&dl=1`); toast('Download gambar dimulai'); };
+    cap.append(dl);
+    fig.append(cap);
+    grid.append(fig);
+  });
+  panel.append(grid);
 }
 
 function renderResult(data) {
@@ -590,57 +803,58 @@ function renderResult(data) {
     const img = $('.thumb img', card);
     if (entry.thumbnail) {
       img.src = entry.thumbnail;
-      img.onerror = () => { img.remove(); };
+      img.onerror = () => img.remove();
     } else img.remove();
-    $('.dur', card).textContent = fmtDur(entry.duration);
-    const badge = $('.badge', card);
+    $('.dur', card).textContent = entry.ugoira ? '' : fmtDur(entry.duration);
+    const pf = $('.platform', card);
     const p = data.platform || {};
-    const dot = el('i');
-    dot.style.background = p.color || '#8b5cf6';
-    badge.append(dot, document.createTextNode(p.name || entry.extractor || 'Web'));
-    if (data.count > 1) badge.append(document.createTextNode(` · ${idx + 1}/${data.count}`));
+    pf.append(logoImg(p), document.createTextNode(p.name || entry.extractor || 'Web'));
+    if (data.count > 1) pf.append(el('span', 'count', `${idx + 1} / ${data.count}`));
     $('.title', card).textContent = entry.title || 'Tanpa judul';
     $('.uploader', card).textContent = entry.uploader ? `oleh ${entry.uploader}` : '';
 
-    const vp = $('[data-panel="video"]', card);
-    const ap = $('[data-panel="audio"]', card);
-    if (entry.video.length) entry.video.forEach((o) => vp.append(optionRow(card, entry, o, false)));
-    else vp.append(el('p', 'empty', 'Tidak ada video di postingan ini — cek tab Audio.'));
-    if (entry.audio.length) entry.audio.forEach((o) => ap.append(optionRow(card, entry, o, true)));
-    else ap.append(el('p', 'empty', 'Audio terpisah tidak tersedia untuk konten ini.'));
+    const panels = { video: $('[data-panel="video"]', card), audio: $('[data-panel="audio"]', card), images: $('[data-panel="images"]', card) };
+    entry.video.forEach((o) => panels.video.append(optionRow(card, entry, o, false)));
+    entry.audio.forEach((o) => panels.audio.append(optionRow(card, entry, o, true)));
+    if ((entry.images || []).length) renderImages(card, entry, panels.images);
 
+    const available = {
+      video: entry.video.length > 0,
+      audio: entry.audio.length > 0,
+      images: (entry.images || []).length > 0,
+    };
     const tabs = card.querySelectorAll('.tab');
     tabs.forEach((t) => {
+      if (!available[t.dataset.tab]) t.classList.add('hidden');
       t.onclick = () => {
         tabs.forEach((x) => x.classList.toggle('active', x === t));
-        vp.classList.toggle('hidden', t.dataset.tab !== 'video');
-        ap.classList.toggle('hidden', t.dataset.tab !== 'audio');
+        Object.entries(panels).forEach(([k, pnl]) => pnl.classList.toggle('hidden', k !== t.dataset.tab));
       };
     });
-    if (!entry.video.length && entry.audio.length) tabs[1].click();
+    const first = ['video', 'images', 'audio'].find((k) => available[k]) || 'video';
+    card.querySelector(`.tab[data-tab="${first}"]`).click();
+    if (Object.values(available).filter(Boolean).length < 2) $('.tabs', card).classList.add('hidden');
     resultEl.append(card);
   });
-  if (entryHasServer(data)) toast('Konten ini diproses lewat jalur server — bisa sedikit lebih lambat.');
+  if (data.entries.some((e) => [...e.video, ...e.audio].some((o) => (o.sources || []).some((s) => s.via === 'server')))) {
+    toast('Konten ini diproses lewat jalur server — bisa sedikit lebih lambat.');
+  }
   resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function entryHasServer(data) {
-  return data.entries.some((e) => [...e.video, ...e.audio].some((o) => (o.sources || []).some((s) => s.via === 'server')));
-}
-
-// ------------------------------------------------------------------ extract flow
+// ------------------------------------------------------------------ alur proses link
 function setBusy(v) {
   busy = v;
   goBtn.disabled = v;
   $('.spinner', goBtn).classList.toggle('hidden', !v);
-  $('.go-text', goBtn).textContent = v ? 'Memproses…' : 'Proses';
+  $('.go-text', goBtn).textContent = v ? 'Memproses' : 'Proses';
 }
 
 async function processLink(text) {
   if (busy) return;
   const url = findUrl(text);
   if (!url) {
-    toast('Tempel link yang valid dulu ya (diawali https://)');
+    toast('Tempel link yang valid dulu (diawali https://)');
     input.focus();
     return;
   }
@@ -660,7 +874,7 @@ async function processLink(text) {
     if (!data.ok) throw data;
     renderResult(data);
   } catch (e) {
-    if (e && e.name === 'AbortError') renderError({ error: 'Kelamaan menunggu respon server. Coba lagi ya.' });
+    if (e && e.name === 'AbortError') renderError({ error: 'Kelamaan menunggu respon server. Coba lagi.' });
     else renderError(e || {});
   } finally {
     clearTimeout(timer);
@@ -675,15 +889,29 @@ function updateDetected() {
   if (!url) return;
   const p = detectPlatform(url);
   if (p) {
-    const chip = el('span', 'chip');
-    const dot = el('i');
-    dot.style.background = p.color;
-    chip.append(dot, document.createTextNode(p.name));
-    detectedEl.append(document.createTextNode('Terdeteksi:'), chip);
-    if (p.note) detectedEl.append(el('span', 'muted small', `  ${p.note}`));
+    const pill = el('span', 'pill');
+    pill.append(logoImg(p), document.createTextNode(p.name));
+    detectedEl.append(pill);
+    if (p.note) detectedEl.append(el('span', 'small', p.note));
   } else {
-    detectedEl.textContent = 'Situs lain — tetap dicoba dengan engine universal 🌍';
+    const pill = el('span', 'pill');
+    pill.append(icon('globe', 'icon plogo'), document.createTextNode('Situs lain — dicoba dengan engine universal'));
+    detectedEl.append(pill);
   }
+}
+
+function regionHead(r) {
+  const h = el('div', 'region-head');
+  if (FLAGGED_REGIONS.has(r.id)) {
+    const f = el('img', 'flag');
+    f.src = `flags/${r.id}.svg`;
+    f.alt = '';
+    h.append(f);
+  } else {
+    h.append(icon('globe', 'icon globe'));
+  }
+  h.append(document.createTextNode(r.name), el('small', '', `${r.platforms.length} platform`));
+  return h;
 }
 
 async function loadPlatforms() {
@@ -694,21 +922,30 @@ async function loadPlatforms() {
     platformList = [];
     for (const r of data.regions) {
       platformList.push(...r.platforms);
-      const box = el('div', 'region');
-      const h = el('h3');
-      h.append(document.createTextNode(`${r.flag} ${r.name} `), el('small', '', `(${r.platforms.length})`));
-      box.append(h);
+      const box = el('div', 'card region');
+      box.append(regionHead(r));
       const chips = el('div', 'chips');
       for (const p of r.platforms) {
         const c = el('span', 'chip');
-        const dot = el('i');
-        dot.style.background = p.color;
-        c.append(dot, document.createTextNode(p.name));
+        c.append(logoImg(p), document.createTextNode(p.name));
         if (p.note) c.title = p.note;
         chips.append(c);
       }
       box.append(chips);
       wrap.append(box);
+    }
+    const strip = $('#strip');
+    strip.innerHTML = '';
+    for (const id of STRIP) {
+      const p = platformList.find((x) => x.id === id);
+      if (!p) continue;
+      const img = el('img');
+      img.src = p.logo;
+      img.alt = p.name;
+      img.title = p.name;
+      img.width = 28;
+      img.height = 28;
+      strip.append(img);
     }
     updateDetected();
   } catch (e) {
@@ -716,7 +953,7 @@ async function loadPlatforms() {
   }
 }
 
-// ------------------------------------------------------------------ events
+// ------------------------------------------------------------------ event
 form.addEventListener('submit', (e) => { e.preventDefault(); processLink(input.value); });
 input.addEventListener('input', updateDetected);
 input.addEventListener('paste', () => setTimeout(() => {
@@ -748,17 +985,22 @@ loadPlatforms().then(() => {
   }
 });
 
-// Link APK terbaru langsung dari GitHub Releases (kalau API bisa diakses)
+// Link APK terbaru langsung dari GitHub Releases
 fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest')
   .then((r) => (r.ok ? r.json() : null))
   .then((rel) => {
     if (!rel || !rel.assets) return;
     const apk = rel.assets.find((a) => /arm64-v8a.*\.apk$/i.test(a.name)) || rel.assets.find((a) => /\.apk$/i.test(a.name));
-    if (apk) {
-      const link = $('#apk-link');
-      link.href = apk.browser_download_url;
-      link.textContent = `⬇️ Download APK ${rel.tag_name} (${fmtBytes(apk.size)})`;
-      $('#apk-hint').innerHTML = `Versi untuk kebanyakan HP (arm64). <a href="${rel.html_url}" target="_blank" rel="noopener">Lihat semua versi</a> (armeabi-v7a untuk HP lama, x86_64 untuk emulator).`;
-    }
+    if (!apk) return;
+    const link = $('#apk-link');
+    link.href = apk.browser_download_url;
+    $('span', link).textContent = `Download APK ${rel.tag_name} · ${fmtBytes(apk.size)}`;
+    const hint = $('#apk-hint');
+    hint.textContent = 'Versi untuk kebanyakan HP (arm64). ';
+    const all = el('a', '', 'Lihat semua versi');
+    all.href = rel.html_url;
+    all.target = '_blank';
+    all.rel = 'noopener';
+    hint.append(all, document.createTextNode(' — armeabi-v7a untuk HP lama, x86_64 untuk emulator.'));
   })
   .catch(() => {});

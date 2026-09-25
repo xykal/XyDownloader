@@ -1,6 +1,5 @@
 <resources>
-    <color name="xy_bg">#FF0B0D17</color>
-    <color name="xy_primary">#FF8B5CF6</color>
-    <color name="xy_secondary">#FF06B6D4</color>
-    <color name="ic_launcher_background">#FF6D5DF6</color>
+    <color name="xy_bg">#FFFFFFFF</color>
+    <color name="xy_primary">#FF6D4AFF</color>
+    <color name="ic_launcher_background">#FF6D4AFF</color>
 </resources>

@@ -20,6 +20,10 @@ data class MediaInfo(
     val videoOptions: List<VideoOption>,
     val hasAudio: Boolean,
     val entries: List<EntryInfo> = emptyList(),
+    /** Halaman gambar (mis. ilustrasi/manga pixiv). */
+    val images: List<EntryInfo> = emptyList(),
+    /** Ugoira pixiv (animasi) -> dikonversi ke MP4 oleh plugin XyUgoiraPP. */
+    val isUgoira: Boolean = false,
 )
 
 /** Parser JSON output yt-dlp (--dump-single-json) memakai org.json bawaan Android. */
@@ -37,6 +41,22 @@ object InfoParser {
             }
             val first = entriesArr.optJSONObject(0)
             if (entries.size == 1 && first != null) return single(first, sourceUrl, platform)
+            val allImages = entries.isNotEmpty() && (0 until entriesArr.length()).all {
+                entriesArr.optJSONObject(it)?.optBoolean("xy_image", false) == true
+            }
+            if (allImages) {
+                return MediaInfo(
+                    sourceUrl = sourceUrl,
+                    title = json.optStr("title") ?: first?.optStr("title") ?: "Gambar",
+                    uploader = json.optStr("uploader") ?: first?.optStr("uploader"),
+                    thumbnail = thumbnailOf(json) ?: first?.let { thumbnailOf(it) },
+                    duration = null,
+                    platform = platform,
+                    videoOptions = emptyList(),
+                    hasAudio = false,
+                    images = entries,
+                )
+            }
             return MediaInfo(
                 sourceUrl = sourceUrl,
                 title = json.optStr("title") ?: first?.optStr("title") ?: "Playlist",
@@ -53,6 +73,22 @@ object InfoParser {
     }
 
     private fun single(json: JSONObject, sourceUrl: String, platform: String): MediaInfo {
+        val title = json.optStr("title") ?: json.optStr("id") ?: "Video"
+        if (json.optBoolean("xy_image", false) || json.has("xy_ugoira")) {
+            val ugoira = json.has("xy_ugoira")
+            return MediaInfo(
+                sourceUrl = sourceUrl,
+                title = title,
+                uploader = json.optStr("uploader"),
+                thumbnail = thumbnailOf(json),
+                duration = if (ugoira) json.optDur() else null,
+                platform = platform,
+                videoOptions = emptyList(),
+                hasAudio = false,
+                images = if (ugoira) emptyList() else listOf(EntryInfo(1, title, thumbnailOf(json), null)),
+                isUgoira = ugoira,
+            )
+        }
         val formats = json.optJSONArray("formats")
         var hasAudio = false
         if (formats != null) {
@@ -63,7 +99,7 @@ object InfoParser {
         } else hasAudio = true
         return MediaInfo(
             sourceUrl = sourceUrl,
-            title = json.optStr("title") ?: json.optStr("id") ?: "Video",
+            title = title,
             uploader = json.optStr("uploader") ?: json.optStr("channel") ?: json.optStr("uploader_id"),
             thumbnail = thumbnailOf(json),
             duration = json.optDur(),

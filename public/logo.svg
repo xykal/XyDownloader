@@ -1,12 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="XyDownloader">
-  <defs>
-    <linearGradient id="xg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8B5CF6"/>
-      <stop offset="0.55" stop-color="#6366F1"/>
-      <stop offset="1" stop-color="#06B6D4"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#xg)"/>
-  <path d="M32 13v25M21 28l11 11 11-11" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="16" y="45" width="32" height="6" rx="3" fill="#fff"/>
+  <rect width="64" height="64" rx="16" fill="#6D4AFF"/>
+  <path d="M32 15v23M22 29l10 10 10-10" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="18" y="45" width="28" height="5.5" rx="2.75" fill="#fff"/>
 </svg>

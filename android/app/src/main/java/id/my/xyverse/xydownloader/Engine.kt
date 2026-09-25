@@ -90,7 +90,7 @@ object Engine {
             ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
             when (status) {
-                YoutubeDL.UpdateStatus.DONE -> "Engine diperbarui ke ${version(ctx) ?: "versi terbaru"} ✅"
+                YoutubeDL.UpdateStatus.DONE -> "Engine diperbarui ke ${version(ctx) ?: "versi terbaru"}"
                 YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "Engine sudah versi terbaru (${version(ctx) ?: "-"})"
                 else -> "Update selesai"
             }
@@ -162,8 +162,16 @@ object Engine {
         req.addOption("--no-mtime")
         req.addOption("--newline")
         req.addOption("--concurrent-fragments", 4)
-        if (item > 0) req.addOption("--playlist-items", item) else req.addOption("--no-playlist")
+        when {
+            item > 0 -> req.addOption("--playlist-items", item)
+            kind == "images" -> req.addOption("--yes-playlist")
+            else -> req.addOption("--no-playlist")
+        }
         when (kind) {
+            // gambar (pixiv dll): format default = file asli, semua halaman
+            "images" -> Unit
+            // ugoira pixiv: unduh ZIP frame lalu plugin XyUgoiraPP mengubahnya jadi MP4
+            "ugoira" -> req.addOption("--use-postprocessor", "XyUgoira")
             "mp3" -> {
                 req.addOption("-f", "ba/b")
                 req.addOption("-x")
@@ -188,12 +196,17 @@ object Engine {
         return req
     }
 
-    /** Cari file hasil (file terbesar yang bukan sisa proses). */
-    fun findOutput(dir: File): File? {
-        val skip = setOf("part", "ytdl", "json", "jpg", "jpeg", "png", "webp", "temp", "tmp", "vtt", "srt")
-        return dir.walkTopDown()
-            .filter { it.isFile && it.extension.lowercase(Locale.ROOT) !in skip && !it.name.contains(".part") }
-            .maxByOrNull { it.length() }
+    /** Cari file hasil. Gambar: semua file; selain itu: file terbesar yang bukan sisa proses. */
+    fun findOutputs(dir: File, kind: String): List<File> {
+        val temp = setOf("part", "ytdl", "json", "temp", "tmp", "vtt", "srt", "bin")
+        val files = dir.walkTopDown()
+            .filter { it.isFile && it.extension.lowercase(Locale.ROOT) !in temp && !it.name.contains(".part") }
+            .toList()
+        if (kind == "images") return files.sortedBy { it.name }
+        val images = setOf("jpg", "jpeg", "png", "webp")
+        val main = files.filter { it.extension.lowercase(Locale.ROOT) !in images }.maxByOrNull { it.length() }
+            ?: files.maxByOrNull { it.length() }
+        return listOfNotNull(main)
     }
 
     fun mimeOf(name: String): String = when (name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
@@ -209,6 +222,10 @@ object Engine {
         "opus", "ogg" -> "audio/ogg"
         "flac" -> "audio/flac"
         "wav" -> "audio/wav"
+        "png" -> "image/png"
+        "jpg", "jpeg" -> "image/jpeg"
+        "gif" -> "image/gif"
+        "webp" -> "image/webp"
         else -> "application/octet-stream"
     }
 

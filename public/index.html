@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>XyDownloader — Download Video & MP3 dari Semua Platform</title>
-  <meta name="description" content="Download video & MP3 dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X/Twitter, Facebook, Threads, Vidio dan 1.700+ situs lain. Gratis, tanpa watermark, tanpa login. Built by XyVerse.">
-  <meta name="theme-color" content="#0b0d17">
+  <title>XyDownloader — Download video, audio & gambar dari semua platform</title>
+  <meta name="description" content="Download video, MP3 & gambar dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, Pixiv, Vidio dan 1.700+ situs lain. Gratis, tanpa watermark, tanpa login. Built in XyVerse.">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b">
   <meta property="og:title" content="XyDownloader — Semua platform, satu tempat">
-  <meta property="og:description" content="Download video & MP3 dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou & 1.700+ situs lain.">
+  <meta property="og:description" content="Download video, MP3 & gambar dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, Pixiv & 1.700+ situs lain.">
   <meta property="og:type" content="website">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -15,138 +16,190 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="glow glow-a"></div>
-  <div class="glow glow-b"></div>
+  <!-- Ikon garis (gaya Lucide, ISC) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.22 3.48a.5.5 0 0 0 .78-.42V7.87a.5.5 0 0 0-.75-.43L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  </svg>
 
   <header class="nav">
-    <a class="brand" href="/">
-      <img src="logo.svg" alt="" width="34" height="34">
-      <span class="brand-text">
-        <b>XyDownloader</b>
-        <small>by XyVerse</small>
-      </span>
-    </a>
-    <nav>
-      <a href="#platforms">Platform</a>
-      <a href="#how">Cara kerja</a>
-      <a href="#android" class="nav-cta">📱 App Android</a>
-    </nav>
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <img src="logo.svg" alt="" width="28" height="28">
+        <span>XyDownloader</span>
+      </a>
+      <nav>
+        <a href="#platforms">Platform</a>
+        <a href="#how">Cara kerja</a>
+        <a href="#faq">FAQ</a>
+        <a class="btn btn-secondary btn-sm" href="#android"><svg class="icon"><use href="#i-phone"/></svg>Android</a>
+      </nav>
+    </div>
   </header>
 
   <main>
-    <section class="hero">
-      <span class="pill">✨ Gratis · Tanpa watermark · Tanpa login</span>
-      <h1>Download video &amp; MP3 dari <span class="grad">semua platform</span></h1>
-      <p class="sub">TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, Vidio &amp; <b>1.700+</b> situs lain — Indonesia 🇮🇩, China 🇨🇳, Singapura 🇸🇬, US 🇺🇸 dan seluruh dunia.</p>
+    <section class="hero container">
+      <p class="eyebrow">Gratis · Tanpa watermark · Tanpa login</p>
+      <h1>Download video, audio &amp; gambar dari <span class="accent">semua platform</span></h1>
+      <p class="lead">TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, Pixiv, Vidio dan 1.700+ situs lain.</p>
 
-      <form id="form" class="searchbox" autocomplete="off">
-        <div class="input-wrap">
-          <svg class="i-link" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <input id="url" name="url" type="text" inputmode="url" placeholder="Tempel link video / postingan di sini…" spellcheck="false" enterkeyhint="go">
-          <button type="button" id="clear" class="icon-btn hidden" aria-label="Hapus">✕</button>
-          <button type="button" id="paste" class="btn-ghost">📋 Tempel</button>
+      <form id="form" class="search" autocomplete="off">
+        <div class="field">
+          <svg class="icon field-icon"><use href="#i-link"/></svg>
+          <input id="url" name="url" type="text" inputmode="url" placeholder="Tempel link video, postingan, atau karya…" spellcheck="false" enterkeyhint="go" aria-label="Link">
+          <button type="button" id="clear" class="icon-btn hidden" aria-label="Hapus"><svg class="icon"><use href="#i-x"/></svg></button>
+          <button type="button" id="paste" class="btn btn-ghost btn-sm"><svg class="icon"><use href="#i-clipboard"/></svg><span>Tempel</span></button>
         </div>
-        <button type="submit" id="go" class="btn-primary">
-          <span class="go-text">Proses</span>
+        <button type="submit" id="go" class="btn btn-primary btn-lg">
           <span class="spinner hidden" aria-hidden="true"></span>
+          <span class="go-text">Proses</span>
         </button>
       </form>
       <div id="detected" class="detected" aria-live="polite"></div>
+      <div id="strip" class="logo-strip" aria-hidden="true"></div>
     </section>
 
-    <section id="result" class="result hidden" aria-live="polite"></section>
+    <section id="result" class="container result hidden" aria-live="polite"></section>
 
-    <section id="platforms" class="section">
-      <h2>Platform yang didukung</h2>
-      <p class="muted">Daftar unggulan per negara. Link dari situs lain tetap bisa dicoba — engine mendukung 1.700+ situs.</p>
-      <div id="regions" class="regions"><div class="skeleton-line"></div><div class="skeleton-line"></div></div>
-    </section>
-
-    <section id="how" class="section">
-      <h2>Cara kerja</h2>
-      <div class="steps">
-        <div class="step"><span>1</span><h3>Salin link</h3><p>Buka aplikasinya (TikTok, IG, Douyin, dll) → <b>Bagikan</b> → <b>Salin link</b>.</p></div>
-        <div class="step"><span>2</span><h3>Tempel &amp; proses</h3><p>Server kami (Python + yt-dlp) membaca link dan mencari semua kualitas yang tersedia.</p></div>
-        <div class="step"><span>3</span><h3>Pilih &amp; download</h3><p>Pilih video (sampai 4K) atau MP3. Penggabungan video+audio &amp; konversi MP3 dilakukan <b>langsung di browser kamu</b>.</p></div>
+    <section id="platforms" class="container section">
+      <div class="section-head">
+        <h2>Platform yang didukung</h2>
+        <p class="muted">Daftar unggulan per negara. Link dari situs lain tetap bisa dicoba — engine mendukung 1.700+ situs.</p>
       </div>
-      <details class="tech">
-        <summary>Detail teknis (buat yang penasaran)</summary>
+      <div id="regions" class="regions">
+        <div class="skeleton" style="height:120px"></div>
+        <div class="skeleton" style="height:120px"></div>
+      </div>
+    </section>
+
+    <section id="how" class="container section">
+      <div class="section-head">
+        <h2>Cara kerja</h2>
+        <p class="muted">Tiga langkah, tanpa daftar akun.</p>
+      </div>
+      <div class="steps">
+        <div class="card step">
+          <span class="step-icon"><svg class="icon"><use href="#i-clipboard"/></svg></span>
+          <h3>Salin link</h3>
+          <p>Buka aplikasinya, tekan <b>Bagikan</b> lalu <b>Salin link</b>. Teks share lengkap juga boleh ditempel.</p>
+        </div>
+        <div class="card step">
+          <span class="step-icon"><svg class="icon"><use href="#i-zap"/></svg></span>
+          <h3>Proses</h3>
+          <p>Server (Python + yt-dlp) membaca link dan mencari semua kualitas video, audio, atau gambar yang tersedia.</p>
+        </div>
+        <div class="card step">
+          <span class="step-icon"><svg class="icon"><use href="#i-download"/></svg></span>
+          <h3>Download</h3>
+          <p>Pilih kualitas. Penggabungan video + audio dan konversi MP3 berjalan langsung di browser kamu.</p>
+        </div>
+      </div>
+      <details class="card tech">
+        <summary><svg class="icon"><use href="#i-cpu"/></svg>Detail teknis<svg class="icon chev"><use href="#i-chevron"/></svg></summary>
         <ul>
-          <li><b>Extractor:</b> Python + <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp</a> + plugin XyDownloader (Douyin, Kuaishou, Threads) di Vercel Functions.</li>
-          <li><b>Proxy streaming:</b> Cloudflare Worker (link bertanda tangan HMAC, dukung resume/Range, tanpa batas ukuran).</li>
-          <li><b>Merge &amp; MP3:</b> ffmpeg.wasm + lamejs di browser — file kamu tidak disimpan di server mana pun.</li>
-          <li><b>Android:</b> Kotlin + Jetpack Compose + youtubedl-android (Python, yt-dlp, FFmpeg jalan langsung di HP).</li>
+          <li><b>Extractor:</b> Python + <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp</a> + plugin XyDownloader (Douyin, Kuaishou, Threads, Bilibili, pixiv) di Vercel Functions.</li>
+          <li><b>Proxy streaming:</b> Cloudflare Worker dengan link bertanda tangan HMAC, dukung resume, tanpa batas ukuran.</li>
+          <li><b>Merge, ugoira &amp; MP3:</b> ffmpeg.wasm + lamejs di browser — file tidak disimpan di server mana pun.</li>
+          <li><b>Android:</b> Kotlin + Jetpack Compose + youtubedl-android (Python, yt-dlp &amp; FFmpeg jalan di HP).</li>
         </ul>
       </details>
     </section>
 
-    <section id="android" class="section android">
-      <div class="android-text">
-        <h2>📱 XyDownloader untuk Android</h2>
-        <p>Engine lengkap jalan <b>langsung di HP kamu</b> — lebih stabil untuk YouTube &amp; platform yang suka blokir server. Share link dari aplikasi mana pun → langsung download. Tersimpan di <code>Download/XyDownloader</code>.</p>
-        <ul class="checks">
-          <li>Share-to-download dari TikTok, IG, YouTube, dll</li>
-          <li>Video sampai 4K + MP3 320 kbps</li>
-          <li>Engine yt-dlp bisa di-update dari dalam aplikasi</li>
-        </ul>
-        <div class="android-actions">
-          <a id="apk-link" class="btn-primary" href="https://github.com/xykal/XyDownloader/releases/latest" target="_blank" rel="noopener">⬇️ Download APK</a>
-          <a class="btn-ghost" href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener">Source code (GitHub)</a>
+    <section id="android" class="container section">
+      <div class="card android">
+        <div class="android-text">
+          <span class="chip-label"><svg class="icon"><use href="#i-phone"/></svg>Aplikasi Android</span>
+          <h2>Engine lengkap, langsung di HP kamu</h2>
+          <p class="muted">Lebih stabil untuk YouTube dan platform yang memblokir server cloud. Bagikan link dari aplikasi mana pun ke XyDownloader, file tersimpan di <code>Download/XyDownloader</code>.</p>
+          <ul class="checks">
+            <li><svg class="icon"><use href="#i-check"/></svg>Share-to-download dari TikTok, Instagram, YouTube, dll</li>
+            <li><svg class="icon"><use href="#i-check"/></svg>Video sampai 4K, MP3 320 kbps, gambar pixiv resolusi asli</li>
+            <li><svg class="icon"><use href="#i-check"/></svg>Engine yt-dlp bisa diperbarui dari dalam aplikasi</li>
+          </ul>
+          <div class="actions">
+            <a id="apk-link" class="btn btn-primary" href="https://github.com/xykal/XyDownloader/releases/latest" target="_blank" rel="noopener"><svg class="icon"><use href="#i-download"/></svg><span>Download APK</span></a>
+            <a class="btn btn-secondary" href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>Source code</a>
+          </div>
+          <p class="muted small" id="apk-hint">Pilih file <b>arm64-v8a</b> untuk kebanyakan HP (2017 ke atas).</p>
         </div>
-        <p class="muted small" id="apk-hint">Pilih file <b>arm64-v8a</b> untuk kebanyakan HP (2017 ke atas).</p>
-      </div>
-      <div class="phone" aria-hidden="true">
-        <div class="phone-screen">
-          <div class="ph-bar"></div>
-          <div class="ph-card"><div class="ph-thumb"></div><div class="ph-lines"><i></i><i></i></div></div>
-          <div class="ph-btn">1080p · MP4</div>
-          <div class="ph-btn alt">MP3 · 320 kbps</div>
-          <div class="ph-prog"><b></b></div>
+        <div class="phone" aria-hidden="true">
+          <div class="phone-screen">
+            <div class="ph-row"><img src="logos/tiktok.webp" alt=""><i></i></div>
+            <div class="ph-thumb"></div>
+            <div class="ph-line"></div>
+            <div class="ph-line short"></div>
+            <div class="ph-btn">1080p · MP4</div>
+            <div class="ph-btn alt">MP3 · 320 kbps</div>
+            <div class="ph-prog"><b></b></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="faq" class="section">
-      <h2>FAQ</h2>
-      <details><summary>Gratis? Ada batasan?</summary><p>Gratis. Supaya adil, ada batas wajar permintaan per menit per pengguna.</p></details>
-      <details><summary>Kenapa YouTube kadang gagal di web?</summary><p>YouTube mengunci link download ke alamat IP server dan sering menahan server cloud (anti-bot). Web tetap mencoba lewat jalur server; untuk hasil paling stabil pakai aplikasi Android.</p></details>
-      <details><summary>Bisa download konten privat / premium?</summary><p>Tidak. XyDownloader hanya mengambil konten <b>publik</b>. Konten berbayar/DRM (misalnya Vidio Premier, iQIYI VIP) tidak didukung.</p></details>
-      <details><summary>File disimpan di server?</summary><p>Tidak. Server hanya membaca info link. File mengalir langsung dari CDN platform ke perangkat kamu lewat proxy streaming, dan proses merge/MP3 berjalan di browser.</p></details>
-      <details><summary>Link Douyin/Xiaohongshu tidak bisa?</summary><p>Pakai link share asli dari aplikasinya (mis. <code>v.douyin.com/…</code> atau <code>xhslink.com/…</code>). Teks share lengkap juga boleh langsung ditempel — link-nya diambil otomatis.</p></details>
+    <section id="faq" class="container section">
+      <div class="section-head"><h2>FAQ</h2></div>
+      <div class="faq">
+        <details class="card"><summary>Gratis? Ada batasan?<svg class="icon chev"><use href="#i-chevron"/></svg></summary><p>Gratis. Supaya adil ada batas wajar jumlah permintaan per menit.</p></details>
+        <details class="card"><summary>Kenapa YouTube gagal di web?<svg class="icon chev"><use href="#i-chevron"/></svg></summary><p>YouTube, Bilibili, dan beberapa platform lain memblokir IP server cloud. Gunakan aplikasi Android — engine berjalan dari jaringan kamu sendiri sehingga jauh lebih stabil.</p></details>
+        <details class="card"><summary>Bisa download dari pixiv?<svg class="icon chev"><use href="#i-chevron"/></svg></summary><p>Bisa: ilustrasi dan manga (semua halaman, resolusi asli, sekaligus dalam ZIP) serta ugoira yang otomatis dijadikan MP4 atau GIF. Karya R-18 butuh login pixiv sehingga tidak didukung.</p></details>
+        <details class="card"><summary>Konten privat atau premium?<svg class="icon chev"><use href="#i-chevron"/></svg></summary><p>Tidak didukung. XyDownloader hanya mengambil konten publik; konten berbayar/DRM tidak bisa diunduh.</p></details>
+        <details class="card"><summary>Apakah file disimpan di server?<svg class="icon chev"><use href="#i-chevron"/></svg></summary><p>Tidak. Server hanya membaca info link. File mengalir langsung dari CDN platform ke perangkat kamu, dan proses merge/MP3 berjalan di browser.</p></details>
+      </div>
     </section>
   </main>
 
   <footer class="footer">
-    <div class="built">
-      <img src="xyverse.svg" alt="XyVerse" width="28" height="28">
-      <span>Built with 💜 by <b>XyVerse</b></span>
+    <div class="container footer-inner">
+      <div class="built">
+        <img src="xyverse.svg" alt="XyVerse" width="22" height="22">
+        <span>Built in <b>XyVerse</b></span>
+      </div>
+      <p class="muted small">Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengunduhnya. Logo platform adalah merek milik pemiliknya masing-masing dan hanya dipakai untuk menunjukkan kompatibilitas.</p>
+      <p class="muted small"><a href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener">GitHub</a> · GPL-3.0 · Powered by yt-dlp, FFmpeg, Cloudflare &amp; Vercel</p>
     </div>
-    <p class="muted small">Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengunduhnya. Hormati hak cipta kreator. XyDownloader tidak berafiliasi dengan platform mana pun.</p>
-    <p class="muted small"><a href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener">GitHub</a> · GPL-3.0 · Powered by yt-dlp, FFmpeg, Cloudflare &amp; Vercel</p>
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
 
   <template id="tpl-entry">
-    <article class="entry">
+    <article class="card entry">
       <div class="entry-head">
-        <div class="thumb"><img alt="" loading="lazy" referrerpolicy="no-referrer"><span class="dur"></span></div>
+        <div class="thumb"><img alt="" loading="lazy"><span class="dur"></span></div>
         <div class="meta">
-          <span class="badge"></span>
+          <div class="platform"></div>
           <h3 class="title"></h3>
           <p class="uploader muted"></p>
         </div>
       </div>
       <div class="tabs" role="tablist">
-        <button class="tab active" data-tab="video" role="tab">🎬 Video</button>
-        <button class="tab" data-tab="audio" role="tab">🎵 Audio / MP3</button>
+        <button class="tab" data-tab="video" role="tab"><svg class="icon"><use href="#i-video"/></svg>Video</button>
+        <button class="tab" data-tab="audio" role="tab"><svg class="icon"><use href="#i-music"/></svg>Audio</button>
+        <button class="tab" data-tab="images" role="tab"><svg class="icon"><use href="#i-image"/></svg>Gambar</button>
       </div>
-      <div class="options" data-panel="video"></div>
-      <div class="options hidden" data-panel="audio"></div>
+      <div class="panel" data-panel="video"></div>
+      <div class="panel hidden" data-panel="audio"></div>
+      <div class="panel hidden" data-panel="images"></div>
       <div class="task hidden">
         <div class="task-top"><span class="task-label">Menyiapkan…</span><span class="task-pct"></span></div>
         <div class="bar"><b></b></div>
-        <div class="task-bottom"><span class="task-sub muted small"></span><button class="link-btn task-cancel">Batal</button></div>
+        <div class="task-bottom"><span class="task-sub muted small"></span><button type="button" class="link-btn task-cancel">Batal</button></div>
       </div>
     </article>
   </template>

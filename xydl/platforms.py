@@ -8,9 +8,10 @@ from urllib.parse import urlparse
 REGIONS = {
     'id': {'name': 'Indonesia', 'flag': '🇮🇩'},
     'cn': {'name': 'China', 'flag': '🇨🇳'},
+    'jp': {'name': 'Jepang', 'flag': '🇯🇵'},
     'sg': {'name': 'Singapura & Asia Tenggara', 'flag': '🇸🇬'},
     'us': {'name': 'Amerika Serikat', 'flag': '🇺🇸'},
-    'global': {'name': 'Global & Lainnya', 'flag': '🌍'},
+    'global': {'name': 'Global', 'flag': '🌐'},
 }
 
 # (id, nama, region, [domain], warna brand, catatan)
@@ -33,7 +34,6 @@ _PLATFORMS = [
     ('tumblr', 'Tumblr', 'us', ['tumblr.com'], '#36465D', None),
     ('rumble', 'Rumble', 'us', ['rumble.com'], '#85C742', None),
     ('imgur', 'Imgur', 'us', ['imgur.com'], '#1BB76E', None),
-    ('streamable', 'Streamable', 'us', ['streamable.com'], '#0F90FA', None),
     # --- Global ---
     ('tiktok', 'TikTok', 'global', ['tiktok.com'], '#FE2C55', 'Tanpa watermark'),
     ('dailymotion', 'Dailymotion', 'global', ['dailymotion.com', 'dai.ly'], '#0066DC', None),
@@ -58,6 +58,9 @@ _PLATFORMS = [
     ('netease', 'NetEase Music', 'cn', ['music.163.com'], '#C20C0C', 'Audio'),
     ('huya', 'Huya 虎牙', 'cn', ['huya.com'], '#FF9600', None),
     ('douyu', 'Douyu 斗鱼', 'cn', ['douyu.com', 'douyu.tv'], '#FF7700', None),
+    # --- Jepang ---
+    ('pixiv', 'pixiv', 'jp', ['pixiv.net'], '#0096FA', 'Ilustrasi & manga resolusi asli, ugoira jadi MP4/GIF'),
+    ('niconico', 'Niconico', 'jp', ['nicovideo.jp', 'nico.ms'], '#252525', None),
     # --- Indonesia ---
     ('vidio', 'Vidio', 'id', ['vidio.com'], '#EE2B24', 'Konten gratis (bukan premium/DRM)'),
     ('snackvideo', 'SnackVideo', 'id', ['snackvideo.com', 'sck.io'], '#FFC400', 'Via generic extractor'),
@@ -75,7 +78,8 @@ _PLATFORMS = [
 ]
 
 PLATFORMS = [
-    {'id': p[0], 'name': p[1], 'region': p[2], 'domains': p[3], 'color': p[4], 'note': p[5]}
+    {'id': p[0], 'name': p[1], 'region': p[2], 'domains': p[3], 'color': p[4], 'note': p[5],
+     'logo': f'/logos/{p[0]}.webp'}
     for p in _PLATFORMS
 ]
 
@@ -104,7 +108,7 @@ def catalog():
     groups = []
     for rid, meta in REGIONS.items():
         items = [
-            {k: p[k] for k in ('id', 'name', 'color', 'note', 'domains')}
+            {k: p[k] for k in ('id', 'name', 'color', 'note', 'domains', 'logo')}
             for p in PLATFORMS if p['region'] == rid
         ]
         groups.append({'id': rid, **meta, 'platforms': items})

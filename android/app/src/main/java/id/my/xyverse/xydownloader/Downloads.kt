@@ -46,12 +46,13 @@ data class DlRecord(
     val mime: String? = null,
     val fileName: String? = null,
     val error: String? = null,
+    val count: Int = 1,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id); put("title", title); put("label", label); put("kind", kind)
         put("thumbnail", thumbnail ?: JSONObject.NULL); put("sourceUrl", sourceUrl); put("createdAt", createdAt)
         put("status", status); put("uri", uri ?: JSONObject.NULL); put("mime", mime ?: JSONObject.NULL)
-        put("fileName", fileName ?: JSONObject.NULL); put("error", error ?: JSONObject.NULL)
+        put("fileName", fileName ?: JSONObject.NULL); put("error", error ?: JSONObject.NULL); put("count", count)
     }
 
     companion object {
@@ -67,6 +68,7 @@ data class DlRecord(
             kind = o.optString("kind"), thumbnail = o.s("thumbnail"), sourceUrl = o.optString("sourceUrl"),
             createdAt = o.optLong("createdAt"), status = o.optString("status", STATUS_QUEUED),
             uri = o.s("uri"), mime = o.s("mime"), fileName = o.s("fileName"), error = o.s("error"),
+            count = o.optInt("count", 1),
         )
     }
 }
@@ -256,16 +258,23 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                     }
                 }
             }
-            val out = Engine.findOutput(tmp) ?: throw IllegalStateException("File hasil tidak ditemukan")
+            val outputs = Engine.findOutputs(tmp, kind)
+            if (outputs.isEmpty()) throw IllegalStateException("File hasil tidak ditemukan")
             Downloads.upsert(ctx, taskId) { it.copy(progress = 1f, line = "Menyimpan ke Download/XyDownloader…") }
-            val mime = Engine.mimeOf(out.name)
-            val uri = Storage.saveToDownloads(ctx, out, out.name, mime)
+            var firstUri: Uri? = null
+            for (out in outputs) {
+                val uri = Storage.saveToDownloads(ctx, out, out.name, Engine.mimeOf(out.name))
+                if (firstUri == null) firstUri = uri
+            }
+            val first = outputs.first()
+            val mime = Engine.mimeOf(first.name)
+            val uri = firstUri!!
             Downloads.upsert(ctx, taskId) {
                 it.copy(status = DlRecord.STATUS_DONE, progress = 1f, uri = uri.toString(), mime = mime,
-                    fileName = out.name, line = null, error = null)
+                    fileName = first.name, line = null, error = null, count = outputs.size)
             }
-            notifyDone(title, uri, mime)
-            Result.success(workDataOf(Downloads.K_URI to uri.toString(), Downloads.K_MIME to mime, Downloads.K_NAME to out.name))
+            notifyDone(if (outputs.size > 1) "$title (${outputs.size} file)" else title, uri, mime)
+            Result.success(workDataOf(Downloads.K_URI to uri.toString(), Downloads.K_MIME to mime, Downloads.K_NAME to first.name))
         } catch (e: YoutubeDL.CanceledException) {
             fail(taskId, "Dibatalkan")
         } catch (e: InterruptedException) {
@@ -288,6 +297,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             l.startsWith("[Merger]") -> "Menggabungkan video + audio…"
             l.startsWith("[ExtractAudio]") -> "Mengonversi audio…"
             l.startsWith("[Metadata]") -> "Menulis metadata…"
+            l.startsWith("[XyUgoira]") -> "Membuat video dari ugoira…"
             p > 0f -> "Mengunduh ${(p * 100).toInt()}%"
             else -> "Memproses…"
         }
@@ -306,7 +316,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         )
         val n = NotificationCompat.Builder(ctx, Downloads.CH_DONE)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Selesai ✅")
+            .setContentTitle("Download selesai")
             .setContentText(title)
             .setAutoCancel(true)
             .setContentIntent(pi)

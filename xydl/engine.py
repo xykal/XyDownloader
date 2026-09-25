@@ -425,10 +425,66 @@ class _Ctx:
         return f'{self.proxy_base}/f/thumb.jpg?t={token}'
 
 
+def _entry_meta(ctx, info, title):
+    return {
+        'id': info.get('id'),
+        'title': title,
+        'uploader': info.get('uploader') or info.get('channel') or info.get('uploader_id'),
+        'duration': info.get('duration'),
+        'thumbnail': ctx.thumb(info.get('thumbnail') or next(
+            (t.get('url') for t in reversed(info.get('thumbnails') or []) if t.get('url')), None)),
+        'webpage_url': info.get('webpage_url') or ctx.page_url,
+        'extractor': info.get('extractor_key') or info.get('extractor'),
+        'is_live': bool(info.get('is_live')),
+        'video': [],
+        'audio': [],
+        'images': [],
+    }
+
+
+def _build_image_entry(ctx, info, title, base_name):
+    """Postingan gambar (mis. ilustrasi/manga pixiv): format = file gambar resolusi asli."""
+    entry = _entry_meta(ctx, info, title)
+    thumb = entry['thumbnail']
+    for f in info.get('formats') or []:
+        if not f.get('url'):
+            continue
+        ext = (f.get('ext') or 'jpg').lower()
+        fname = f'{base_name}.{ext}'
+        src = ctx.source(f, 'image', fname)
+        entry['images'].append({
+            'url': src['url'], 'thumb': thumb, 'ext': ext, 'filename': fname,
+            'width': f.get('width'), 'height': f.get('height'), 'size': _size(f),
+        })
+    return entry
+
+
+def _build_ugoira_entry(ctx, info, title, base_name):
+    """Ugoira pixiv: ZIP berisi frame + delay -> dikonversi ke MP4/GIF di browser (ffmpeg.wasm)."""
+    entry = _entry_meta(ctx, info, title)
+    fmt = next((f for f in info.get('formats') or [] if f.get('url')), None)
+    if fmt is None:
+        return entry
+    src = ctx.source(fmt, 'frames', f'{base_name}.zip')
+    frames = (info.get('xy_ugoira') or {}).get('frames') or []
+    entry['ugoira'] = {'frames': frames}
+    q = _short_side(fmt)
+    for ext, label, codec in (('mp4', 'MP4', 'H.264'), ('gif', 'GIF', None)):
+        entry['video'].append({
+            'id': f'ugoira-{ext}', 'label': label, 'quality': q, 'ext': ext, 'codec': codec, 'size': None,
+            'no_audio': False, 'mode': 'ugoira', 'filename': f'{base_name}.{ext}', 'sources': [src],
+        })
+    return entry
+
+
 def build_entry(ctx, info):
-    formats = [f for f in (info.get('formats') or ([info] if info.get('url') else [])) if _usable(f)]
     title = info.get('title') or info.get('id') or 'video'
     base_name = safe_filename(title)
+    if info.get('xy_ugoira'):
+        return _build_ugoira_entry(ctx, info, title, base_name)
+    if info.get('xy_image'):
+        return _build_image_entry(ctx, info, title, base_name)
+    formats = [f for f in (info.get('formats') or ([info] if info.get('url') else [])) if _usable(f)]
 
     videos = [f for f in formats if _has_video(f)]
     audios = [f for f in formats if not _has_video(f) and _has_audio(f)]
@@ -546,19 +602,10 @@ def build_entry(ctx, info):
             'mode': 'hls' if src['proto'] == 'hls' else 'direct', 'size': _size(music_track),
         })
 
-    return {
-        'id': info.get('id'),
-        'title': title,
-        'uploader': info.get('uploader') or info.get('channel') or info.get('uploader_id'),
-        'duration': info.get('duration'),
-        'thumbnail': ctx.thumb(info.get('thumbnail') or next(
-            (t.get('url') for t in reversed(info.get('thumbnails') or []) if t.get('url')), None)),
-        'webpage_url': info.get('webpage_url') or ctx.page_url,
-        'extractor': info.get('extractor_key') or info.get('extractor'),
-        'is_live': bool(info.get('is_live')),
-        'video': video_options,
-        'audio': audio_options,
-    }
+    entry = _entry_meta(ctx, info, title)
+    entry['video'] = video_options
+    entry['audio'] = audio_options
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -617,9 +664,14 @@ def extract(text, proxy_base):
         code, msg = friendly_error(raw)
         raise XyError(code, msg, raw)
 
-    entries = [e for e in entries if e['video'] or e['audio']]
+    entries = [e for e in entries if e['video'] or e['audio'] or e.get('images')]
     if not entries:
         raise XyError('novideo', 'Tidak ada video/audio yang bisa diunduh di link ini.')
+    if len(entries) > 1 and all(e.get('images') and not e['video'] and not e['audio'] for e in entries):
+        gallery = dict(entries[0])
+        gallery['title'] = title or gallery['title']
+        gallery['images'] = [img for e in entries for img in e['images']]
+        entries = [gallery]
     if platform is None and entries:
         ext = (entries[0].get('extractor') or '').lower()
         platform = {'id': ext or 'web', 'name': entries[0].get('extractor') or 'Web', 'region': 'global',
@@ -627,7 +679,7 @@ def extract(text, proxy_base):
     result = {
         'ok': True,
         'url': url,
-        'platform': {k: platform.get(k) for k in ('id', 'name', 'region', 'color')} if platform else None,
+        'platform': {k: platform.get(k) for k in ('id', 'name', 'region', 'color', 'logo')} if platform else None,
         'title': title,
         'count': len(entries),
         'entries': entries,
