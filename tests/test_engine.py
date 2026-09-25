@@ -1,0 +1,161 @@
+"""Tes offline (tanpa internet) untuk logika pemilihan format & token.
+
+    pip install -r requirements.txt pytest && pytest -q
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault('XYDL_SIGNING_KEY', 'test-key')
+
+import pytest  # noqa: E402
+
+from xydl import engine, signer  # noqa: E402
+from xydl.platforms import catalog, detect_platform  # noqa: E402
+
+
+class FakeJar:
+    def get_cookie_header(self, url):
+        return 'a=1' if 'needcookie' in url else None
+
+
+class FakeYdl:
+    cookiejar = FakeJar()
+
+
+def ctx(info):
+    return engine._Ctx(FakeYdl(), info, 'https://proxy.test', info.get('webpage_url', 'https://example.com/v'))
+
+
+def fmt(fid, url, **kw):
+    base = {'format_id': fid, 'url': url, 'protocol': 'https', 'ext': 'mp4'}
+    base.update(kw)
+    return base
+
+
+def test_find_url_from_share_text():
+    text = '7.43 复制打开抖音，看看【作品】 https://v.douyin.com/FX6c30f0S_c/ bAg:/ 02/18'
+    assert engine.find_url(text) == 'https://v.douyin.com/FX6c30f0S_c/'
+    assert engine.find_url('vt.tiktok.com/ZSabc/') == 'https://vt.tiktok.com/ZSabc/'
+    assert engine.find_url('halo') is None
+
+
+def test_signer_roundtrip_and_tamper():
+    tok = signer.sign({'u': 'https://a.com/x.mp4', 'h': {'Referer': 'https://a.com/'}})
+    assert signer.verify(tok)['u'] == 'https://a.com/x.mp4'
+    body, sig = tok.split('.')
+    with pytest.raises(signer.TokenError):
+        signer.verify(body + '.' + sig[:-2] + 'AA')
+    expired = signer.sign({'u': 'x', 'x': 1})
+    with pytest.raises(signer.TokenError):
+        signer.verify(expired)
+
+
+def test_muxed_direct_preferred_and_music_track_separate():
+    info = {'id': '1', 'title': 'TikTok', 'duration': 10, 'extractor_key': 'TikTok', 'formats': [
+        fmt('audio', 'https://v.tiktok.com/music.mp3', ext='mp3', vcodec='none', acodec='mp3'),
+        fmt('h264_540p', 'https://v.tiktok.com/540.mp4', vcodec='h264', acodec='aac', width=576, height=1024),
+        fmt('bytevc1_720p', 'https://v.tiktok.com/720.mp4', vcodec='h265', acodec='aac', width=720, height=1280),
+    ]}
+    e = engine.build_entry(ctx(info), info)
+    assert [v['label'] for v in e['video']] == ['720p', '576p']
+    assert all(v['mode'] == 'direct' for v in e['video'])
+    ids = [a['id'] for a in e['audio']]
+    assert 'music' in ids and 'mp3-320' in ids
+    mp3 = next(a for a in e['audio'] if a['id'] == 'mp3-128')
+    assert mp3['sources'][0]['type'] == 'av'  # audio asli video, bukan musik latar
+
+
+def test_merge_when_video_only_plus_audio():
+    info = {'id': '2', 'title': 'Bili', 'extractor_key': 'BiliBili', 'formats': [
+        fmt('30280', 'https://upos.bilivideo.com/a.m4s', ext='m4a', vcodec='none', acodec='mp4a.40.2', abr=190),
+        fmt('100024', 'https://upos.bilivideo.com/v1080.m4s', vcodec='avc1.640032', acodec='none', width=1920, height=1080),
+        fmt('100023', 'https://upos.bilivideo.com/v1080h.m4s', vcodec='hev1.1.6', acodec='none', width=1920, height=1080),
+    ]}
+    e = engine.build_entry(ctx(info), info)
+    v = e['video'][0]
+    assert v['label'] == '1080p' and v['mode'] == 'merge' and v['codec'] == 'H.264'
+    assert [s['type'] for s in v['sources']] == ['video', 'audio']
+    assert v['ext'] == 'mp4'
+
+
+def test_video_only_dropped_when_no_audio_to_merge():
+    info = {'id': '3', 'title': 'FB', 'extractor_key': 'Facebook', 'formats': [
+        fmt('sd', 'https://video.fbcdn.net/sd.mp4'),
+        fmt('hd', 'https://video.fbcdn.net/hd.mp4'),
+        fmt('480v', 'https://video.fbcdn.net/480.mp4', vcodec='vp09', acodec='none', width=480, height=848),
+    ]}
+    e = engine.build_entry(ctx(info), info)
+    assert [v['label'] for v in e['video']] == ['HD', 'SD']
+
+
+def test_images_and_drm_ignored_and_hls_proxied():
+    info = {'id': '4', 'title': 'Weibo', 'formats': [
+        fmt('scrubber', 'https://w.cn/s.jpg', ext='jpg', width=320, height=180),
+        fmt('drm', 'https://w.cn/d.mp4', has_drm=True, width=1920, height=1080),
+        fmt('hls-720', 'https://w.cn/720.m3u8', protocol='m3u8_native', width=1280, height=720),
+    ]}
+    e = engine.build_entry(ctx(info), info)
+    assert [v['label'] for v in e['video']] == ['720p']
+    src = e['video'][0]['sources'][0]
+    assert src['proto'] == 'hls' and src['url'].startswith('https://proxy.test/m3u8?t=')
+
+
+def test_ip_bound_youtube_goes_through_server_and_prefers_dash():
+    info = {'id': 'yt', 'title': 'YT', 'extractor_key': 'Youtube', 'webpage_url': 'https://www.youtube.com/watch?v=yt',
+            'formats': [
+                fmt('18', 'https://rr1.googlevideo.com/18', vcodec='avc1', acodec='mp4a', width=640, height=360),
+                fmt('134', 'https://rr1.googlevideo.com/134', vcodec='avc1', acodec='none', width=640, height=360),
+                fmt('140', 'https://rr1.googlevideo.com/140', ext='m4a', vcodec='none', acodec='mp4a.40.2', abr=129),
+            ]}
+    e = engine.build_entry(ctx(info), info)
+    v = e['video'][0]
+    assert v['mode'] == 'merge'
+    assert all(s['via'] == 'server' and s['url'].startswith('/api/stream?t=') for s in v['sources'])
+    payload = signer.verify(v['sources'][0]['url'].split('t=', 1)[1])
+    assert payload['fid'] == '134' and payload['k'] == 'video' and payload['h'] == 360
+
+
+def test_pick_similar_format():
+    fmts = [
+        fmt('133', 'https://g/133', vcodec='avc1', acodec='none', width=426, height=240),
+        fmt('134', 'https://g/134', vcodec='avc1', acodec='none', width=640, height=360),
+        fmt('140', 'https://g/140', ext='m4a', vcodec='none', acodec='mp4a', abr=129),
+    ]
+    assert engine._pick_similar(fmts, {'k': 'video', 'h': 360, 'e': 'mp4'})['format_id'] == '134'
+    assert engine._pick_similar(fmts, {'k': 'audio', 'e': 'm4a'})['format_id'] == '140'
+    assert engine._pick_similar(fmts, {'k': 'av', 'h': 360}) is None
+
+
+def test_cookie_header_forwarded_in_token():
+    info = {'id': '5', 'title': 'Douyin', 'formats': [
+        fmt('play', 'https://www.douyin.com/aweme/v1/play/?needcookie=1', vcodec='h264', acodec='aac', width=1080, height=1920),
+    ]}
+    e = engine.build_entry(ctx(info), info)
+    tok = e['video'][0]['sources'][0]['url'].split('t=', 1)[1]
+    payload = signer.verify(tok)
+    assert payload['h'].get('Cookie') == 'a=1'
+    assert payload['a'] == ['douyin.com']
+
+
+def test_platform_detection_and_catalog():
+    assert detect_platform('https://v.douyin.com/abc')['id'] == 'douyin'
+    assert detect_platform('https://www.kuaishou.com/short-video/x')['id'] == 'kuaishou'
+    assert detect_platform('https://x.com/a/status/1')['id'] == 'twitter'
+    assert detect_platform('https://v.qq.com/x/page/a.html')['id'] == 'vqq'
+    regions = {r['id'] for r in catalog()['regions']}
+    assert regions == {'id', 'cn', 'sg', 'us', 'global'}
+
+
+def test_site_suffix():
+    assert engine.site_suffix('v16-webapp.tiktok.com') == 'tiktok.com'
+    assert engine.site_suffix('a.b.co.id') == 'b.co.id'
+    assert engine.site_suffix('upos-sz.bilivideo.com') == 'bilivideo.com'
+
+
+def test_friendly_errors():
+    assert engine.friendly_error("Sign in to confirm you're not a bot")[0] == 'blocked'
+    assert engine.friendly_error('HTTP Error 412: Precondition Failed')[0] == 'blocked'
+    assert engine.friendly_error('Unsupported URL: https://x')[0] == 'unsupported'
+    assert engine.friendly_error('This video is private')[0] == 'private'
+    assert engine.friendly_error('HTTP Error 404: Not Found')[0] == 'notfound'

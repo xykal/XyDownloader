@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test engine & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: pip install -r requirements.txt pytest pyflakes
+      - name: Lint (pyflakes)
+        run: python -m pyflakes api xydl plugins tests dev_server.py
+      - name: Unit test (offline)
+        run: python -m pytest -q tests
+      - name: Plugin yt-dlp termuat
+        run: |
+          python - <<'PY'
+          import sys; sys.path.insert(0, 'plugins')
+          from yt_dlp.plugins import load_all_plugins
+          from yt_dlp.globals import plugin_ies
+          load_all_plugins()
+          names = sorted(plugin_ies.value)
+          print('plugins:', names)
+          assert {'XyDouyinIE', 'XyKuaishouIE', 'XyThreadsIE', 'XyBiliBiliIE'} <= set(names)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cek sintaks JS (web + worker)
+        run: |
+          node --check public/app.js
+          node --check public/mp3-worker.js
+          node --check worker/src/index.js

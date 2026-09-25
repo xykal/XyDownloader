@@ -1,0 +1,8 @@
+android
+worker
+docs
+.github
+*.md
+!README.md
+tests
+dev_server.py

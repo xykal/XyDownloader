@@ -1,0 +1,34 @@
+# --- rahasia: JANGAN PERNAH di-commit ---
+*.jks
+*.keystore
+*.p12
+keystore.properties
+local.properties
+.env
+.env.*
+*.pem
+secrets/
+ini-buat-kerja.json
+.vercel
+
+# --- build / cache ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.wrangler/
+dist/
+build/
+.gradle/
+android/.gradle/
+android/app/build/
+android/build/
+*.apk
+*.aab
+.idea/
+.DS_Store
+*.iml
+captures/
+.externalNativeBuild
+.cxx

@@ -1,0 +1,11 @@
+# Cloudflare Worker — proxy streaming untuk XyDownloader
+# Deploy: npx wrangler deploy   (secret: npx wrangler secret put SIGNING_KEY)
+name = "xydl-proxy"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 0.05

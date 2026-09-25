@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">XyDownloader</string>
+    <string name="channel_progress">Proses download</string>
+    <string name="channel_done">Download selesai</string>
+</resources>

@@ -1,0 +1,4 @@
+# Engine XyDownloader (Vercel Python Function)
+# yt-dlp sengaja TIDAK dikunci versinya: tiap deploy otomatis ambil versi terbaru
+# (extractor platform sering berubah). Workflow mingguan melakukan redeploy.
+yt-dlp[default,curl-cffi]>=2026.8.19

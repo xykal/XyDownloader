@@ -1,0 +1,3 @@
+@ffmpeg/ffmpeg 0.12.15 — MIT License — Copyright (c) 2019 Jerome Wu
+https://github.com/ffmpegwasm/ffmpeg.wasm
+(ffmpeg-core.wasm dimuat saat runtime dari jsDelivr/unpkg; FFmpeg sendiri berlisensi LGPL/GPL)
