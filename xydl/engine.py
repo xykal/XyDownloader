@@ -702,11 +702,8 @@ def open_stream(ydl, url, headers, range_header=None):
 
 
 def health():
-    try:
-        import curl_cffi  # noqa: F401
-        impersonate = True
-    except Exception:
-        impersonate = False
+    import importlib.util
+    impersonate = importlib.util.find_spec('curl_cffi') is not None
     plugins = []
     try:
         from yt_dlp.globals import plugin_ies
