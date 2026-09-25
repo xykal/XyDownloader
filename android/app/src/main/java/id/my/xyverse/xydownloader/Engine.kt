@@ -46,11 +46,12 @@ object Engine {
     }
 
     // ------------------------------------------------------------ plugin extractor
+    /** Dipakai sebagai --plugin-dirs. Struktur: ytdlp-plugins/xydl/yt_dlp_plugins/extractor/*.py */
     fun pluginDir(ctx: Context) = File(ctx.filesDir, "ytdlp-plugins")
 
     private fun installPlugins(ctx: Context) {
         val target = pluginDir(ctx)
-        val marker = File(target, ".version")
+        val marker = File(ctx.filesDir, "ytdlp-plugins.version")
         val version = "${BuildConfig.VERSION_CODE}-${BuildConfig.VERSION_NAME}"
         if (marker.exists() && marker.readText() == version) return
         target.deleteRecursively()

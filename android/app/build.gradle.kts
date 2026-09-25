@@ -98,7 +98,8 @@ abstract class CopyYtDlpPluginsTask : DefaultTask() {
     fun run() {
         val out = outputDir.get().asFile
         out.deleteRecursively()
-        val target = File(out, "ytdlp-plugins/yt_dlp_plugins")
+        // yt-dlp --plugin-dirs mengharapkan: <dir>/<nama-paket>/yt_dlp_plugins/extractor/*.py
+        val target = File(out, "ytdlp-plugins/xydl/yt_dlp_plugins")
         source.get().asFile.copyRecursively(target, overwrite = true)
         target.walkBottomUp()
             .filter { it.name == "__pycache__" || it.name.endsWith(".pyc") }
