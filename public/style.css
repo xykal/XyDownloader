@@ -369,3 +369,5 @@ details[open] .chev { transform: rotate(180deg); }
   box-shadow: var(--shadow); transition: all 0.2s ease; z-index: 60; max-width: calc(100vw - 32px);
 }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+.built picture, .built img { display: block; width: 22px; height: 22px; object-fit: contain; }
