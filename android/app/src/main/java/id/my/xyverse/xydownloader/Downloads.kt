@@ -21,6 +21,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.yausername.youtubedl_android.YoutubeDL
+import id.my.xyverse.xydownloader.ui.formatBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -362,7 +363,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                                 lastUpdate = now
                                 val frac = if (total > 0) bytes.toFloat() / total else 0f
                                 val p = ((i + frac) / n).coerceIn(0f, 1f)
-                                val text = "File ${i + 1}/$n · ${id.my.xyverse.xydownloader.ui.formatBytes(bytes)}"
+                                val text = "File ${i + 1}/$n · ${formatBytes(bytes)}"
                                 setProgressAsync(workDataOf(Downloads.K_PROGRESS to p, Downloads.K_LINE to text))
                                 Downloads.upsert(ctx, taskId) { it.copy(status = DlRecord.STATUS_RUNNING, progress = p, line = text) }
                                 try { setForegroundAsync(foreground(title, p, text)) } catch (_: Exception) { }
