@@ -153,7 +153,7 @@ private fun BuiltIn() {
     val cs = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically) {
-        XyVerseLogo(18..dp)
+        XyVerseLogo(18.dp)
         Spacer(Modifier.width(6.dp))
         Text("Built in ", color = cs.onSurfaceVariant, fontSize = 12.sp)
         Text("XyVerse", color = cs.onBackground, fontSize = 12.sp, fontWeight = FontWeight.Bold)

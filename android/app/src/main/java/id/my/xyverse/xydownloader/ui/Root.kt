@@ -142,7 +142,7 @@ fun SplashCredit() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            XyVerseLogo(22..dp)
+            XyVerseLogo(22.dp)
             Spacer(Modifier.width(8.dp))
             Text("built in ", color = cs.onSurfaceVariant, fontSize = 13.sp)
             Text("XyVerse", color = cs.onBackground, fontSize = 13.sp, fontWeight = FontWeight.Bold)

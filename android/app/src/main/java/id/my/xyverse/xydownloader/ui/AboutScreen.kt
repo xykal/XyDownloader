@@ -108,7 +108,7 @@ fun AboutScreen(vm: MainViewModel) {
 
         XyCard {
             Row(Modifier.fillMaxWidth().clickable { open("https://xyverse.my.id") }, verticalAlignment = Alignment.CenterVertically) {
-                XyVerseLogo(32..dp)
+                XyVerseLogo(32.dp)
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Row {
