@@ -81,6 +81,8 @@ object Downloads {
     const val K_HEIGHT = "height"
     const val K_KBPS = "kbps"
     const val K_ITEM = "item"
+    const val K_INFO = "info"
+    const val K_FILES = "files"
     const val K_PROGRESS = "p"
     const val K_LINE = "line"
     const val K_URI = "uri"
@@ -140,28 +142,62 @@ object Downloads {
         persist(ctx)
     }
 
-    fun enqueue(ctx: Context, info: MediaInfo, kind: String, height: Int, kbps: Int, item: Int, label: String, title: String) {
+    fun enqueue(
+        ctx: Context, info: MediaInfo, kind: String, height: Int, kbps: Int, item: Int, label: String, title: String,
+        infoPath: String? = info.infoPath,
+    ) {
         load(ctx)
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(
                 workDataOf(
                     K_URL to info.sourceUrl, K_TITLE to title, K_KIND to kind,
-                    K_HEIGHT to height, K_KBPS to kbps, K_ITEM to item,
+                    K_HEIGHT to height, K_KBPS to kbps, K_ITEM to item, K_INFO to infoPath,
                 )
             )
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag(TAG)
             .build()
-        val rec = DlRecord(
+        addRecord(ctx, DlRecord(
             id = request.id.toString(), title = title, label = label, kind = kind,
             thumbnail = info.thumbnail, sourceUrl = info.sourceUrl, createdAt = System.currentTimeMillis(),
-        )
+        ))
+        WorkManager.getInstance(ctx).enqueue(request)
+    }
+
+    /** File langsung (foto, Live Photo, video carousel): diunduh via HTTP tanpa yt-dlp. */
+    data class FileJob(val url: String, val headers: Map<String, String>, val name: String, val mime: String)
+
+    fun enqueueFiles(ctx: Context, info: MediaInfo, files: List<FileJob>, label: String, title: String) {
+        if (files.isEmpty()) return
+        load(ctx)
+        // Data WorkManager dibatasi 10 KB -> daftar file ditulis ke berkas
+        val jobFile = File(ctx.filesDir, "jobs/${UUID.randomUUID()}.json").apply { parentFile?.mkdirs() }
+        val arr = JSONArray()
+        files.forEach { f ->
+            arr.put(JSONObject().put("url", f.url).put("name", f.name).put("mime", f.mime)
+                .put("headers", JSONObject(f.headers as Map<*, *>)))
+        }
+        jobFile.writeText(arr.toString())
+        val request = OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setInputData(workDataOf(K_URL to info.sourceUrl, K_TITLE to title, K_KIND to "files", K_FILES to jobFile.absolutePath))
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .addTag(TAG)
+            .build()
+        addRecord(ctx, DlRecord(
+            id = request.id.toString(), title = title, label = label, kind = "files",
+            thumbnail = info.gallery.firstOrNull()?.thumb ?: info.thumbnail, sourceUrl = info.sourceUrl,
+            createdAt = System.currentTimeMillis(), count = files.size,
+        ))
+        WorkManager.getInstance(ctx).enqueue(request)
+    }
+
+    private fun addRecord(ctx: Context, rec: DlRecord) {
         synchronized(this) {
             _records.value = listOf(rec) + _records.value
             persist(ctx)
         }
-        WorkManager.getInstance(ctx).enqueue(request)
     }
 
     fun cancel(ctx: Context, id: String) {
@@ -236,13 +272,18 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         val height = inputData.getInt(Downloads.K_HEIGHT, 0)
         val kbps = inputData.getInt(Downloads.K_KBPS, 192)
         val item = inputData.getInt(Downloads.K_ITEM, 0)
+        val infoPath = inputData.getString(Downloads.K_INFO)
 
+        if (kind == "files") {
+            try { setForeground(foreground(title, 0f, "Menyiapkan…")) } catch (_: Exception) { }
+            return doFiles(ctx, taskId, title, inputData.getString(Downloads.K_FILES) ?: return fail(taskId, "Data unduhan hilang"))
+        }
         try { setForeground(foreground(title, 0f, "Menyiapkan engine…")) } catch (_: Exception) { }
         Downloads.upsert(ctx, taskId) { it.copy(status = DlRecord.STATUS_RUNNING, line = "Menyiapkan engine…") }
 
         if (!Engine.init(ctx)) return fail(taskId, "Engine gagal dimuat: ${Engine.initError}")
         val tmp = File(ctx.cacheDir, "dl/$taskId").apply { deleteRecursively(); mkdirs() }
-        val request = Engine.downloadRequest(ctx, url, kind, height, kbps, item, tmp)
+        val request = Engine.downloadRequest(ctx, url, kind, height, kbps, item, tmp, infoPath)
         var lastUpdate = 0L
         return try {
             runInterruptible(Dispatchers.IO) {
@@ -288,6 +329,76 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         } finally {
             tmp.deleteRecursively()
         }
+    }
+
+    /** Unduh daftar file langsung (foto / Live Photo / video carousel) lalu simpan ke Download/XyDownloader. */
+    private suspend fun doFiles(ctx: Context, taskId: String, title: String, jobPath: String): Result {
+        val jobFile = File(jobPath)
+        val arr = try { JSONArray(jobFile.readText()) } catch (e: Exception) { return fail(taskId, "Data unduhan hilang") }
+        val n = arr.length()
+        val tmpDir = File(ctx.cacheDir, "dl/$taskId").apply { deleteRecursively(); mkdirs() }
+        Downloads.upsert(ctx, taskId) { it.copy(status = DlRecord.STATUS_RUNNING, line = "Mengunduh 1/$n…") }
+        var ok = 0
+        var firstUri: Uri? = null
+        var firstMime = "application/octet-stream"
+        var firstName = ""
+        var lastError: String? = null
+        var lastUpdate = 0L
+        try {
+            for (i in 0 until n) {
+                if (isStopped) break
+                val o = arr.getJSONObject(i)
+                val name = o.getString("name")
+                val mime = o.optString("mime").ifBlank { Engine.mimeOf(name) }
+                val h = o.optJSONObject("headers")
+                val headers = HashMap<String, String>()
+                if (h != null) for (k in h.keys()) headers[k] = h.optString(k)
+                val tmp = File(tmpDir, "f$i")
+                try {
+                    runInterruptible(Dispatchers.IO) {
+                        Http.download(o.getString("url"), headers, tmp, { isStopped }) { bytes, total ->
+                            val now = System.currentTimeMillis()
+                            if (now - lastUpdate > 600) {
+                                lastUpdate = now
+                                val frac = if (total > 0) bytes.toFloat() / total else 0f
+                                val p = ((i + frac) / n).coerceIn(0f, 1f)
+                                val text = "File ${i + 1}/$n · ${id.my.xyverse.xydownloader.ui.formatBytes(bytes)}"
+                                setProgressAsync(workDataOf(Downloads.K_PROGRESS to p, Downloads.K_LINE to text))
+                                Downloads.upsert(ctx, taskId) { it.copy(status = DlRecord.STATUS_RUNNING, progress = p, line = text) }
+                                try { setForegroundAsync(foreground(title, p, text)) } catch (_: Exception) { }
+                            }
+                        }
+                    }
+                    val uri = Storage.saveToDownloads(ctx, tmp, name, mime)
+                    ok++
+                    if (firstUri == null) {
+                        firstUri = uri
+                        firstMime = mime
+                        firstName = name
+                    }
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    lastError = e.message
+                } finally {
+                    tmp.delete()
+                }
+            }
+        } finally {
+            tmpDir.deleteRecursively()
+            jobFile.delete()
+        }
+        if (isStopped) return fail(taskId, "Dibatalkan")
+        val uri = firstUri ?: return fail(taskId, "Gagal mengunduh: ${lastError ?: "tidak ada file"}")
+        val partial = if (ok < n) "${n - ok} file gagal" else null
+        Downloads.upsert(ctx, taskId) {
+            it.copy(status = DlRecord.STATUS_DONE, progress = 1f, uri = uri.toString(), mime = firstMime,
+                fileName = firstName, line = null, error = partial, count = ok)
+        }
+        notifyDone(if (ok > 1) "$title ($ok file)" else title, uri, firstMime)
+        return Result.success(workDataOf(Downloads.K_URI to uri.toString(), Downloads.K_MIME to firstMime, Downloads.K_NAME to firstName))
     }
 
     private fun describe(line: String, p: Float): String {

@@ -678,30 +678,287 @@ async function startDownload(card, entry, opt) {
   }
 }
 
-async function downloadAllImages(card, entry) {
+// ------------------------------------------------------------------ galeri (foto slide · Live Photo · carousel)
+function safeName(name, fallback = 'galeri') {
+  return (name || fallback).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').slice(0, 80).trim() || fallback;
+}
+
+// File yang akan diunduh untuk item terpilih. liveMode: 'photo' | 'video' | 'both'
+function galleryFiles(entry, liveMode) {
+  const out = [];
+  for (const it of entry.gallery || []) {
+    if (!entry._sel || !entry._sel.has(it.index)) continue;
+    if (it.type === 'image') out.push(it.image);
+    else if (it.type === 'live') {
+      if (liveMode !== 'video') out.push(it.image);
+      if (liveMode !== 'photo' && it.video) out.push(it.video);
+    } else if (it.video) out.push(it.video);
+  }
+  return out.filter(Boolean);
+}
+
+async function fetchFile(task, f, label, p0, p1) {
+  const got = await getSource({ url: f.url, alt: f.alt, via: f.via, proto: f.proto, ext: f.ext, size: f.size }, task, label, p0, p1);
+  let blob = got.blob;
+  let name = f.filename;
+  if (f.proto === 'hls' && (got.container === 'ts' || got.container === 'aac')) {
+    try {
+      blob = await ffRemux(task, got, 'mp4');
+      name = name.replace(/\.\w+$/, '.mp4');
+    } catch (e) {
+      console.warn(e);
+      name = name.replace(/\.\w+$/, '.ts');
+    }
+  }
+  return { blob, name };
+}
+
+async function downloadGallery(card, entry, files) {
   if (card._task) { toast('Tunggu proses sebelumnya selesai dulu'); return; }
-  const imgs = entry.images || [];
-  const task = new Task(card, `Mengunduh ${imgs.length} gambar…`);
+  if (!files.length) { toast('Pilih minimal satu item'); return; }
+  const task = new Task(card, files.length === 1 ? 'Menyiapkan…' : `Mengunduh ${files.length} file…`);
   try {
-    const files = [];
+    if (files.length === 1) {
+      const f = files[0];
+      if (f.proto !== 'hls' && f.via !== 'server') {
+        task.stage('Mengecek link…');
+        if (await probeOk(f.url, task.signal)) {
+          navDownload(`${f.url}&dl=1`);
+          task.done('Download dimulai', f.filename);
+          return;
+        }
+      }
+      const got = await fetchFile(task, f, 'Mengunduh', 0, 1);
+      saveBlob(got.blob, got.name);
+      task.done('Selesai', `${got.name} tersimpan di folder Download.`);
+      return;
+    }
+    const known = files.reduce((sum, f) => sum + (f.size || 0), 0);
+    if (known > BROWSER_LIMIT) throw new Error('Total ukuran terlalu besar untuk browser. Pakai aplikasi Android XyDownloader.');
+    const out = [];
     const used = new Set();
-    for (let i = 0; i < imgs.length; i++) {
-      const im = imgs[i];
-      const blob = await fetchDirect(im.url, task, `Gambar ${i + 1}/${imgs.length}`, i / imgs.length, (i + 1) / imgs.length, im.size);
-      let name = im.filename;
+    for (let i = 0; i < files.length; i++) {
+      const got = await fetchFile(task, files[i], `File ${i + 1}/${files.length}`, i / files.length, (i + 1) / files.length);
+      let name = got.name;
       while (used.has(name)) name = name.replace(/(\.\w+)$/, `_${i + 1}$1`);
       used.add(name);
-      files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+      out.push({ name, data: new Uint8Array(await got.blob.arrayBuffer()) });
     }
     task.stage('Membuat ZIP…');
-    const base = (entry.title || 'gambar').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 80).trim() || 'gambar';
-    saveBlob(zipStore(files), `${base}.zip`);
-    task.done('Selesai', `${files.length} gambar tersimpan dalam ${base}.zip`);
+    const base = safeName(entry.title);
+    saveBlob(zipStore(out), `${base}.zip`);
+    task.done('Selesai', `${out.length} file tersimpan dalam ${base}.zip`);
   } catch (e) {
     console.error(e);
     if (e.name === 'AbortError') task.fail('Dibatalkan');
     else task.fail('Gagal', e.message || String(e));
   }
+}
+
+// ------------------------------------------------------------------ pratinjau video
+let hlsJsPromise = null;
+function loadHlsJs() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (!hlsJsPromise) {
+    hlsJsPromise = new Promise((resolve, reject) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js';
+      sc.onload = () => (window.Hls ? resolve(window.Hls) : reject(new Error('hls.js')));
+      sc.onerror = () => { hlsJsPromise = null; reject(new Error('hls.js gagal dimuat')); };
+      document.head.append(sc);
+    });
+  }
+  return hlsJsPromise;
+}
+
+async function attachSource(video, url, isHls) {
+  if (!isHls || video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; return; }
+  const Hls = await loadHlsJs();
+  if (!Hls.isSupported()) throw new Error('HLS tidak didukung browser ini');
+  const hls = new Hls({ maxBufferLength: 20 });
+  hls.loadSource(url);
+  hls.attachMedia(video);
+  video._hls = hls;
+}
+
+function syncAudio(video, audioUrl) {
+  const a = new Audio(audioUrl);
+  a.preload = 'auto';
+  const sync = () => { if (Math.abs(a.currentTime - video.currentTime) > 0.3) a.currentTime = video.currentTime; };
+  video.addEventListener('play', () => { a.currentTime = video.currentTime; a.play().catch(() => {}); });
+  video.addEventListener('playing', () => { sync(); a.play().catch(() => {}); });
+  video.addEventListener('pause', () => a.pause());
+  video.addEventListener('waiting', () => a.pause());
+  video.addEventListener('seeking', () => { a.currentTime = video.currentTime; });
+  video.addEventListener('timeupdate', sync);
+  video.addEventListener('ratechange', () => { a.playbackRate = video.playbackRate; });
+  video.addEventListener('volumechange', () => { a.volume = video.volume; a.muted = video.muted; });
+  return a;
+}
+
+function stopMedia(root) {
+  root.querySelectorAll('video').forEach((v) => {
+    try { v.pause(); } catch { /* abaikan */ }
+    if (v._hls) { v._hls.destroy(); v._hls = null; }
+    if (v._audio) { v._audio.pause(); v._audio.src = ''; }
+    v.removeAttribute('src');
+    v.load();
+  });
+}
+
+function openPlayer(card, entry) {
+  const pv = entry.preview;
+  const old = $('.player', card);
+  if (old) { stopMedia(old); old.remove(); }
+  const box = el('div', 'player');
+  const v = el('video');
+  v.controls = true;
+  v.playsInline = true;
+  v.autoplay = true;
+  v.preload = 'metadata';
+  if (entry.thumbnail) v.poster = entry.thumbnail;
+  if (pv.width && pv.height && pv.height > pv.width) box.classList.add('portrait');
+  const close = el('button', 'player-close');
+  close.type = 'button';
+  close.title = 'Tutup pratinjau';
+  close.setAttribute('aria-label', 'Tutup pratinjau');
+  close.append(icon('x'));
+  box.append(v, close);
+  $('.entry-head', card).after(box);
+  const fail = (msg) => {
+    stopMedia(box);
+    box.classList.add('failed');
+    box.textContent = '';
+    box.append(el('p', 'player-msg', msg), close);
+  };
+  let triedAlt = false;
+  v.addEventListener('error', () => {
+    if (!triedAlt && pv.alt && pv.type === 'av') { triedAlt = true; v.src = pv.alt; return; }
+    fail('Pratinjau tidak bisa diputar (platform menolak atau format tidak didukung browser). Download tetap bisa dicoba.');
+  });
+  if (pv.type === 'pair' && pv.audio) v._audio = syncAudio(v, pv.audio);
+  attachSource(v, pv.url, pv.type === 'hls').catch(() => fail('Browser ini belum bisa memutar stream HLS. Langsung download saja.'));
+  close.onclick = () => { stopMedia(box); box.remove(); };
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ------------------------------------------------------------------ viewer galeri
+function openViewer(card, entry, start, onChange) {
+  const items = entry.gallery || [];
+  let i = start;
+  let showPhoto = false;
+  const ov = el('div', 'viewer');
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Pratinjau');
+  const top = el('div', 'viewer-top');
+  const counter = el('span', 'viewer-count');
+  const liveSwitch = el('button', 'viewer-chip hidden');
+  liveSwitch.type = 'button';
+  const close = el('button', 'viewer-btn');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Tutup');
+  close.append(icon('x'));
+  top.append(counter, liveSwitch, close);
+  const stage = el('div', 'viewer-stage');
+  const prev = el('button', 'viewer-nav prev');
+  prev.type = 'button';
+  prev.setAttribute('aria-label', 'Sebelumnya');
+  prev.append(icon('chevron-left'));
+  const next = el('button', 'viewer-nav next');
+  next.type = 'button';
+  next.setAttribute('aria-label', 'Berikutnya');
+  next.append(icon('chevron-right'));
+  const bottom = el('div', 'viewer-bottom');
+  const sel = el('button', 'btn btn-secondary btn-sm');
+  sel.type = 'button';
+  const one = btn('Unduh item ini', 'download', 'btn btn-primary btn-sm');
+  bottom.append(sel, one);
+  ov.append(top, stage, prev, next, bottom);
+  document.body.append(ov);
+  document.body.classList.add('noscroll');
+
+  function render() {
+    const it = items[i];
+    stopMedia(stage);
+    stage.textContent = '';
+    counter.textContent = `${i + 1} / ${items.length}${it.type === 'live' ? ' · Live Photo' : it.type === 'video' ? ' · Video' : ''}`;
+    liveSwitch.classList.toggle('hidden', it.type !== 'live');
+    liveSwitch.textContent = showPhoto ? 'Putar Live' : 'Lihat foto';
+    const asImage = it.type === 'image' || (it.type === 'live' && showPhoto) || !it.video;
+    if (asImage) {
+      const img = el('img');
+      img.alt = it.title || '';
+      img.src = (it.image || {}).url || it.thumb;
+      img.onerror = () => { if (it.image && it.image.alt && img.src !== it.image.alt) img.src = it.image.alt; };
+      stage.append(img);
+    } else {
+      const v = el('video');
+      v.controls = true;
+      v.playsInline = true;
+      v.autoplay = true;
+      v.loop = it.type === 'live';
+      v.muted = it.type === 'live';
+      if (it.thumb) v.poster = it.thumb;
+      let triedAlt = false;
+      v.addEventListener('error', () => {
+        if (!triedAlt && it.video.alt) { triedAlt = true; v.src = it.video.alt; return; }
+        stage.textContent = '';
+        stage.append(el('p', 'player-msg', 'Video tidak bisa diputar di browser ini, tapi tetap bisa diunduh.'));
+      });
+      stage.append(v);
+      attachSource(v, it.video.url, it.video.proto === 'hls').catch(() => {
+        stage.textContent = '';
+        stage.append(el('p', 'player-msg', 'Stream ini tidak bisa diputar di browser ini.'));
+      });
+    }
+    const on = entry._sel && entry._sel.has(it.index);
+    sel.textContent = '';
+    sel.append(icon(on ? 'check-circle' : 'circle'), document.createTextNode(on ? 'Terpilih' : 'Pilih'));
+    sel.classList.toggle('is-on', !!on);
+    prev.disabled = i === 0;
+    next.disabled = i === items.length - 1;
+  }
+  const go = (d) => { const n = i + d; if (n >= 0 && n < items.length) { i = n; showPhoto = false; render(); } };
+  const shut = () => {
+    stopMedia(stage);
+    ov.remove();
+    document.body.classList.remove('noscroll');
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') shut();
+    else if (e.key === 'ArrowLeft') go(-1);
+    else if (e.key === 'ArrowRight') go(1);
+  };
+  document.addEventListener('keydown', onKey);
+  prev.onclick = () => go(-1);
+  next.onclick = () => go(1);
+  close.onclick = shut;
+  ov.addEventListener('click', (e) => { if (e.target === ov || e.target === stage) shut(); });
+  liveSwitch.onclick = () => { showPhoto = !showPhoto; render(); };
+  sel.onclick = () => {
+    const it = items[i];
+    if (entry._sel.has(it.index)) entry._sel.delete(it.index); else entry._sel.add(it.index);
+    onChange && onChange();
+    render();
+  };
+  one.onclick = () => {
+    const it = items[i];
+    const files = it.type === 'image' ? [it.image] : it.type === 'live' ? [showPhoto ? it.image : it.video] : [it.video];
+    shut();
+    downloadGallery(card, entry, files.filter(Boolean));
+  };
+  let x0 = null;
+  stage.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
+  stage.addEventListener('pointerup', (e) => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0;
+    x0 = null;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  });
+  render();
+  close.focus();
 }
 
 // ------------------------------------------------------------------ rendering
@@ -773,42 +1030,108 @@ function optionRow(card, entry, opt, isAudio) {
   return row;
 }
 
-function renderImages(card, entry, panel) {
-  const imgs = entry.images || [];
+function renderGallery(card, entry, panel) {
+  const items = entry.gallery || [];
+  entry._sel = new Set(items.map((it) => it.index));
+  let liveMode = 'both';
+  const counts = { image: 0, live: 0, video: 0 };
+  items.forEach((it) => { counts[it.type] = (counts[it.type] || 0) + 1; });
+
   const head = el('div', 'gallery-head');
-  head.append(el('span', 'muted small', `${imgs.length} gambar · resolusi asli`));
-  if (imgs.length > 1) {
-    const all = btn(`Download semua (ZIP)`, 'archive');
-    all.onclick = () => downloadAllImages(card, entry);
-    head.append(all);
-  }
+  const summary = [counts.image && `${counts.image} foto`, counts.live && `${counts.live} Live Photo`, counts.video && `${counts.video} video`]
+    .filter(Boolean).join(' · ');
+  head.append(el('span', 'muted small', `${summary} · ketuk untuk memilih`));
+  const toggleAll = el('button', 'link-btn');
+  toggleAll.type = 'button';
+  head.append(toggleAll);
   panel.append(head);
+
+  if (counts.live) {
+    const row = el('div', 'live-row');
+    row.append(el('span', 'small muted', 'Live Photo diunduh sebagai'));
+    const seg = el('div', 'seg');
+    [['photo', 'Foto'], ['video', 'Video'], ['both', 'Foto + Video']].forEach(([k, label]) => {
+      const b = el('button', `seg-btn${k === liveMode ? ' active' : ''}`, label);
+      b.type = 'button';
+      b.onclick = () => {
+        liveMode = k;
+        seg.querySelectorAll('.seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+        update();
+      };
+      seg.append(b);
+    });
+    row.append(seg);
+    panel.append(row);
+  }
+
   const grid = el('div', 'gallery');
-  imgs.forEach((im, i) => {
-    const fig = el('figure', 'gimg');
+  const tiles = [];
+  items.forEach((it, i) => {
+    const tile = el('div', 'gtile');
+    tile.tabIndex = 0;
+    tile.setAttribute('role', 'checkbox');
     const ph = el('div', 'ph');
-    if (im.thumb) {
+    if (it.thumb) {
       const img = el('img');
-      img.src = im.thumb;
+      img.src = it.thumb;
       img.alt = '';
       img.loading = 'lazy';
       img.onerror = () => img.remove();
       ph.append(img);
     }
-    fig.append(ph);
-    const cap = el('figcaption');
-    const dims = im.width && im.height ? `${im.width}×${im.height}` : '';
-    cap.append(el('span', '', [imgs.length > 1 ? `p${i + 1}` : '', dims, (im.ext || '').toUpperCase()].filter(Boolean).join(' · ')));
-    const dl = el('button', 'icon-btn');
-    dl.type = 'button';
-    dl.title = 'Download';
-    dl.append(icon('download'));
-    dl.onclick = () => { navDownload(`${im.url}&dl=1`); toast('Download gambar dimulai'); };
-    cap.append(dl);
-    fig.append(cap);
-    grid.append(fig);
+    tile.append(ph);
+    const check = el('span', 'gcheck');
+    check.append(icon('check'));
+    tile.append(check, el('span', 'gnum', String(i + 1)));
+    if (it.type !== 'image') {
+      const badge = el('span', 'gbadge');
+      if (it.type === 'live') badge.textContent = 'LIVE';
+      else badge.append(icon('play'), document.createTextNode(fmtDur(it.duration) || 'Video'));
+      tile.append(badge);
+    }
+    const zoom = el('button', 'gzoom');
+    zoom.type = 'button';
+    zoom.title = 'Lihat';
+    zoom.setAttribute('aria-label', `Lihat item ${i + 1}`);
+    zoom.append(icon('expand'));
+    zoom.onclick = (ev) => { ev.stopPropagation(); openViewer(card, entry, i, update); };
+    tile.append(zoom);
+    tile.onclick = () => toggle(it.index);
+    tile.onkeydown = (ev) => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); toggle(it.index); } };
+    grid.append(tile);
+    tiles.push([it, tile]);
   });
   panel.append(grid);
+
+  const bar = el('div', 'gallery-bar');
+  const dl = btn('Unduh', 'download', 'btn btn-primary');
+  const note = el('span', 'muted small');
+  bar.append(note, dl);
+  panel.append(bar);
+
+  function toggle(idx) {
+    if (entry._sel.has(idx)) entry._sel.delete(idx); else entry._sel.add(idx);
+    update();
+  }
+  function update() {
+    tiles.forEach(([it, t]) => {
+      const on = entry._sel.has(it.index);
+      t.classList.toggle('selected', on);
+      t.setAttribute('aria-checked', String(on));
+    });
+    const n = entry._sel.size;
+    const files = galleryFiles(entry, liveMode);
+    dl.lastChild.textContent = !n ? 'Pilih item dulu' : files.length > 1 ? `Unduh ${files.length} file (ZIP)` : 'Unduh';
+    dl.disabled = !n;
+    note.textContent = `${n} dari ${items.length} dipilih`;
+    toggleAll.textContent = n === items.length ? 'Batal pilih semua' : 'Pilih semua';
+  }
+  toggleAll.onclick = () => {
+    if (entry._sel.size === items.length) entry._sel.clear(); else items.forEach((it) => entry._sel.add(it.index));
+    update();
+  };
+  dl.onclick = () => downloadGallery(card, entry, galleryFiles(entry, liveMode));
+  update();
 }
 
 function renderResult(data) {
@@ -823,7 +1146,19 @@ function renderResult(data) {
       img.src = entry.thumbnail;
       img.onerror = () => img.remove();
     } else img.remove();
-    $('.dur', card).textContent = entry.ugoira ? '' : fmtDur(entry.duration);
+    const gallery = entry.gallery || [];
+    $('.dur', card).textContent = gallery.length ? `${gallery.length} item` : entry.ugoira ? '' : fmtDur(entry.duration);
+    if (entry.preview) {
+      const thumb = $('.thumb', card);
+      const play = el('button', 'play-btn');
+      play.type = 'button';
+      play.title = 'Putar pratinjau';
+      play.setAttribute('aria-label', 'Putar pratinjau');
+      play.append(icon('play'));
+      play.onclick = () => openPlayer(card, entry);
+      thumb.append(play);
+      thumb.classList.add('has-preview');
+    }
     const pf = $('.platform', card);
     const p = data.platform || {};
     pf.append(logoImg(p), document.createTextNode(p.name || entry.extractor || 'Web'));
@@ -834,12 +1169,12 @@ function renderResult(data) {
     const panels = { video: $('[data-panel="video"]', card), audio: $('[data-panel="audio"]', card), images: $('[data-panel="images"]', card) };
     entry.video.forEach((o) => panels.video.append(optionRow(card, entry, o, false)));
     entry.audio.forEach((o) => panels.audio.append(optionRow(card, entry, o, true)));
-    if ((entry.images || []).length) renderImages(card, entry, panels.images);
+    if (gallery.length) renderGallery(card, entry, panels.images);
 
     const available = {
       video: entry.video.length > 0,
       audio: entry.audio.length > 0,
-      images: (entry.images || []).length > 0,
+      images: gallery.length > 0,
     };
     const tabs = card.querySelectorAll('.tab');
     tabs.forEach((t) => {
@@ -849,7 +1184,7 @@ function renderResult(data) {
         Object.entries(panels).forEach(([k, pnl]) => pnl.classList.toggle('hidden', k !== t.dataset.tab));
       };
     });
-    const first = ['video', 'images', 'audio'].find((k) => available[k]) || 'video';
+    const first = ['images', 'video', 'audio'].find((k) => available[k]) || 'video';
     card.querySelector(`.tab[data-tab="${first}"]`).click();
     if (Object.values(available).filter(Boolean).length < 2) $('.tabs', card).classList.add('hidden');
     resultEl.append(card);
@@ -1022,3 +1357,149 @@ fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest')
     hint.append(all, document.createTextNode(' — armeabi-v7a untuk HP lama, x86_64 untuk emulator.'));
   })
   .catch(() => {});
+
+// ------------------------------------------------------------------ modal (pembaruan, lisensi) & popup "yang baru"
+const WEB_VERSION = '1.2.0';
+const RELEASES = 'https://github.com/xykal/XyDownloader/releases';
+const CHANGES = [
+  ['Pratinjau sebelum download', 'Putar video langsung di halaman hasil, atau lihat foto satu per satu di galeri.'],
+  ['Foto slide & Live Photo', 'TikTok, Douyin, Xiaohongshu, Kuaishou, X, Instagram, Threads, Bluesky, Weibo & pixiv. Pilih foto satu per satu, Live Photo bisa diunduh sebagai foto, video, atau keduanya.'],
+  ['Aplikasi Android lebih ringan & cepat', 'APK jauh lebih kecil, proses mencari link lebih cepat, dan ada tombol Perbarui yang memasang versi terbaru otomatis.'],
+  ['Lisensi lengkap', 'Daftar komponen open source beserta lisensinya kini tersedia di web dan aplikasi.'],
+];
+const LICENSES = [
+  ['yt-dlp', 'Unlicense', 'https://github.com/yt-dlp/yt-dlp', 'Extractor di server (Python)'],
+  ['Python', 'PSF-2.0', 'https://www.python.org/', 'Runtime server'],
+  ['ffmpeg.wasm core (FFmpeg)', 'GPL-2.0-or-later', 'https://github.com/ffmpegwasm/ffmpeg.wasm', 'Merge, remux HLS & ugoira di browser — dimuat dari CDN'],
+  ['@ffmpeg/ffmpeg & @ffmpeg/util', 'MIT', 'https://github.com/ffmpegwasm/ffmpeg.wasm', 'Pembungkus ffmpeg.wasm'],
+  ['lamejs', 'LGPL-3.0', 'https://github.com/zhuker/lamejs', 'Encoder MP3 di browser'],
+  ['hls.js', 'Apache-2.0', 'https://github.com/video-dev/hls.js', 'Pratinjau stream HLS — dimuat dari CDN saat dibutuhkan'],
+  ['flag-icons', 'MIT', 'https://github.com/lipis/flag-icons', 'Bendera negara'],
+  ['Ikon gaya Lucide', 'ISC', 'https://lucide.dev/', 'Ikon garis antarmuka'],
+  ['XyDownloader', 'GPL-3.0', 'https://github.com/xykal/XyDownloader', 'Kode aplikasi, engine & plugin'],
+];
+
+function openModal(titleText, build) {
+  const ov = el('div', 'modal');
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  const box = el('div', 'modal-box card');
+  const head = el('div', 'modal-head');
+  head.append(el('h3', '', titleText));
+  const x = el('button', 'icon-btn');
+  x.type = 'button';
+  x.setAttribute('aria-label', 'Tutup');
+  x.append(icon('x'));
+  head.append(x);
+  const body = el('div', 'modal-body');
+  box.append(head, body);
+  ov.append(box);
+  build(body);
+  document.body.append(ov);
+  document.body.classList.add('noscroll');
+  const shut = () => { ov.remove(); document.body.classList.remove('noscroll'); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') shut(); };
+  document.addEventListener('keydown', onKey);
+  x.onclick = shut;
+  ov.addEventListener('click', (e) => { if (e.target === ov) shut(); });
+  x.focus();
+  return shut;
+}
+
+function openUpdates() {
+  openModal(`Yang baru di XyDownloader ${WEB_VERSION}`, (body) => {
+    const img = el('img', 'modal-banner');
+    img.src = 'whats-new.webp';
+    img.alt = '';
+    img.onerror = () => img.remove();
+    body.append(img);
+    const list = el('ul', 'changes');
+    for (const [t, d] of CHANGES) {
+      const li = el('li');
+      li.append(icon('check'));
+      const txt = el('div');
+      txt.append(el('b', '', t), el('p', 'muted small', d));
+      li.append(txt);
+      list.append(li);
+    }
+    body.append(list);
+    const acts = el('div', 'actions');
+    const apk = el('a', 'btn btn-primary');
+    apk.href = $('#apk-link').href;
+    apk.target = '_blank';
+    apk.rel = 'noopener';
+    apk.append(icon('download'), document.createTextNode('Download APK terbaru'));
+    const notes = el('a', 'btn btn-secondary');
+    notes.href = `${RELEASES}/latest`;
+    notes.target = '_blank';
+    notes.rel = 'noopener';
+    notes.append(icon('github'), document.createTextNode('Catatan rilis'));
+    acts.append(apk, notes);
+    body.append(acts);
+    body.append(el('p', 'muted small', 'Aplikasi Android versi 1.2+ akan menawarkan pembaruan otomatis setiap ada versi baru.'));
+  });
+}
+
+function openLicenses() {
+  openModal('Lisensi & atribusi', (body) => {
+    body.append(el('p', 'muted small', 'XyDownloader dibangun di atas software open source berikut. Terima kasih kepada semua pengembangnya.'));
+    const list = el('div', 'lic-list');
+    for (const [name, lic, url, what] of LICENSES) {
+      const row = el('a', 'lic');
+      row.href = url;
+      row.target = '_blank';
+      row.rel = 'noopener';
+      const left = el('div');
+      left.append(el('b', '', name), el('span', 'muted small', what));
+      row.append(left, el('span', 'badge', lic));
+      list.append(row);
+    }
+    body.append(list);
+    const more = el('p', 'muted small');
+    const a = el('a', '', 'THIRD_PARTY_NOTICES.md');
+    a.href = 'https://github.com/xykal/XyDownloader/blob/main/THIRD_PARTY_NOTICES.md';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    more.append(document.createTextNode('Teks lisensi lengkap (termasuk komponen aplikasi Android): '), a, document.createTextNode('. Logo platform adalah merek dagang milik pemiliknya masing-masing dan hanya dipakai untuk menunjukkan kompatibilitas.'));
+    body.append(more);
+    const built = el('p', 'built-line');
+    built.append(el('span', '', 'Built in '), el('b', '', 'XyVerse'));
+    body.append(built);
+  });
+}
+
+function whatsNewPopup() {
+  let seen = null;
+  try { seen = localStorage.getItem('xy-seen-version'); } catch { /* mode privat */ }
+  if (seen === WEB_VERSION) return;
+  const remember = () => { try { localStorage.setItem('xy-seen-version', WEB_VERSION); } catch { /* abaikan */ } };
+  const probe = new Image();
+  probe.onload = () => {
+    const ov = el('div', 'promo');
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-label', `Yang baru di XyDownloader ${WEB_VERSION}`);
+    const box = el('div', 'promo-box');
+    const img = el('img');
+    img.src = probe.src;
+    img.alt = `Yang baru di XyDownloader ${WEB_VERSION} — ketuk untuk detail`;
+    img.tabIndex = 0;
+    const x = el('button', 'promo-x');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Tutup');
+    x.append(icon('x'));
+    box.append(img, x);
+    ov.append(box);
+    document.body.append(ov);
+    const shut = () => { remember(); ov.remove(); };
+    x.onclick = (e) => { e.stopPropagation(); shut(); };
+    img.onclick = () => { shut(); openUpdates(); };
+    img.onkeydown = (e) => { if (e.key === 'Enter') { shut(); openUpdates(); } };
+    ov.addEventListener('click', (e) => { if (e.target === ov) shut(); });
+  };
+  probe.src = 'whats-new.webp';
+}
+
+$('#open-updates')?.addEventListener('click', (e) => { e.preventDefault(); openUpdates(); });
+$('#open-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLicenses(); });
+if (!shared) setTimeout(whatsNewPopup, 900);

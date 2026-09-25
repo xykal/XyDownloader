@@ -171,27 +171,41 @@ fun PlatformChip(platform: Platform) {
 
 @Composable
 fun InfoLine(@DrawableRes icon: Int, title: String, body: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
-    Row(modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.Start) {
+    val click = if (onClick != null) Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick) else Modifier
+    Row(modifier.fillMaxWidth().then(click).padding(vertical = 6.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.Start) {
         Icon(painterResource(icon), null, Modifier.size(18.dp).padding(top = 1.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
             val color = if (onClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            val m = if (onClick != null) Modifier.padding(top = 2.dp).clickable(onClick = onClick) else Modifier.padding(top = 2.dp)
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = color, modifier = m)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = color, modifier = Modifier.padding(top = 2.dp))
+        }
+        if (onClick != null) {
+            Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(18.dp).align(Alignment.CenterVertically),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-/** Thumbnail pixiv (i.pximg.net) wajib pakai Referer. */
-fun thumbModel(context: Context, url: String?): Any? {
+/** Beberapa CDN gambar menolak tanpa Referer (pixiv, Weibo, ...). */
+private val REFERERS = listOf(
+    "pximg.net" to "https://www.pixiv.net/",
+    "sinaimg.cn" to "https://weibo.com/",
+    "xhscdn.com" to "https://www.xiaohongshu.com/",
+    "douyinpic.com" to "https://www.douyin.com/",
+    "yximgs.com" to "https://www.kuaishou.com/",
+)
+
+fun thumbModel(context: Context, url: String?, headers: Map<String, String> = emptyMap()): Any? {
     if (url == null) return null
-    val needsReferer = url.contains("pximg.net")
-    return if (needsReferer) {
-        ImageRequest.Builder(context).data(url).addHeader("Referer", "https://www.pixiv.net/").crossfade(true).build()
-    } else {
-        ImageRequest.Builder(context).data(url).crossfade(true).build()
+    val b = ImageRequest.Builder(context).data(url).crossfade(true)
+    headers.forEach { (k, v) ->
+        if (!k.equals("Accept-Encoding", true) && !k.equals("Accept", true)) b.addHeader(k, v)
     }
+    if (headers.keys.none { it.equals("Referer", true) }) {
+        REFERERS.firstOrNull { url.contains(it.first) }?.let { b.addHeader("Referer", it.second) }
+    }
+    return b.build()
 }
 
 fun formatBytes(b: Long): String {

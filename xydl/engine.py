@@ -37,10 +37,11 @@ from yt_dlp.networking import Request as YRequest  # noqa: E402
 from . import signer  # noqa: E402
 from .platforms import detect_platform  # noqa: E402
 
-VERSION = '1.0.0'
+VERSION = '1.2.0'
 URL_RE = re.compile(r'https?://[^\s<>"\'\u3000-\u303f\uff00-\uffef]+', re.I)
 IP_BOUND_HOSTS = ('googlevideo.com',)  # URL format YouTube terikat IP server yang meng-extract
 MAX_ENTRIES = 12
+MAX_GALLERY = 60  # foto slide bisa puluhan (TikTok/Douyin s.d. 35, Weibo/XHS s.d. 18)
 
 
 # ---------------------------------------------------------------------------
@@ -438,25 +439,8 @@ def _entry_meta(ctx, info, title):
         'is_live': bool(info.get('is_live')),
         'video': [],
         'audio': [],
-        'images': [],
     }
 
-
-def _build_image_entry(ctx, info, title, base_name):
-    """Postingan gambar (mis. ilustrasi/manga pixiv): format = file gambar resolusi asli."""
-    entry = _entry_meta(ctx, info, title)
-    thumb = entry['thumbnail']
-    for f in info.get('formats') or []:
-        if not f.get('url'):
-            continue
-        ext = (f.get('ext') or 'jpg').lower()
-        fname = f'{base_name}.{ext}'
-        src = ctx.source(f, 'image', fname)
-        entry['images'].append({
-            'url': src['url'], 'thumb': thumb, 'ext': ext, 'filename': fname,
-            'width': f.get('width'), 'height': f.get('height'), 'size': _size(f),
-        })
-    return entry
 
 
 def _build_ugoira_entry(ctx, info, title, base_name):
@@ -477,13 +461,141 @@ def _build_ugoira_entry(ctx, info, title, base_name):
     return entry
 
 
+def _is_gallery_item(info):
+    return bool(info.get('xy_image') or info.get('xy_live'))
+
+
+def _media_src(ctx, f, kind, filename):
+    """Sumber ringkas untuk item galeri / pratinjau."""
+    src = ctx.source(f, kind, filename)
+    out = {'url': src['url'], 'ext': f.get('ext'), 'filename': filename, 'size': _size(f), 'via': src['via'],
+           'proto': src['proto']}
+    if src.get('alt'):
+        out['alt'] = src['alt']
+    return out
+
+
+def _pick_preview(formats, best_audio=None):
+    """Format ringan (<=720p) untuk diputar sebelum download."""
+    fm = [f for f in formats if _usable(f) and _has_video(f)]
+
+    def near720(f):
+        q = _short_side(f) or 0
+        return (q <= 720, q if q <= 720 else -q, _vcodec_score(f))
+
+    muxed = [f for f in fm if _has_audio(f) and not _watermarked(f)]
+    direct = [f for f in muxed if _proto(f) == 'direct']
+    if direct:
+        return ('av', max(direct, key=near720), None)
+    hls = [f for f in muxed if _proto(f) == 'hls']
+    if hls:
+        return ('hls', max(hls, key=near720), None)
+    vonly = [f for f in fm if not _has_audio(f) and _proto(f) == 'direct' and _vcodec_score(f) >= 1.5]
+    if vonly and best_audio is not None and _proto(best_audio) == 'direct':
+        return ('pair', max(vonly, key=near720), best_audio)
+    return None
+
+
+def _preview_payload(ctx, info, formats, best_audio, base_name):
+    pick = _pick_preview(formats, best_audio)
+    if not pick:
+        return None
+    kind, f, a = pick
+    v = _media_src(ctx, f, 'av' if kind != 'pair' else 'video', f'{base_name} (preview).{f.get("ext") or "mp4"}')
+    if v['via'] == 'server':  # stream lewat Vercel terlalu berat untuk pratinjau
+        return None
+    out = {'type': kind, 'url': v['url'], 'alt': v.get('alt'), 'width': f.get('width'), 'height': f.get('height')}
+    if a is not None:
+        au = _media_src(ctx, a, 'audio', f'{base_name} (preview).{_audio_ext(a)}')
+        if au['via'] == 'server':
+            return None
+        out['audio'] = au['url']
+    return out
+
+
+def _gallery_item(ctx, e, idx, base_name, total):
+    fmts = [f for f in (e.get('formats') or []) if f.get('url')]
+    num = f' ({idx})' if total > 1 else ''
+    thumb_url = e.get('thumbnail') or next((t.get('url') for t in reversed(e.get('thumbnails') or [])
+                                            if t.get('url')), None)
+    item = {'index': idx, 'id': e.get('id'), 'title': e.get('title'), 'thumb': None,
+            'width': None, 'height': None, 'duration': e.get('duration')}
+    if _is_gallery_item(e):
+        img = next((f for f in fmts if f.get('format_id') == 'image'), None) or (fmts[0] if fmts else None)
+        if img is None:
+            return None
+        ext = (img.get('ext') or 'jpg').lower()
+        item.update(type='image', width=img.get('width'), height=img.get('height'))
+        item['image'] = _media_src(ctx, img, 'image', f'{base_name}{num}.{ext}')
+        item['thumb'] = ctx.thumb(thumb_url or img['url'])
+        live = next((f for f in fmts if f.get('format_id') == 'live'), None) if e.get('xy_live') else None
+        if live is not None:
+            v_ext = (live.get('ext') or 'mp4').lower()
+            item['type'] = 'live'
+            item['video'] = _media_src(ctx, live, 'av', f'{base_name}{num} (live).{v_ext}')
+        return item
+    # video di dalam carousel: pilih format muxed siap-putar terbaik (<=1080p)
+    cands = [f for f in fmts if _usable(f) and _has_video(f) and _has_audio(f) and not _watermarked(f)]
+    if not cands:
+        cands = [f for f in fmts if _usable(f) and _has_video(f)]
+    if not cands:
+        return None
+
+    def vk(f):
+        q = _short_side(f) or 0
+        return (_proto(f) == 'direct', q <= 1080, q if q <= 1080 else -q, _vcodec_score(f), f.get('tbr') or 0)
+
+    best = max(cands, key=vk)
+    v_ext = 'mp4' if (_proto(best) == 'hls' or (best.get('ext') in (None, 'mp4', 'm4v', 'unknown_video'))) \
+        else best.get('ext')
+    item.update(type='video', width=best.get('width'), height=best.get('height'))
+    item['video'] = _media_src(ctx, best, 'av', f'{base_name}{num}.{v_ext}')
+    item['video']['mode'] = 'hls' if _proto(best) == 'hls' else ('fetch' if item['video']['via'] == 'server'
+                                                               else 'direct')
+    item['thumb'] = ctx.thumb(thumb_url)
+    return item
+
+
+def build_gallery(ydl, info, entries, proxy_base, page_url):
+    """Foto slide / carousel / Live Photo -> satu kartu galeri berisi item yang bisa dipilih."""
+    ctx = _Ctx(ydl, info, proxy_base, page_url)
+    title = info.get('title') or (entries[0].get('title') if entries else None) or 'galeri'
+    base_name = safe_filename(title)
+    head = entries[0] if entries else info
+    entry = _entry_meta(ctx, {**head, **{k: info.get(k) for k in ('id', 'title', 'uploader', 'webpage_url')
+                                        if info.get(k)}}, title)
+    entry['thumbnail'] = entry['thumbnail'] or (ctx.thumb(info.get('thumbnail')) if info.get('thumbnail') else None)
+    entry['duration'] = None
+    items = []
+    for idx, e in enumerate(entries[:MAX_GALLERY], 1):
+        ectx = _Ctx(ydl, e, proxy_base, e.get('webpage_url') or page_url)
+        it = _gallery_item(ectx, e, idx, base_name, len(entries))
+        if it:
+            items.append(it)
+    entry['gallery'] = items
+    if not entry['thumbnail'] and items:
+        entry['thumbnail'] = items[0]['thumb']
+    music = info.get('xy_audio') or {}
+    if music.get('url'):
+        a_ext = (music.get('ext') or 'mp3').lower()
+        fmt = {'url': music['url'], 'ext': a_ext, 'format_id': 'music', 'protocol': 'https',
+               'http_headers': music.get('http_headers') or {}, 'vcodec': 'none', 'acodec': a_ext}
+        src = ctx.source(fmt, 'audio', f'{base_name} (musik).{a_ext}')
+        if a_ext != 'mp3':
+            entry['audio'].append({
+                'id': 'music-mp3', 'label': 'Musik latar (MP3)', 'kind': 'mp3', 'bitrate': 192, 'ext': 'mp3',
+                'mode': 'mp3', 'filename': f'{base_name} (musik).mp3', 'sources': [src], 'size': None})
+        entry['audio'].append({
+            'id': 'music', 'label': f'Musik latar ({a_ext.upper()})', 'kind': 'original', 'ext': a_ext,
+            'filename': f'{base_name} (musik).{a_ext}', 'sources': [src], 'mode': 'direct', 'size': None})
+    return entry
+
+
 def build_entry(ctx, info):
     title = info.get('title') or info.get('id') or 'video'
     base_name = safe_filename(title)
     if info.get('xy_ugoira'):
         return _build_ugoira_entry(ctx, info, title, base_name)
-    if info.get('xy_image'):
-        return _build_image_entry(ctx, info, title, base_name)
     formats = [f for f in (info.get('formats') or ([info] if info.get('url') else [])) if _usable(f)]
 
     videos = [f for f in formats if _has_video(f)]
@@ -605,6 +717,10 @@ def build_entry(ctx, info):
     entry = _entry_meta(ctx, info, title)
     entry['video'] = video_options
     entry['audio'] = audio_options
+    try:
+        entry['preview'] = _preview_payload(ctx, info, formats, best_audio, base_name)
+    except Exception:  # pratinjau opsional, jangan gagalkan ekstraksi
+        entry['preview'] = None
     return entry
 
 
@@ -647,10 +763,14 @@ def extract(text, proxy_base):
             info = ydl.sanitize_info(info)
             page_url = info.get('webpage_url') or url
             ctx = _Ctx(ydl, info, proxy_base, page_url)
-            if info.get('_type') == 'playlist' or info.get('entries') is not None:
-                raw_entries = [e for e in (info.get('entries') or []) if e][:MAX_ENTRIES]
+            is_playlist = info.get('_type') == 'playlist' or info.get('entries') is not None
+            raw_all = [e for e in (info.get('entries') or []) if e] if is_playlist else [info]
+            if info.get('xy_gallery') or any(_is_gallery_item(e) for e in raw_all):
+                entries = [build_gallery(ydl, info, raw_all, proxy_base, page_url)]
+                title = entries[0]['title']
+            elif is_playlist:
                 entries = []
-                for e in raw_entries:
+                for e in raw_all[:MAX_ENTRIES]:
                     ectx = _Ctx(ydl, e, proxy_base, e.get('webpage_url') or page_url)
                     entries.append(build_entry(ectx, e))
                 title = info.get('title')
@@ -664,14 +784,9 @@ def extract(text, proxy_base):
         code, msg = friendly_error(raw)
         raise XyError(code, msg, raw)
 
-    entries = [e for e in entries if e['video'] or e['audio'] or e.get('images')]
+    entries = [e for e in entries if e['video'] or e['audio'] or e.get('gallery')]
     if not entries:
-        raise XyError('novideo', 'Tidak ada video/audio yang bisa diunduh di link ini.')
-    if len(entries) > 1 and all(e.get('images') and not e['video'] and not e['audio'] for e in entries):
-        gallery = dict(entries[0])
-        gallery['title'] = title or gallery['title']
-        gallery['images'] = [img for e in entries for img in e['images']]
-        entries = [gallery]
+        raise XyError('novideo', 'Tidak ada video/foto/audio yang bisa diunduh di link ini.')
     if platform is None and entries:
         ext = (entries[0].get('extractor') or '').lower()
         platform = {'id': ext or 'web', 'name': entries[0].get('extractor') or 'Web', 'region': 'global',

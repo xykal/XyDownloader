@@ -1,0 +1,41 @@
+{
+  "_comment": "Daftar komponen pihak ketiga XyDownloader. Sumber tunggal untuk layar Lisensi (Android), modal Lisensi (web) dan THIRD_PARTY_NOTICES.md (scripts/gen_notices.py).",
+  "android": [
+    {"name": "XyDownloader", "license": "GPL-3.0-or-later", "file": "GPL-3.0-only.txt", "url": "https://github.com/xykal/XyDownloader", "copyright": "Copyright (c) 2026 XyVerse", "note": "Aplikasi, plugin extractor & engine"},
+    {"name": "youtubedl-android", "license": "GPL-3.0", "file": "GPL-3.0-only.txt", "url": "https://github.com/JunkFood02/youtubedl-android", "copyright": "Copyright (c) yausername, JunkFood02 & kontributor", "note": "Menjalankan Python + yt-dlp di Android"},
+    {"name": "yt-dlp", "license": "Unlicense", "file": "Unlicense.txt", "url": "https://github.com/yt-dlp/yt-dlp", "copyright": "yt-dlp contributors (public domain)", "note": "Engine pembaca link (diperbarui otomatis dari GitHub)"},
+    {"name": "yt-dlp-ejs", "license": "Unlicense", "file": "Unlicense.txt", "url": "https://github.com/yt-dlp/ejs", "copyright": "yt-dlp contributors (public domain)", "note": "Skrip JavaScript tantangan YouTube"},
+    {"name": "Python 3.12", "license": "PSF-2.0", "file": "PSF-2.0.txt", "url": "https://www.python.org/", "copyright": "Copyright (c) 2001-2024 Python Software Foundation. All Rights Reserved.", "note": "Runtime (build Termux, dibundel youtubedl-android; versi ramping)"},
+    {"name": "FFmpeg 8.0 (build minimal XyDownloader)", "license": "LGPL-2.1-or-later", "file": "LGPL-2.1-only.txt", "url": "https://ffmpeg.org/", "copyright": "Copyright (c) 2000-2026 the FFmpeg developers", "note": "Merge video + audio, MP3/M4A, ugoira. Dibangun tanpa komponen GPL; skrip build & daftar komponen: android/ffmpeg/build.sh"},
+    {"name": "LAME 3.100", "license": "LGPL-2.0-or-later", "file": "LGPL-2.0-only.txt", "url": "https://lame.sourceforge.io/", "copyright": "Copyright (c) 1999-2017 The LAME Project", "note": "Encoder MP3 (terhubung statis ke FFmpeg)"},
+    {"name": "QuickJS", "license": "MIT", "file": "MIT.txt", "url": "https://bellard.org/quickjs/", "copyright": "Copyright (c) 2017-2021 Fabrice Bellard, Charlie Gordon", "note": "Runtime JavaScript untuk YouTube"},
+    {"name": "OpenSSL 3", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://www.openssl.org/", "copyright": "Copyright (c) 1998-2025 The OpenSSL Project Authors", "note": "TLS/HTTPS untuk Python"},
+    {"name": "zlib", "license": "Zlib", "file": "Zlib.txt", "url": "https://zlib.net/", "copyright": "Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler", "note": "Kompresi"},
+    {"name": "bzip2", "license": "bzip2-1.0.6", "file": "bzip2-1.0.6.txt", "url": "https://sourceware.org/bzip2/", "copyright": "Copyright (C) 1996-2019 Julian R Seward", "note": "Kompresi"},
+    {"name": "XZ Utils (liblzma)", "license": "0BSD", "file": "0BSD.txt", "url": "https://tukaani.org/xz/", "copyright": "Copyright (C) The XZ Utils authors and contributors", "note": "Kompresi"},
+    {"name": "Expat", "license": "MIT", "file": "MIT.txt", "url": "https://libexpat.github.io/", "copyright": "Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper; Copyright (c) 2001-2025 Expat maintainers", "note": "Parser XML"},
+    {"name": "libffi", "license": "MIT", "file": "MIT.txt", "url": "https://sourceware.org/libffi/", "copyright": "Copyright (c) 1996-2024 Anthony Green, Red Hat, Inc and others", "note": "ctypes"},
+    {"name": "PyCryptodome (Cryptodome)", "license": "BSD-2-Clause", "file": "BSD-2-Clause.txt", "url": "https://www.pycryptodome.org/", "copyright": "Copyright (c) 2014, Legrandin; sebagian kode berstatus public domain", "note": "Dekripsi AES untuk stream HLS"},
+    {"name": "Mutagen", "license": "GPL-2.0-or-later", "file": "GPL-2.0-only.txt", "url": "https://github.com/quodlibet/mutagen", "copyright": "Copyright (c) 2005-2024 Joe Wreschnig, Michael Urman, Christoph Reiter & kontributor", "note": "Metadata audio"},
+    {"name": "Termux packages", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://github.com/termux/termux-packages", "copyright": "Copyright (c) Termux developers", "note": "Resep build runtime Python untuk Android"},
+    {"name": "AndroidX (Core, Activity, Lifecycle, WorkManager, SplashScreen)", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://developer.android.com/jetpack/androidx", "copyright": "Copyright (c) The Android Open Source Project", "note": ""},
+    {"name": "Jetpack Compose & Material 3", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://developer.android.com/jetpack/compose", "copyright": "Copyright (c) The Android Open Source Project", "note": "Antarmuka aplikasi"},
+    {"name": "AndroidX Media3 (ExoPlayer)", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://github.com/androidx/media", "copyright": "Copyright (c) The Android Open Source Project", "note": "Pratinjau video"},
+    {"name": "Kotlin & kotlinx.coroutines", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://kotlinlang.org/", "copyright": "Copyright (c) JetBrains s.r.o. and Kotlin Programming Language contributors", "note": ""},
+    {"name": "Coil", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://github.com/coil-kt/coil", "copyright": "Copyright (c) 2025 Coil Contributors", "note": "Memuat gambar/thumbnail"},
+    {"name": "OkHttp & Okio", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://square.github.io/okhttp/", "copyright": "Copyright (c) Square, Inc.", "note": ""},
+    {"name": "Jackson", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://github.com/FasterXML/jackson", "copyright": "Copyright (c) 2007- Tatu Saloranta & FasterXML", "note": "Dipakai youtubedl-android"},
+    {"name": "Apache Commons IO & Compress", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://commons.apache.org/", "copyright": "Copyright (c) The Apache Software Foundation", "note": "Dipakai youtubedl-android"}
+  ],
+  "web": [
+    {"name": "yt-dlp", "license": "Unlicense", "file": "Unlicense.txt", "url": "https://github.com/yt-dlp/yt-dlp", "copyright": "yt-dlp contributors (public domain)", "note": "Extractor di server"},
+    {"name": "Python", "license": "PSF-2.0", "file": "PSF-2.0.txt", "url": "https://www.python.org/", "copyright": "Copyright (c) 2001-2025 Python Software Foundation", "note": "Runtime server"},
+    {"name": "ffmpeg.wasm core (FFmpeg)", "license": "GPL-2.0-or-later", "file": "GPL-2.0-only.txt", "url": "https://github.com/ffmpegwasm/ffmpeg.wasm", "copyright": "Copyright (c) the FFmpeg developers & ffmpeg.wasm contributors", "note": "Merge, remux HLS & ugoira di browser (dimuat dari CDN)"},
+    {"name": "@ffmpeg/ffmpeg & @ffmpeg/util", "license": "MIT", "file": "MIT.txt", "url": "https://github.com/ffmpegwasm/ffmpeg.wasm", "copyright": "Copyright (c) 2019 Jerome Wu", "note": ""},
+    {"name": "lamejs", "license": "LGPL-3.0", "file": "LGPL-3.0-only.txt", "url": "https://github.com/zhuker/lamejs", "copyright": "Copyright (c) 2015 Alex Zhukov", "note": "Encoder MP3 di browser"},
+    {"name": "hls.js", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://github.com/video-dev/hls.js", "copyright": "Copyright (c) 2017 Dailymotion; hls.js contributors", "note": "Pratinjau stream HLS (dimuat dari CDN saat dibutuhkan)"},
+    {"name": "flag-icons", "license": "MIT", "file": "MIT.txt", "url": "https://github.com/lipis/flag-icons", "copyright": "Copyright (c) 2013 Panayiotis Lipiridis", "note": "Bendera negara"},
+    {"name": "Lucide (gaya ikon)", "license": "ISC", "file": "ISC.txt", "url": "https://lucide.dev/", "copyright": "Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.", "note": "Ikon garis"}
+  ],
+  "trademarks": "Logo dan nama platform (TikTok, Douyin, Instagram, YouTube, dll) adalah merek dagang milik pemiliknya masing-masing, hanya dipakai untuk menunjukkan kompatibilitas. XyDownloader tidak berafiliasi dengan platform mana pun."
+}

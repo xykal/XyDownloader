@@ -34,6 +34,8 @@ import id.my.xyverse.xydownloader.BuildConfig
 import id.my.xyverse.xydownloader.MainViewModel
 import id.my.xyverse.xydownloader.R
 import id.my.xyverse.xydownloader.XyApp
+import id.my.xyverse.xydownloader.Screen
+import id.my.xyverse.xydownloader.update.AppUpdater
 
 @Composable
 fun AboutScreen(vm: MainViewModel) {
@@ -60,7 +62,7 @@ fun AboutScreen(vm: MainViewModel) {
             InfoLine(
                 R.drawable.ic_cpu, "Engine",
                 when (val e = engine) {
-                    is XyApp.EngineState.Ready -> "yt-dlp ${e.version ?: "-"} · FFmpeg · Python"
+                    is XyApp.EngineState.Ready -> "yt-dlp ${e.version ?: "-"} · FFmpeg 8 (minimal) · Python 3.12 · QuickJS"
                     is XyApp.EngineState.Failed -> "Gagal dimuat: ${e.message}"
                     else -> "Menyiapkan…"
                 },
@@ -87,6 +89,17 @@ fun AboutScreen(vm: MainViewModel) {
             }
         }
 
+        val update by vm.updateState.collectAsState()
+        XyCard {
+            val available = update as? AppUpdater.State.Available
+            InfoLine(
+                R.drawable.ic_update, "Pembaruan aplikasi",
+                if (available != null) "Versi ${available.release.version} tersedia — ketuk untuk memperbarui"
+                else "Versi ${BuildConfig.VERSION_NAME} · ketuk untuk cek pembaruan",
+            ) { vm.openUpdates() }
+            InfoLine(R.drawable.ic_scale, "Lisensi open source", "Komponen & teks lisensi lengkap") { vm.screen = Screen.Licenses }
+        }
+
         XyCard {
             InfoLine(R.drawable.ic_folder, "Lokasi file", "Internal storage › Download › XyDownloader")
             InfoLine(R.drawable.ic_globe, "Versi web", BuildConfig.WEB_URL) { open(BuildConfig.WEB_URL) }
@@ -107,8 +120,8 @@ fun AboutScreen(vm: MainViewModel) {
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "Dibangun di atas proyek open source: yt-dlp, youtubedl-android, FFmpeg, Python, QuickJS, Jetpack Compose. " +
-                    "Logo platform adalah merek milik pemiliknya masing-masing.",
+                "Dibangun di atas proyek open source: yt-dlp, youtubedl-android, FFmpeg, LAME, Python, QuickJS, Jetpack Compose, " +
+                    "Media3. Logo platform adalah merek milik pemiliknya masing-masing.",
                 style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
             )
         }

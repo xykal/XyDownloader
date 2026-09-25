@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -59,6 +58,7 @@ import id.my.xyverse.xydownloader.MediaInfo
 import id.my.xyverse.xydownloader.PlatformCatalog
 import id.my.xyverse.xydownloader.R
 import id.my.xyverse.xydownloader.XyApp
+import androidx.compose.material3.Surface
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -77,9 +77,9 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
         item { BrandHeader(Modifier.padding(bottom = 4.dp)) }
         item {
             XyCard {
-                Text("Download video, audio & gambar", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
+                Text("Download video, audio & foto", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
                 Text(
-                    "TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, pixiv & 1.700+ situs.",
+                    "TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Threads, pixiv & 1.700+ situs — termasuk foto slide & Live Photo.",
                     style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
                 )
@@ -166,7 +166,7 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
             is HomeState.Error -> item { ErrorCard(s.message) { vm.fetch() } }
             is HomeState.Loaded -> {
                 val info = s.info
-                item { InfoCard(info) }
+                item { InfoCard(info, onPreview = if (info.preview != null) ({ vm.showPreview = true }) else null) }
                 when {
                     info.isUgoira -> {
                         item { SectionTitle("Animasi (ugoira)", R.drawable.ic_video) }
@@ -177,17 +177,41 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                             }
                         }
                     }
-                    info.images.isNotEmpty() -> {
-                        item { SectionTitle("${info.images.size} gambar · resolusi asli", R.drawable.ic_image) }
-                        item { ImageStrip(info) }
+                    info.gallery.isNotEmpty() -> {
+                        item { XyCard(padding = 14.dp) { GalleryHeader(vm, info) } }
+                        val rows = info.gallery.chunked(3)
+                        items(rows.size, key = { "g-$it" }) { r ->
+                            GalleryRow(vm, rows[r]) { picked -> vm.viewerIndex = info.gallery.indexOf(picked) }
+                        }
                         item {
-                            OptionRow(
-                                R.drawable.ic_archive,
-                                if (info.images.size > 1) "Semua gambar (${info.images.size})" else "Gambar asli",
-                                "Tersimpan di Download/XyDownloader",
+                            val n = vm.fileCount(info)
+                            PrimaryButton(
+                                text = when {
+                                    vm.selected.isEmpty() -> "Pilih item dulu"
+                                    n > 1 -> "Unduh $n file"
+                                    else -> "Unduh"
+                                },
+                                icon = R.drawable.ic_download,
+                                enabled = vm.selected.isNotEmpty(),
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                vm.download(info, "images", label = if (info.images.size > 1) "${info.images.size} gambar" else "Gambar")
-                                toast("Download gambar dimulai — cek tab Unduhan")
+                                val c = vm.downloadGallery(info)
+                                toast(if (c > 1) "$c file ditambahkan ke Unduhan" else "Download dimulai — cek tab Unduhan")
+                            }
+                        }
+                        info.music?.let { m ->
+                            item { SectionTitle("Musik latar", R.drawable.ic_music) }
+                            item {
+                                OptionRow(R.drawable.ic_music, "MP3 · 192 kbps", "Dikonversi dengan FFmpeg di HP") {
+                                    vm.downloadMusic(info, mp3 = true)
+                                    toast("Download musik (MP3) dimulai — cek tab Unduhan")
+                                }
+                            }
+                            item {
+                                OptionRow(R.drawable.ic_music, "${(m.source.ext ?: "m4a").uppercase()} · kualitas asli", "Tanpa konversi") {
+                                    vm.downloadMusic(info, mp3 = false)
+                                    toast("Download musik dimulai — cek tab Unduhan")
+                                }
                             }
                         }
                     }
@@ -239,6 +263,27 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
+
+    // ---- pratinjau video & viewer galeri
+    val loaded = (vm.state as? HomeState.Loaded)?.info
+    val preview = loaded?.preview
+    if (loaded != null && preview != null && vm.showPreview) {
+        PreviewDialog(preview, loaded.title) { vm.showPreview = false }
+    }
+    val viewer = vm.viewerIndex
+    if (loaded != null && viewer != null && loaded.gallery.isNotEmpty()) {
+        GalleryViewer(
+            items = loaded.gallery,
+            start = viewer,
+            selected = vm.selected,
+            onToggle = { vm.toggle(it) },
+            onDownload = { item, photoOnly ->
+                val c = vm.downloadGallery(loaded, only = item, onlyPhoto = photoOnly)
+                toast(if (c > 0) "Download dimulai — cek tab Unduhan" else "Tidak ada file untuk item ini")
+            },
+            onDismiss = { vm.viewerIndex = null },
+        )
+    }
 }
 
 private fun readClipboard(context: Context): String? {
@@ -266,7 +311,7 @@ private fun HowToCard() {
         val steps = listOf(
             R.drawable.ic_share to "Di TikTok, Instagram, YouTube, Douyin, dll: tekan Bagikan lalu pilih XyDownloader.",
             R.drawable.ic_paste to "Atau salin link, lalu tekan ikon tempel di kolom atas.",
-            R.drawable.ic_folder to "Pilih kualitas. File tersimpan di Download/XyDownloader.",
+            R.drawable.ic_folder to "Pilih kualitas, atau pilih foto satu per satu. File tersimpan di Download/XyDownloader.",
         )
         steps.forEach { (icon, text) ->
             Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
@@ -316,7 +361,7 @@ fun ErrorCard(message: String, onRetry: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun InfoCard(info: MediaInfo) {
+private fun InfoCard(info: MediaInfo, onPreview: (() -> Unit)?) {
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
     val platform = PlatformCatalog.detect(info.sourceUrl)
@@ -332,12 +377,29 @@ private fun InfoCard(info: MediaInfo) {
                         contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
                     )
                 }
-                if (info.duration != null && !info.isUgoira) {
+                val badge = when {
+                    info.gallery.isNotEmpty() -> "${info.gallery.size} item"
+                    info.duration != null && !info.isUgoira -> formatDuration(info.duration)
+                    else -> null
+                }
+                if (badge != null) {
                     Text(
-                        formatDuration(info.duration), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                        badge, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
                             .background(Color(0xC7000000), RoundedCornerShape(5.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
                     )
+                }
+                if (onPreview != null) {
+                    Surface(
+                        onClick = onPreview,
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = Color(0xA6000000),
+                        modifier = Modifier.align(Alignment.Center).size(40.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_play), "Putar pratinjau", Modifier.size(18.dp).padding(start = 2.dp), tint = Color.White)
+                        }
+                    }
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -358,32 +420,9 @@ private fun InfoCard(info: MediaInfo) {
                     Text("oleh $it", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImageStrip(info: MediaInfo) {
-    val context = LocalContext.current
-    val cs = MaterialTheme.colorScheme
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(info.images, key = { "img-${it.index}" }) { page ->
-            Box(
-                Modifier.width(96.dp).aspectRatio(3f / 4f).clip(RoundedCornerShape(10.dp))
-                    .background(cs.surfaceContainer)
-                    .border(1.dp, cs.outlineVariant, RoundedCornerShape(10.dp)),
-            ) {
-                AsyncImage(
-                    model = thumbModel(context, page.thumbnail), contentDescription = null,
-                    contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
-                )
-                if (info.images.size > 1) {
-                    Text(
-                        "p${page.index}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(4.dp)
-                            .background(Color(0xC7000000), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
-                    )
+                if (onPreview != null) {
+                    Text("Ketuk ikon play untuk pratinjau", style = MaterialTheme.typography.bodySmall, color = cs.primary,
+                        modifier = Modifier.padding(top = 2.dp))
                 }
             }
         }

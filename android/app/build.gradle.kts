@@ -1,5 +1,6 @@
-// XyDownloader Android app (by XyVerse)
-// Engine: youtubedl-android (Python + yt-dlp + FFmpeg + QuickJS jalan langsung di HP)
+// XyDownloader Android app (built in XyVerse)
+// Engine: youtubedl-android (Python + yt-dlp + QuickJS jalan langsung di HP)
+//       + FFmpeg minimal hasil build sendiri (android/ffmpeg/build.sh) — jauh lebih kecil dari versi penuh.
 
 plugins {
     id("com.android.application")
@@ -8,12 +9,18 @@ plugins {
 }
 
 // Versi diisi dari CI (tag v1.2.3 -> 1.2.3). Build lokal pakai default.
-val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.0.0"
+val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.2.0-dev"
 val appVersionCode: Int = (System.getenv("VERSION_CODE") ?: "1").toInt()
 
 // Signing release dari GitHub Secrets (KEYSTORE_BASE64 -> file, lihat workflow android.yml)
 val keystorePath: String? = System.getenv("KEYSTORE_PATH")
 val hasReleaseKeystore = keystorePath != null && file(keystorePath).exists()
+
+// Native lib tambahan hasil CI: libpython.zip.so versi ramping + libffmpeg.so minimal
+// (android/tools/prepare_native.py). Kalau folder ini kosong, dipakai versi bawaan library.
+val xyJniDir: File = layout.buildDirectory.dir("xy-jni").get().asFile
+// yt-dlp terbaru yang dibundel saat build CI (menimpa res/raw/ytdlp bawaan library)
+val xyResDir: File = layout.buildDirectory.dir("xy-res").get().asFile
 
 android {
     namespace = "id.my.xyverse.xydownloader"
@@ -25,9 +32,14 @@ android {
         targetSdk = 35
         versionCode = appVersionCode
         versionName = appVersionName
+        // Aplikasi berbahasa Indonesia: buang terjemahan library lain (hemat ukuran)
+        resourceConfigurations += listOf("en", "in")
         buildConfigField("String", "WEB_URL", "\"https://xydl.vercel.app\"")
         buildConfigField("String", "REPO_URL", "\"https://github.com/xykal/XyDownloader\"")
     }
+
+    sourceSets["main"].jniLibs.srcDir(xyJniDir)
+    sourceSets["main"].res.srcDir(xyResDir)
 
     signingConfigs {
         if (hasReleaseKeystore) {
@@ -42,15 +54,16 @@ android {
 
     buildTypes {
         release {
-            // Minify dimatikan: library engine memakai reflection (Jackson) & ukuran APK
-            // didominasi native lib (Python/FFmpeg), jadi R8 tidak banyak membantu.
-            isMinifyEnabled = false
+            // R8: kecilkan & obfuscate kode + buang resource yang tidak terpakai
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release")
             else signingConfigs.getByName("debug")
         }
     }
 
-    // Satu APK per arsitektur supaya ukurannya masuk akal (~70-90 MB, bukan 250 MB)
+    // Satu APK per arsitektur
     splits {
         abi {
             isEnable = true
@@ -61,9 +74,18 @@ android {
     }
 
     packaging {
-        // WAJIB untuk youtubedl-android: native lib harus di-extract ke disk (extractNativeLibs=true)
-        jniLibs { useLegacyPackaging = true }
-        resources { excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES") }
+        jniLibs {
+            // WAJIB untuk youtubedl-android: native lib harus di-extract ke disk (extractNativeLibs=true)
+            useLegacyPackaging = true
+            // libpython.zip.so versi ramping (xy-jni) menggantikan versi bawaan AAR
+            pickFirsts += "**/libpython.zip.so"
+        }
+        resources {
+            excludes += setOf(
+                "META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/*.version",
+                "DebugProbesKt.bin", "kotlin-tooling-metadata.json",
+            )
+        }
     }
 
     compileOptions {
@@ -84,12 +106,15 @@ android {
 }
 
 // ---------------------------------------------------------------------------
-// Plugin extractor yt-dlp XyDownloader (Douyin, Kuaishou, Threads, Bilibili) diambil dari
-// folder ../plugins (sumber yang sama dengan backend web) lalu dibundel sebagai assets.
+// Assets dari repo: plugin extractor yt-dlp (../plugins, sumber yang sama dengan backend web)
+// + daftar & teks lisensi (../licenses) untuk layar "Lisensi open source".
 // ---------------------------------------------------------------------------
-abstract class CopyYtDlpPluginsTask : DefaultTask() {
+abstract class CopyRepoAssetsTask : DefaultTask() {
     @get:InputDirectory
-    abstract val source: DirectoryProperty
+    abstract val plugins: DirectoryProperty
+
+    @get:InputDirectory
+    abstract val licenses: DirectoryProperty
 
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
@@ -100,27 +125,37 @@ abstract class CopyYtDlpPluginsTask : DefaultTask() {
         out.deleteRecursively()
         // yt-dlp --plugin-dirs mengharapkan: <dir>/<nama-paket>/yt_dlp_plugins/extractor/*.py
         val target = File(out, "ytdlp-plugins/xydl/yt_dlp_plugins")
-        source.get().asFile.copyRecursively(target, overwrite = true)
+        plugins.get().asFile.copyRecursively(target, overwrite = true)
         target.walkBottomUp()
             .filter { it.name == "__pycache__" || it.name.endsWith(".pyc") }
             .forEach { it.deleteRecursively() }
+        licenses.get().asFile.copyRecursively(File(out, "licenses"), overwrite = true)
     }
 }
 
-val copyYtDlpPlugins = tasks.register<CopyYtDlpPluginsTask>("copyYtDlpPlugins") {
-    source.set(rootProject.layout.projectDirectory.dir("../plugins/yt_dlp_plugins"))
+val copyRepoAssets = tasks.register<CopyRepoAssetsTask>("copyRepoAssets") {
+    plugins.set(rootProject.layout.projectDirectory.dir("../plugins/yt_dlp_plugins"))
+    licenses.set(rootProject.layout.projectDirectory.dir("../licenses"))
 }
 
 androidComponents {
     onVariants { variant ->
-        variant.sources.assets?.addGeneratedSourceDirectory(copyYtDlpPlugins, CopyYtDlpPluginsTask::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(copyRepoAssets, CopyRepoAssetsTask::outputDir)
     }
 }
 
 dependencies {
     val ytdl = "0.18.1"
-    implementation("io.github.junkfood02.youtubedl-android:library:$ytdl")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$ytdl")
+    implementation("io.github.junkfood02.youtubedl-android:library:$ytdl") {
+        // library tidak memakai AppCompat sama sekali (dicek dari bytecode) -> hemat ukuran APK
+        exclude(group = "androidx.appcompat")
+    }
+    // Catatan: artifact youtubedl-android:ffmpeg (±35 MB) sengaja TIDAK dipakai.
+
+    val media3 = "1.5.1"
+    implementation("androidx.media3:media3-exoplayer:$media3")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3")
+    implementation("androidx.media3:media3-ui:$media3")
 
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")

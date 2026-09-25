@@ -32,3 +32,7 @@ android/build/
 captures/
 .externalNativeBuild
 .cxx
+
+# --- hasil build FFmpeg minimal (lihat android/ffmpeg/build.sh) ---
+android/ffmpeg/out/
+.ffmpeg-work/

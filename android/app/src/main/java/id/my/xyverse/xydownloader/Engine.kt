@@ -3,16 +3,17 @@ package id.my.xyverse.xydownloader
 import android.content.Context
 import android.content.res.AssetManager
 import android.util.Log
-import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.util.Locale
 
 /**
- * Pembungkus youtubedl-android: Python + yt-dlp + FFmpeg + QuickJS berjalan langsung di HP.
- * Semua fungsi di sini BLOCKING — panggil dari Dispatchers.IO.
+ * Pembungkus youtubedl-android: Python + yt-dlp + QuickJS berjalan langsung di HP, ditambah
+ * FFmpeg minimal hasil build sendiri (android/ffmpeg/build.sh, dipasang sebagai libffmpeg.so).
+ * Fungsi non-suspend di sini BLOCKING — panggil dari Dispatchers.IO.
  */
 object Engine {
     private const val TAG = "XyEngine"
@@ -32,8 +33,10 @@ object Engine {
             return try {
                 val app = ctx.applicationContext
                 YoutubeDL.getInstance().init(app)
-                FFmpeg.getInstance().init(app)
-                installPlugins(app)
+                installAssets(app)
+                cleanupLegacy(app)
+                // yt-dlp hasil ekstrak (+launcher) -> start jauh lebih cepat
+                try { YtDlpHome.ensure(app) } catch (e: Exception) { Log.w(TAG, "yt-dlp home", e) }
                 initError = null
                 ready = true
                 true
@@ -45,19 +48,30 @@ object Engine {
         }
     }
 
-    // ------------------------------------------------------------ plugin extractor
+    // ------------------------------------------------------------ plugin extractor & skrip daemon
     // Dipakai sebagai --plugin-dirs. Struktur: ytdlp-plugins/xydl/yt_dlp_plugins/extractor/(file .py)
     fun pluginDir(ctx: Context) = File(ctx.filesDir, "ytdlp-plugins")
 
-    private fun installPlugins(ctx: Context) {
+    private fun installAssets(ctx: Context) {
         val target = pluginDir(ctx)
         val marker = File(ctx.filesDir, "ytdlp-plugins.version")
         val version = "${BuildConfig.VERSION_CODE}-${BuildConfig.VERSION_NAME}"
-        if (marker.exists() && marker.readText() == version) return
+        if (marker.exists() && marker.readText() == version && File(ctx.filesDir, "py/xydl_daemon.py").exists()) return
         target.deleteRecursively()
         copyAssets(ctx.assets, "ytdlp-plugins", target)
         target.mkdirs()
+        File(ctx.filesDir, "py").deleteRecursively()
+        copyAssets(ctx.assets, "py", File(ctx.filesDir, "py"))
         marker.writeText(version)
+    }
+
+    /** v1.1 memakai FFmpeg penuh (±78 MB setelah diekstrak). Sekarang tidak dipakai -> hapus. */
+    private fun cleanupLegacy(ctx: Context) {
+        val old = File(PyEnv.baseDir(ctx), "packages/ffmpeg")
+        if (old.exists()) {
+            old.deleteRecursively()
+            Log.i(TAG, "FFmpeg lama dihapus")
+        }
     }
 
     private fun copyAssets(am: AssetManager, path: String, dest: File) {
@@ -77,7 +91,7 @@ object Engine {
 
     // ------------------------------------------------------------ versi & update engine
     fun version(ctx: Context): String? = try {
-        YoutubeDL.getInstance().version(ctx.applicationContext)
+        YtDlpHome.version(ctx) ?: YoutubeDL.getInstance().version(ctx.applicationContext)
     } catch (e: Exception) {
         null
     }
@@ -85,25 +99,21 @@ object Engine {
     /** Update yt-dlp ke rilis stable terbaru. Return pesan hasil untuk UI. */
     fun update(ctx: Context): String {
         if (!init(ctx)) return "Engine belum siap: ${initError ?: "-"}"
-        return try {
-            val status = YoutubeDL.getInstance().updateYoutubeDL(ctx.applicationContext, YoutubeDL.UpdateChannel.STABLE)
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                .putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
-            when (status) {
-                YoutubeDL.UpdateStatus.DONE -> "Engine diperbarui ke ${version(ctx) ?: "versi terbaru"}"
-                YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "Engine sudah versi terbaru (${version(ctx) ?: "-"})"
-                else -> "Update selesai"
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "update gagal", e)
-            "Gagal update engine: ${e.message?.take(160)}"
-        }
+        val msg = YtDlpHome.update(ctx)
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
+        return msg
     }
 
     /** Auto update maksimal sekali sehari (dipanggil saat aplikasi dibuka). */
     fun autoUpdateIfDue(ctx: Context) {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val last = prefs.getLong(KEY_LAST_UPDATE, 0L)
+        if (last == 0L) {
+            // install baru: yt-dlp yang dibundel sudah terbaru saat build -> cek besok saja
+            prefs.edit().putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
+            return
+        }
         if (System.currentTimeMillis() - last < 24L * 3600 * 1000) return
         update(ctx)
     }
@@ -120,30 +130,60 @@ object Engine {
         ""
     }
 
-    private fun base(ctx: Context, url: String, twitterApi: String? = "syndication"): YoutubeDLRequest {
-        val req = YoutubeDLRequest(url)
+    private fun base(ctx: Context, url: String?, twitterApi: String? = "syndication", infoJson: File? = null): YoutubeDLRequest {
+        val req = if (infoJson != null) {
+            // info sudah diambil saat "proses link" -> langsung download tanpa membaca ulang halaman
+            YoutubeDLRequest(emptyList<String>()).addOption("--load-info-json", infoJson.absolutePath)
+        } else YoutubeDLRequest(url!!)
         req.addOption("--plugin-dirs", pluginDir(ctx).absolutePath)
         req.addOption("--cache-dir", File(ctx.cacheDir, "yt-dlp-cache").absolutePath)
         req.addOption("--socket-timeout", "25")
         req.addOption("--retries", "3")
         req.addOption("--no-warnings")
-        if (twitterApi != null && isTwitter(url)) req.addOption("--extractor-args", "twitter:api=$twitterApi")
+        val qjs = PyEnv.qjs(ctx)
+        if (qjs.exists()) req.addOption("--js-runtimes", "quickjs:${qjs.absolutePath}")
+        if (twitterApi != null && url != null && isTwitter(url)) req.addOption("--extractor-args", "twitter:api=$twitterApi")
         return req
     }
 
-    /** Ambil info (judul, thumbnail, format). */
-    fun fetchInfo(ctx: Context, url: String): MediaInfo {
+    private fun infoFileFor(ctx: Context, url: String): File {
+        val md = MessageDigest.getInstance("SHA-1").digest(url.toByteArray())
+        val name = md.joinToString("") { "%02x".format(it) }.take(20)
+        return File(PyDaemon.infoDir(ctx), "$name.json")
+    }
+
+    /**
+     * Ambil info (judul, thumbnail, format). Jalur cepat: daemon Python yang sudah "hangat".
+     * Cadangan: proses yt-dlp baru lewat youtubedl-android.
+     */
+    suspend fun fetchInfo(ctx: Context, url: String): MediaInfo {
         if (!init(ctx)) throw IllegalStateException("Engine gagal dimuat: $initError")
         val attempts = if (isTwitter(url)) listOf("syndication", null) else listOf("syndication")
         var lastError: Exception? = null
+        var daemonOk = true
+        for (api in attempts) {
+            try {
+                val file = PyDaemon.info(ctx, url, api)
+                return InfoParser.parse(JSONObject(file.readText()), url, file.absolutePath)
+            } catch (e: PyDaemon.ExtractError) {
+                lastError = e
+            } catch (e: PyDaemon.Unavailable) {
+                Log.w(TAG, "daemon tidak tersedia, pakai jalur CLI", e)
+                daemonOk = false
+                break
+            }
+        }
+        if (daemonOk && lastError != null) throw lastError
         for (api in attempts) {
             try {
                 val req = base(ctx, url, api)
                 req.addOption("--dump-single-json")
                 req.addOption("--no-playlist")
-                req.addOption("--playlist-end", 20)
+                req.addOption("--playlist-end", 60)
                 val resp = YoutubeDL.getInstance().execute(req, null, null)
-                return InfoParser.parse(JSONObject(resp.out), url)
+                val file = infoFileFor(ctx, url)
+                file.writeText(resp.out)
+                return InfoParser.parse(JSONObject(resp.out), url, file.absolutePath)
             } catch (e: Exception) {
                 lastError = e
             }
@@ -156,8 +196,15 @@ object Engine {
      * kind: "video" (height = resolusi sisi pendek, 0 = terbaik), "mp3" (kbps), "m4a".
      * item: nomor item playlist/carousel (0 = bukan playlist).
      */
-    fun downloadRequest(ctx: Context, url: String, kind: String, height: Int, kbps: Int, item: Int, outDir: File): YoutubeDLRequest {
-        val req = base(ctx, url)
+    fun downloadRequest(
+        ctx: Context, url: String, kind: String, height: Int, kbps: Int, item: Int, outDir: File,
+        infoPath: String? = null,
+    ): YoutubeDLRequest {
+        // info JSON dari "proses link" masih segar -> pakai (hemat 1 kali baca halaman).
+        // Kalau URL media sudah kedaluwarsa, yt-dlp otomatis mengulang dari webpage_url.
+        val info = infoPath?.let { File(it) }
+            ?.takeIf { it.exists() && System.currentTimeMillis() - it.lastModified() < 40 * 60_000L }
+        val req = base(ctx, url, infoJson = info)
         req.addOption("-o", File(outDir, "%(title).90B [%(id)s].%(ext)s").absolutePath)
         req.addOption("--no-mtime")
         req.addOption("--newline")

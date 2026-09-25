@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.my.xyverse.xydownloader.DlRecord
 import id.my.xyverse.xydownloader.MainViewModel
+import id.my.xyverse.xydownloader.Popup
+import id.my.xyverse.xydownloader.Screen
 import id.my.xyverse.xydownloader.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -61,6 +63,8 @@ fun XyRoot(vm: MainViewModel) {
         delay(1200)
         showSplash = false
     }
+    // popup "yang baru" / pembaruan baru ditampilkan setelah splash selesai
+    LaunchedEffect(showSplash) { if (!showSplash) vm.onStartup() }
     val cs = MaterialTheme.colorScheme
 
     Box(Modifier.fillMaxSize().background(cs.background)) {
@@ -103,8 +107,21 @@ fun XyRoot(vm: MainViewModel) {
                 }
             }
         }
+        // layar penuh di atas tab: Pembaruan & Lisensi
+        when (vm.screen) {
+            Screen.Update -> UpdateScreen(vm) { vm.screen = Screen.Main }
+            Screen.Licenses -> LicensesScreen { vm.screen = Screen.Main }
+            Screen.Main -> Unit
+        }
         AnimatedVisibility(visible = showSplash, enter = fadeIn(), exit = fadeOut()) {
             SplashCredit()
+        }
+        if (!showSplash) {
+            when (val p = vm.popup) {
+                is Popup.WhatsNew -> BannerPopup(p.bannerUrl, onClose = { vm.closePopup() }, onOpen = { vm.openPopup() })
+                is Popup.Update -> BannerPopup(p.release.bannerUrl, onClose = { vm.closePopup() }, onOpen = { vm.openPopup() })
+                null -> Unit
+            }
         }
     }
 }

@@ -162,16 +162,17 @@ def test_friendly_errors():
     assert engine.friendly_error('HTTP Error 404: Not Found')[0] == 'notfound'
 
 
-def test_pixiv_image_entry_and_ugoira():
+def test_pixiv_gallery_and_ugoira():
     img = {'id': '1_p0', 'title': 'Karya p1', 'xy_image': True, 'thumbnail': 'https://i.pximg.net/s.jpg',
            'webpage_url': 'https://www.pixiv.net/artworks/1',
            'formats': [fmt('original', 'https://i.pximg.net/img-original/1_p0.png', ext='png', width=1400, height=1900,
                            http_headers={'Referer': 'https://www.pixiv.net/'})]}
-    e = engine.build_entry(ctx(img), img)
-    assert not e['video'] and not e['audio'] and len(e['images']) == 1
-    im = e['images'][0]
-    assert im['ext'] == 'png' and im['filename'] == 'Karya p1.png' and im['width'] == 1400
-    payload = signer.verify(im['url'].split('t=', 1)[1])
+    e = engine.build_gallery(FakeYdl(), img, [img], 'https://proxy.test', img['webpage_url'])
+    assert not e['video'] and not e['audio'] and len(e['gallery']) == 1
+    it = e['gallery'][0]
+    assert it['type'] == 'image' and it['image']['ext'] == 'png' and it['width'] == 1400
+    assert it['image']['filename'] == 'Karya p1.png'
+    payload = signer.verify(it['image']['url'].split('t=', 1)[1])
     assert payload['h']['Referer'] == 'https://www.pixiv.net/' and payload['a'] == ['pximg.net']
 
     ug = {'id': '2', 'title': 'Anim', 'duration': 0.75, 'webpage_url': 'https://www.pixiv.net/artworks/2',
@@ -180,4 +181,50 @@ def test_pixiv_image_entry_and_ugoira():
     e = engine.build_entry(ctx(ug), ug)
     assert [v['ext'] for v in e['video']] == ['mp4', 'gif']
     assert all(v['mode'] == 'ugoira' for v in e['video'])
-    assert len(e['ugoira']['frames']) == 2 and not e['images']
+    assert len(e['ugoira']['frames']) == 2 and 'gallery' not in e
+
+
+def test_mixed_gallery_live_photo_and_music():
+    hdr = {'Referer': 'https://www.douyin.com/'}
+    photo = {'id': 'n_1', 'title': 'Slide (1)', 'xy_image': True,
+             'formats': [fmt('image', 'https://p3.douyinpic.com/a.jpeg', ext='jpg', width=1080, height=1440,
+                             http_headers=hdr)]}
+    live = {'id': 'n_2', 'title': 'Slide (2)', 'xy_image': True, 'xy_live': True, 'duration': 3,
+            'formats': [fmt('image', 'https://p3.douyinpic.com/b.jpeg', ext='jpg', width=1080, height=1440,
+                            http_headers=hdr),
+                        fmt('live', 'https://v26.douyinvod.com/b.mp4', ext='mp4', http_headers=hdr)]}
+    video = {'id': 'n_3', 'title': 'Slide (3)', 'thumbnail': 'https://p3.douyinpic.com/c.jpg',
+             'formats': [fmt('hd', 'https://v26.douyinvod.com/c-720.mp4', width=720, height=1280,
+                             vcodec='h264', acodec='aac'),
+                         fmt('sd', 'https://v26.douyinvod.com/c-360.mp4', width=360, height=640,
+                             vcodec='h264', acodec='aac')]}
+    pl = {'_type': 'playlist', 'id': 'n', 'title': 'Slide', 'xy_gallery': True,
+          'xy_audio': {'url': 'https://sf.douyinstatic.com/m.mp3', 'ext': 'mp3', 'http_headers': hdr},
+          'entries': [photo, live, video]}
+    e = engine.build_gallery(FakeYdl(), pl, pl['entries'], 'https://proxy.test', 'https://www.douyin.com/note/n')
+    types = [it['type'] for it in e['gallery']]
+    assert types == ['image', 'live', 'video']
+    assert e['gallery'][1]['video']['filename'] == 'Slide (2) (live).mp4'
+    assert e['gallery'][2]['video']['filename'] == 'Slide (3).mp4' and e['gallery'][2]['width'] == 720
+    assert e['gallery'][2]['video']['mode'] == 'direct'
+    assert [a['id'] for a in e['audio']] == ['music']  # sudah MP3 -> tanpa konversi
+
+
+def test_preview_prefers_light_muxed_format():
+    info = {'id': 'v', 'title': 'Video', 'duration': 30, 'webpage_url': 'https://example.com/v',
+            'formats': [fmt('1080', 'https://cdn.example.com/1080.mp4', width=1920, height=1080,
+                            vcodec='avc1', acodec='mp4a'),
+                        fmt('720', 'https://cdn.example.com/720.mp4', width=1280, height=720,
+                            vcodec='avc1', acodec='mp4a'),
+                        fmt('360', 'https://cdn.example.com/360.mp4', width=640, height=360,
+                            vcodec='avc1', acodec='mp4a')]}
+    e = engine.build_entry(ctx(info), info)
+    assert e['preview']['type'] == 'av'
+    assert signer.verify(e['preview']['url'].split('t=', 1)[1])['u'].endswith('/720.mp4')
+
+    dash = {'id': 'd', 'title': 'Dash', 'webpage_url': 'https://example.com/d',
+            'formats': [fmt('v', 'https://cdn.example.com/v480.mp4', width=854, height=480, vcodec='avc1',
+                            acodec='none'),
+                        fmt('a', 'https://cdn.example.com/a.m4a', ext='m4a', vcodec='none', acodec='mp4a')]}
+    e = engine.build_entry(ctx(dash), dash)
+    assert e['preview']['type'] == 'pair' and e['preview']['audio']

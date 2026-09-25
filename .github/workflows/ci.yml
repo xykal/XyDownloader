@@ -21,7 +21,7 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt pytest pyflakes
       - name: Lint (pyflakes)
-        run: python -m pyflakes api xydl plugins tests scripts dev_server.py
+        run: python -m pyflakes api xydl plugins tests scripts dev_server.py android/tools .github/scripts android/app/src/main/assets/py
       - name: Unit test (offline)
         run: python -m pytest -q tests
       - name: Plugin yt-dlp termuat
@@ -33,7 +33,8 @@ jobs:
           load_all_plugins()
           names = sorted(plugin_ies.value)
           print('plugins:', names)
-          assert {'XyDouyinIE', 'XyKuaishouIE', 'XyThreadsIE', 'XyBiliBiliIE', 'XyPixivIE'} <= set(names)
+          assert {'XyDouyinIE', 'XyKuaishouIE', 'XyThreadsIE', 'XyBiliBiliIE', 'XyPixivIE', 'XyTikTokIE',
+                  'XyTwitterIE', 'XyInstagramIE', 'XyBlueskyIE', 'XyWeiboIE', 'XyXiaoHongShuIE'} <= set(names)
           PY
       - uses: actions/setup-node@v4
         with:

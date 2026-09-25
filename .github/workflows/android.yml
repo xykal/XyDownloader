@@ -1,8 +1,8 @@
 name: Android APK
 
-# Build APK native (Kotlin + Compose + youtubedl-android).
-# - push ke main  -> APK sebagai artifact (untuk testing)
-# - push tag v*   -> GitHub Release berisi APK per arsitektur
+# Build APK native (Kotlin + Compose + youtubedl-android + FFmpeg minimal).
+# - push ke main  -> APK sebagai artifact + smoke test di emulator (screenshot sebagai artifact)
+# - push tag v*   -> GitHub Release berisi APK per arsitektur + gambar popup pembaruan
 on:
   push:
     branches: [main]
@@ -10,7 +10,9 @@ on:
     paths:
       - 'android/**'
       - 'plugins/**'
+      - 'licenses/**'
       - '.github/workflows/android.yml'
+      - '.github/scripts/**'
   workflow_dispatch:
 
 permissions:
@@ -20,11 +22,17 @@ concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  BASE_VERSION: '1.2.0'
+  NDK_VERSION: '27.2.12479018'
+
 jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,18 +43,46 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;${{ env.NDK_VERSION }}'
 
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Versi
+        id: ver
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+            V="${GITHUB_REF_NAME#v}"
           else
-            echo "VERSION_NAME=1.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+            V="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}"
           fi
+          echo "VERSION_NAME=$V" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------- FFmpeg minimal (di-cache)
+      - name: Cache FFmpeg minimal
+        id: ffcache
+        uses: actions/cache@v4
+        with:
+          path: android/ffmpeg/out
+          key: ffmpeg-${{ hashFiles('android/ffmpeg/build.sh') }}-ndk${{ env.NDK_VERSION }}
+
+      - name: Build FFmpeg minimal (arm64-v8a, armeabi-v7a, x86_64)
+        if: steps.ffcache.outputs.cache-hit != 'true'
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
+          WORK_DIR="$RUNNER_TEMP/ffwork" bash android/ffmpeg/build.sh android/ffmpeg/out arm64-v8a armeabi-v7a x86_64
+          ls -la android/ffmpeg/out/*
+
+      # ---------------------------------------------------------------- native lib ramping + yt-dlp terbaru
+      - name: Siapkan native lib ramping
+        run: python3 android/tools/prepare_native.py --out android/app/build/xy-jni --ffmpeg android/ffmpeg/out
+
+      - name: Bundel yt-dlp terbaru
+        run: |
+          mkdir -p android/app/build/xy-res/raw
+          curl -fsSL --retry 4 -o android/app/build/xy-res/raw/ytdlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
+          python3 -c "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); v=z.read('yt_dlp/version.py').decode(); print([l for l in v.splitlines() if l.startswith('__version__')])" android/app/build/xy-res/raw/ytdlp
 
       - name: Siapkan keystore (dari Secrets)
         env:
@@ -59,7 +95,7 @@ jobs:
             echo "::warning::KEYSTORE_BASE64 kosong — APK ditandatangani dengan debug key"
           fi
 
-      - name: Build release APK
+      - name: Build release APK (R8 + shrink resources)
         working-directory: android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -69,14 +105,15 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Rapikan nama file
+      - name: Rapikan nama file & cek isi APK
         run: |
           mkdir -p out
           for f in android/app/build/outputs/apk/release/*.apk; do
             abi=$(basename "$f" .apk | sed -E 's/^app-//; s/-release(-unsigned)?$//')
             cp "$f" "out/XyDownloader-${VERSION_NAME}-${abi}.apk"
           done
-          ls -la out
+          python3 .github/scripts/check_apk.py out android/app/build/xy-jni android/app/build/xy-res/raw/ytdlp
+          cp android/release-banner.webp out/update-banner.webp
 
       - uses: actions/upload-artifact@v4
         with:
@@ -89,19 +126,43 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: XyDownloader ${{ env.VERSION_NAME }}
-          files: out/*.apk
-          body: |
-            ## 📱 XyDownloader ${{ env.VERSION_NAME }} — built in XyVerse
+          files: |
+            out/*.apk
+            out/update-banner.webp
+          body_path: android/RELEASE_NOTES.md
 
-            Download video & MP3 dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, Vidio & 1.700+ situs lainnya — langsung dari HP.
+  smoke:
+    name: Smoke test (emulator)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
 
-            **Pilih APK sesuai HP kamu:**
-            | File | Untuk |
-            |---|---|
-            | `…-arm64-v8a.apk` | ✅ Kebanyakan HP Android (2017 ke atas) |
-            | `…-armeabi-v7a.apk` | HP lama / 32-bit |
-            | `…-x86_64.apk` | Emulator / Chromebook |
+      - uses: actions/download-artifact@v4
+        with:
+          name: XyDownloader-${{ needs.build.outputs.version }}
+          path: apk
 
-            Cara pakai: buka TikTok/IG/YouTube → **Bagikan** → pilih **XyDownloader**. File tersimpan di `Download/XyDownloader`.
+      - name: Aktifkan KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
-            🌐 Versi web: https://xydl.vercel.app
+      - name: Jalankan aplikasi di emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash .github/scripts/smoke.sh apk shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ needs.build.outputs.version }}
+          path: shots/

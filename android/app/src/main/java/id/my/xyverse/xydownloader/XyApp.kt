@@ -19,7 +19,9 @@ class XyApp : Application() {
             val ok = Engine.init(this@XyApp)
             engineState.value = if (ok) EngineState.Ready(Engine.version(this@XyApp)) else EngineState.Failed(Engine.initError)
             if (ok) {
-                // yt-dlp bawaan library bisa sudah lama -> update otomatis maksimal sekali sehari
+                // daemon Python "hangat": link pertama langsung diproses cepat
+                PyDaemon.warmUp(this@XyApp)
+                // yt-dlp diperbarui otomatis maksimal sekali sehari
                 Engine.autoUpdateIfDue(this@XyApp)
                 engineState.value = EngineState.Ready(Engine.version(this@XyApp))
             }

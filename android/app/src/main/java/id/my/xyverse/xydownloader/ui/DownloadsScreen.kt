@@ -114,7 +114,7 @@ private fun RecordCard(rec: DlRecord, onOpen: () -> Unit, onShare: () -> Unit, o
                 } else {
                     val icon = when (rec.kind) {
                         "video", "ugoira" -> R.drawable.ic_video
-                        "images" -> R.drawable.ic_image
+                        "images", "files" -> R.drawable.ic_image
                         else -> R.drawable.ic_music
                     }
                     Icon(painterResource(icon), null, Modifier.size(22.dp), tint = cs.onSurfaceVariant)
