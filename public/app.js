@@ -117,18 +117,33 @@ function navDownload(url) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchRetry(url, opts = {}, tries = 3) {
+// Gabungkan sinyal batal pengguna + batas waktu (tanpa AbortSignal.any agar kompatibel browser lama)
+function withTimeout(signal, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  if (signal) {
+    if (signal.aborted) ctrl.abort();
+    else signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+  }
+  return { signal: ctrl.signal, clear: () => clearTimeout(timer) };
+}
+
+// Timeout hanya sampai header respons diterima; body besar tetap boleh lama
+async function fetchRetry(url, opts = {}, tries = 3, headerTimeout = 25000) {
   let last;
   for (let i = 0; i < tries; i++) {
+    const tm = withTimeout(opts.signal, headerTimeout);
     try {
-      const res = await fetch(url, opts);
+      const res = await fetch(url, { ...opts, signal: tm.signal });
+      tm.clear();
       if (res.ok || res.status === 206) return res;
       last = new Error(`HTTP ${res.status}`);
       last.status = res.status;
       if (res.status === 403 || res.status === 404 || res.status === 410) break;
     } catch (e) {
-      if (e.name === 'AbortError') throw e;
-      last = e;
+      tm.clear();
+      if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      last = e.name === 'AbortError' ? new Error('Server tidak merespons (timeout)') : e;
     }
     await sleep(600 * (i + 1));
   }
@@ -407,13 +422,16 @@ async function fetchHls(url, task, label, p0, p1) {
 }
 
 async function probeOk(url, signal) {
+  const tm = withTimeout(signal, 8000);
   try {
-    const res = await fetch(url, { headers: { Range: 'bytes=0-0' }, signal });
+    const res = await fetch(url, { headers: { Range: 'bytes=0-0' }, signal: tm.signal });
     try { res.body?.cancel(); } catch { /* abaikan */ }
     return res.ok || res.status === 206;
   } catch (e) {
-    if (e.name === 'AbortError') throw e;
-    return false;
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    return false; // error / timeout -> pakai jalur cadangan server
+  } finally {
+    tm.clear();
   }
 }
 
