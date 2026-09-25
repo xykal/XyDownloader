@@ -46,7 +46,7 @@ object Engine {
     }
 
     // ------------------------------------------------------------ plugin extractor
-    /** Dipakai sebagai --plugin-dirs. Struktur: ytdlp-plugins/xydl/yt_dlp_plugins/extractor/*.py */
+    // Dipakai sebagai --plugin-dirs. Struktur: ytdlp-plugins/xydl/yt_dlp_plugins/extractor/(file .py)
     fun pluginDir(ctx: Context) = File(ctx.filesDir, "ytdlp-plugins")
 
     private fun installPlugins(ctx: Context) {
