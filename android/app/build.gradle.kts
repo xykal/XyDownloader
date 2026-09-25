@@ -1,4 +1,4 @@
-// XyDownloader Android app (built in XyVerse)
+// DownloadAja Android app (built in XyVerse)
 // Engine: youtubedl-android (Python + yt-dlp + QuickJS jalan langsung di HP)
 //       + FFmpeg minimal hasil build sendiri (android/ffmpeg/build.sh) — jauh lebih kecil dari versi penuh.
 
@@ -34,7 +34,7 @@ android {
         versionName = appVersionName
         // Aplikasi berbahasa Indonesia: buang terjemahan library lain (hemat ukuran)
         resourceConfigurations += listOf("en", "in")
-        buildConfigField("String", "WEB_URL", "\"https://xydl.projectkal.my.id\"")
+        buildConfigField("String", "WEB_URL", "\"https://dlaja.projectkal.my.id\"")
         buildConfigField("String", "REPO_URL", "\"https://github.com/xykal/XyDownloader\"")
     }
 

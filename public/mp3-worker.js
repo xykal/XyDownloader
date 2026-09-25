@@ -1,4 +1,4 @@
-/* XyDownloader — encoder MP3 di Web Worker (lamejs, LGPL) */
+/* DownloadAja — encoder MP3 di Web Worker (lamejs, LGPL) */
 importScripts('vendor/lame/lame.min.js');
 
 function floatTo16(input) {

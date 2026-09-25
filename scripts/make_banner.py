@@ -1,6 +1,6 @@
-"""Buat gambar popup pembaruan XyDownloader (gambar dasar AI + teks yang tajam).
+"""Buat gambar popup pembaruan DownloadAja (gambar dasar AI + teks yang tajam).
 
-    python scripts/make_banner.py --title "XyDownloader 1.2" \
+    python scripts/make_banner.py --title "DownloadAja 1.2" \
         --sub "Pratinjau sebelum download," --sub "foto slide & Live Photo, APK lebih ringan." \
         --out android/release-banner.webp
 

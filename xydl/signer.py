@@ -4,7 +4,7 @@ Format token:  base64url(deflate_raw(json)) + "." + base64url(hmac_sha256(key, b
 
 Token yang sama diverifikasi oleh Cloudflare Worker (worker/src/index.js) dan oleh
 endpoint /api/stream di Vercel. Tujuannya: proxy TIDAK bisa dipakai orang lain sebagai
-open-proxy — hanya link yang dibuat oleh API XyDownloader yang valid, dan ada masa berlakunya.
+open-proxy — hanya link yang dibuat oleh API DownloadAja yang valid, dan ada masa berlakunya.
 """
 import base64
 import hashlib

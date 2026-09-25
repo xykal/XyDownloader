@@ -1,4 +1,4 @@
-"""XyDownloader — daemon Python (yt-dlp "hangat") untuk aplikasi Android. Built in XyVerse.
+"""DownloadAja — daemon Python (yt-dlp "hangat") untuk aplikasi Android. Built in XyVerse.
 
 Kenapa: setiap kali yt-dlp dijalankan sebagai proses baru, Python harus start, mengimpor yt-dlp,
 memuat plugin dan meng-compile ratusan regex URL dulu (beberapa detik di HP). Daemon ini melakukan

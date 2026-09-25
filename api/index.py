@@ -1,4 +1,4 @@
-"""XyDownloader API — satu Vercel Python Function (ASGI murni, tanpa framework).
+"""DownloadAja API — satu Vercel Python Function (ASGI murni, tanpa framework).
 
 Endpoint:
   GET  /api/health              status engine
@@ -30,7 +30,7 @@ RATE_LIMIT = int(os.environ.get('XYDL_RATE_LIMIT', '25'))  # request extract / m
 
 # Origin yang diizinkan (custom domain + preview Vercel). Bukan open CORS.
 ALLOWED_ORIGINS = {
-    'https://xydl.projectkal.my.id',
+    'https://dlaja.projectkal.my.id',
     'https://xydl.vercel.app',  # fallback selama DNS apex belum aktif
     'http://127.0.0.1:8000',
     'http://localhost:8000',
@@ -38,7 +38,7 @@ ALLOWED_ORIGINS = {
 # User-Agent scrapers yang diblokir di /api/extract (bukan browser/app)
 _BLOCKED_UA = (
     'scrapy', 'httrack', 'wget/', 'curl/', 'python-requests', 'python-urllib',
-    'go-http-client', 'java/', 'libwww', 'httpclient', # app Android pakai okhttp + UA XyDownloader
+    'go-http-client', 'java/', 'libwww', 'httpclient', # app Android pakai okhttp + UA DownloadAja
     'bytespider', 'gptbot', 'ccbot', 'anthropic', 'claude-web', 'petalbot',
     'semrush', 'ahrefs', 'dataforseo', 'mj12bot', 'dotbot', 'magpie-crawler',
 )
@@ -49,7 +49,7 @@ def _cors_for(origin: str | None):
     o = (origin or '').strip()
     allow = o if o in ALLOWED_ORIGINS else ''
     # Preview deploy Vercel: *.vercel.app milik project
-    if not allow and o.endswith('.vercel.app') and 'xydl' in o:
+    if not allow and o.endswith('.vercel.app') and 'xydl' in o or 'dlaja' in o:
         allow = o
     headers = [
         (b'access-control-allow-methods', b'GET, POST, HEAD, OPTIONS'),
@@ -66,7 +66,7 @@ def _ua_blocked(ua: str | None) -> bool:
     u = (ua or '').lower()
     if not u or u == 'mozilla/5.0':  # kosong / terlalu generik
         return True
-    # Browser & app XyDownloader lolos
+    # Browser & app DownloadAja lolos
     if 'mozilla/' in u or 'xyverse' in u or 'xydownloader' in u:
         return False
     return any(b in u for b in _BLOCKED_UA)
@@ -254,11 +254,11 @@ async def app(scope, receive, send):
         if path == '/api/extract':
             if method not in ('GET', 'POST'):
                 return await _send_json(send, 405, {'ok': False, 'error': 'method not allowed'}, origin=origin)
-            # Anti-scrape: tolak UA bot/scraper (browser + app XyDownloader tetap lolos)
+            # Anti-scrape: tolak UA bot/scraper (browser + app DownloadAja tetap lolos)
             if _ua_blocked(ua):
                 return await _send_json(send, 403, {
                     'ok': False, 'code': 'forbidden',
-                    'error': 'Akses API ditolak. Pakai situs resmi atau aplikasi XyDownloader.',
+                    'error': 'Akses API ditolak. Pakai situs resmi atau aplikasi DownloadAja.',
                 }, origin=origin)
             if _rate_limited(ip):
                 return await _send_json(send, 429, {'ok': False, 'code': 'rate_limit',

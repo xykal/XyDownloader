@@ -1,17 +1,17 @@
-# Third-party notices — XyDownloader
+# Third-party notices — DownloadAja
 
-XyDownloader (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan memakai komponen open source berikut. Teks lisensi lengkap ada di folder [`licenses/texts`](licenses/texts) dan juga bisa dibuka dari aplikasi Android (Tentang → Lisensi open source) serta web (footer → Lisensi).
+DownloadAja (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan memakai komponen open source berikut. Teks lisensi lengkap ada di folder [`licenses/texts`](licenses/texts) dan juga bisa dibuka dari aplikasi Android (Tentang → Lisensi open source) serta web (footer → Lisensi).
 
 ## Aplikasi Android
 
 | Komponen | Lisensi | Hak cipta | Keterangan |
 |---|---|---|---|
-| [XyDownloader](https://github.com/xykal/XyDownloader) | [GPL-3.0-or-later](licenses/texts/GPL-3.0-only.txt) | Copyright (c) 2026 XyVerse | Aplikasi, plugin extractor & engine |
+| [DownloadAja](https://github.com/xykal/XyDownloader) | [GPL-3.0-or-later](licenses/texts/GPL-3.0-only.txt) | Copyright (c) 2026 XyVerse | Aplikasi, plugin extractor & engine |
 | [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) | [GPL-3.0](licenses/texts/GPL-3.0-only.txt) | Copyright (c) yausername, JunkFood02 & kontributor | Menjalankan Python + yt-dlp di Android |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | [Unlicense](licenses/texts/Unlicense.txt) | yt-dlp contributors (public domain) | Engine pembaca link (diperbarui otomatis dari GitHub) |
 | [yt-dlp-ejs](https://github.com/yt-dlp/ejs) | [Unlicense](licenses/texts/Unlicense.txt) | yt-dlp contributors (public domain) | Skrip JavaScript tantangan YouTube |
 | [Python 3.12](https://www.python.org/) | [PSF-2.0](licenses/texts/PSF-2.0.txt) | Copyright (c) 2001-2024 Python Software Foundation. All Rights Reserved. | Runtime (build Termux, dibundel youtubedl-android; versi ramping) |
-| [FFmpeg 8.0 (build minimal XyDownloader)](https://ffmpeg.org/) | [LGPL-2.1-or-later](licenses/texts/LGPL-2.1-only.txt) | Copyright (c) 2000-2026 the FFmpeg developers | Merge video + audio, MP3/M4A, ugoira. Dibangun tanpa komponen GPL; skrip build & daftar komponen: android/ffmpeg/build.sh |
+| [FFmpeg 8.0 (build minimal DownloadAja)](https://ffmpeg.org/) | [LGPL-2.1-or-later](licenses/texts/LGPL-2.1-only.txt) | Copyright (c) 2000-2026 the FFmpeg developers | Merge video + audio, MP3/M4A, ugoira. Dibangun tanpa komponen GPL; skrip build & daftar komponen: android/ffmpeg/build.sh |
 | [LAME 3.100](https://lame.sourceforge.io/) | [LGPL-2.0-or-later](licenses/texts/LGPL-2.0-only.txt) | Copyright (c) 1999-2017 The LAME Project | Encoder MP3 (terhubung statis ke FFmpeg) |
 | [QuickJS](https://bellard.org/quickjs/) | [MIT](licenses/texts/MIT.txt) | Copyright (c) 2017-2021 Fabrice Bellard, Charlie Gordon | Runtime JavaScript untuk YouTube |
 | [OpenSSL 3](https://www.openssl.org/) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 1998-2025 The OpenSSL Project Authors | TLS/HTTPS untuk Python |
@@ -32,7 +32,7 @@ XyDownloader (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan 
 | [Jackson](https://github.com/FasterXML/jackson) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 2007- Tatu Saloranta & FasterXML | Dipakai youtubedl-android |
 | [Apache Commons IO & Compress](https://commons.apache.org/) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) The Apache Software Foundation | Dipakai youtubedl-android |
 
-## Web (xydl.projectkal.my.id)
+## Web (dlaja.projectkal.my.id)
 
 | Komponen | Lisensi | Hak cipta | Keterangan |
 |---|---|---|---|
@@ -49,8 +49,8 @@ XyDownloader (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan 
 
 - FFmpeg & LAME dibangun ulang dari sumber resmi dengan skrip [`android/ffmpeg/build.sh`](android/ffmpeg/build.sh) (versi, checksum, dan daftar komponen tercantum di sana).
 - Runtime Python/yt-dlp berasal dari [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (GPL-3.0); versi ramping dibuat dengan [`android/tools/prepare_native.py`](android/tools/prepare_native.py).
-- Seluruh kode XyDownloader tersedia di repositori ini.
+- Seluruh kode DownloadAja tersedia di repositori ini.
 
 ## Merek dagang
 
-Logo dan nama platform (TikTok, Douyin, Instagram, YouTube, dll) adalah merek dagang milik pemiliknya masing-masing, hanya dipakai untuk menunjukkan kompatibilitas. XyDownloader tidak berafiliasi dengan platform mana pun.
+Logo dan nama platform (TikTok, Douyin, Instagram, YouTube, dll) adalah merek dagang milik pemiliknya masing-masing, hanya dipakai untuk menunjukkan kompatibilitas. DownloadAja tidak berafiliasi dengan platform mana pun.

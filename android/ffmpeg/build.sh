@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# XyDownloader — FFmpeg minimal untuk Android (built in XyVerse)
+# DownloadAja — FFmpeg minimal untuk Android (built in XyVerse)
 # -----------------------------------------------------------------------------
 # youtubedl-android versi penuh membawa FFmpeg Termux + ±40 library (aom, x265,
 # svt-av1, gnutls, glib, harfbuzz, ...) = 35 MB di dalam APK. Padahal yt-dlp di

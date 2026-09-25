@@ -262,7 +262,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
-        foreground(inputData.getString(Downloads.K_TITLE) ?: "XyDownloader", 0f, "Menyiapkan…")
+        foreground(inputData.getString(Downloads.K_TITLE) ?: "DownloadAja", 0f, "Menyiapkan…")
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
@@ -302,7 +302,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             }
             val outputs = Engine.findOutputs(tmp, kind)
             if (outputs.isEmpty()) throw IllegalStateException("File hasil tidak ditemukan")
-            Downloads.upsert(ctx, taskId) { it.copy(progress = 1f, line = "Menyimpan ke Download/XyDownloader…") }
+            Downloads.upsert(ctx, taskId) { it.copy(progress = 1f, line = "Menyimpan ke Download/DownloadAja…") }
             var firstUri: Uri? = null
             for (out in outputs) {
                 val uri = Storage.saveToDownloads(ctx, out, out.name, Engine.mimeOf(out.name))
@@ -332,7 +332,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         }
     }
 
-    /** Unduh daftar file langsung (foto / Live Photo / video carousel) lalu simpan ke Download/XyDownloader. */
+    /** Unduh daftar file langsung (foto / Live Photo / video carousel) lalu simpan ke Download/DownloadAja. */
     private suspend fun doFiles(ctx: Context, taskId: String, title: String, jobPath: String): Result {
         val jobFile = File(jobPath)
         val arr = try { JSONArray(jobFile.readText()) } catch (e: Exception) { return fail(taskId, "Data unduhan hilang") }

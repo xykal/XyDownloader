@@ -1,4 +1,4 @@
-"""XyDownloader — siapkan native lib ramping untuk APK (dipanggil CI sebelum Gradle). Built in XyVerse.
+"""DownloadAja — siapkan native lib ramping untuk APK (dipanggil CI sebelum Gradle). Built in XyVerse.
 
 1. libpython.zip.so (runtime Python dari youtubedl-android) di-repack TANPA file yang tidak pernah dipakai
    yt-dlp: static lib QuickJS (6 MB!), ncurses/readline/gdbm, SQLite, libc++ (tak dipakai), modul tes, lib2to3,

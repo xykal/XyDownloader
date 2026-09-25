@@ -285,7 +285,7 @@ object Engine {
                 "YouTube minta verifikasi anti-bot untuk jaringan kamu. Coba ganti jaringan (Wi-Fi ↔ data) atau update engine di menu Tentang."
             "drm" in msg -> "Konten ini dilindungi DRM (premium/berbayar) dan tidak bisa diunduh."
             "private" in msg || "login" in msg || "log in" in msg || "sign in" in msg || "cookies" in msg ->
-                "Konten ini privat / butuh login. XyDownloader hanya bisa mengambil konten publik."
+                "Konten ini privat / butuh login. DownloadAja hanya bisa mengambil konten publik."
             "geo" in msg || "not available in your country" in msg -> "Konten ini dibatasi wilayah (geo-block)."
             "timed out" in msg || "timeout" in msg || "unable to connect" in msg || "network is unreachable" in msg ->
                 "Koneksi bermasalah. Cek internet kamu lalu coba lagi."

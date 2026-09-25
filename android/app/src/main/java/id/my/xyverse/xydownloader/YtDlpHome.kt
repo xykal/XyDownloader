@@ -100,7 +100,7 @@ object YtDlpHome {
     private fun writeLauncher(ctx: Context) {
         val script = """
             $MARK
-            # Dibuat XyDownloader (built in XyVerse): jalankan yt-dlp dari folder hasil ekstrak supaya
+            # Dibuat DownloadAja (built in XyVerse): jalankan yt-dlp dari folder hasil ekstrak supaya
             # Python bisa memakai cache bytecode (.pyc) -> start jauh lebih cepat dibanding zipapp.
             import os, sys
             src = ${PyEnv.pyStr(srcDir(ctx).absolutePath)}

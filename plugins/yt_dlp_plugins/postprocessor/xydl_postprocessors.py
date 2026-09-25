@@ -1,4 +1,4 @@
-# XyDownloader — postprocessor plugin yt-dlp
+# DownloadAja — postprocessor plugin yt-dlp
 # XyUgoiraPP: mengubah ugoira pixiv (ZIP berisi frame + delay per frame) menjadi video MP4.
 # Dipakai aplikasi Android:  yt-dlp --use-postprocessor XyUgoira ...
 # (di web, konversi yang sama dilakukan di browser dengan ffmpeg.wasm)

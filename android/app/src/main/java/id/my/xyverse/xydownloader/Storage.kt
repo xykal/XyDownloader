@@ -11,9 +11,9 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.io.IOException
 
-/** Simpan hasil download ke folder publik: Download/XyDownloader */
+/** Simpan hasil download ke folder publik: Download/DownloadAja */
 object Storage {
-    const val FOLDER = "XyDownloader"
+    const val FOLDER = "DownloadAja"
 
     fun saveToDownloads(ctx: Context, src: File, displayName: String, mime: String): Uri {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) saveQ(ctx, src, displayName, mime)

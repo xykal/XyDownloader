@@ -1,4 +1,4 @@
-// XyDownloader — web client (Built in XyVerse)
+// DownloadAja — web client (Built in XyVerse)
 // Proses berat (merge video+audio, remux HLS, ugoira, konversi MP3) berjalan di browser.
 
 const API = '/api';
@@ -302,7 +302,7 @@ async function readWithProgress(res, onBytes, signal) {
 async function fetchDirect(url, task, label, p0, p1, sizeHint) {
   const res = await fetchRetry(url, { signal: task.signal });
   const total = +res.headers.get('content-length') || sizeHint || 0;
-  if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader.');
+  if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android DownloadAja.');
   return readWithProgress(res, (l) => {
     task.progress(total ? p0 + (p1 - p0) * (l / total) : p0, `${label} · ${fmtBytes(l)}${total ? ' / ' + fmtBytes(total) : ''}`);
   }, task.signal);
@@ -323,7 +323,7 @@ async function fetchRanged(url, task, label, p0, p1, sizeHint) {
     }
     const t = parseInt((res.headers.get('content-range') || '').split('/')[1], 10);
     if (t) total = t;
-    if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader.');
+    if (total > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android DownloadAja.');
     const blob = await readWithProgress(res, (l) => {
       const now = loadedAll + l;
       task.progress(total ? p0 + (p1 - p0) * (now / total) : p0, `${label} · ${fmtBytes(now)}${total ? ' / ' + fmtBytes(total) : ''}`);
@@ -655,7 +655,7 @@ async function startDownload(card, entry, opt) {
       saveBlob(blob, name);
     } else if (opt.mode === 'merge') {
       const [vs, as] = srcs;
-      if ((vs.size || 0) + (as.size || 0) > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android XyDownloader.');
+      if ((vs.size || 0) + (as.size || 0) > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android DownloadAja.');
       const v = await getSource(vs, task, 'Mengunduh video', 0, 0.82);
       const a = await getSource(as, task, 'Mengunduh audio', 0.82, 0.97);
       saveBlob(await ffMerge(task, v, a, opt.ext, duration), opt.filename);
@@ -734,7 +734,7 @@ async function downloadGallery(card, entry, files) {
       return;
     }
     const known = files.reduce((sum, f) => sum + (f.size || 0), 0);
-    if (known > BROWSER_LIMIT) throw new Error('Total ukuran terlalu besar untuk browser. Pakai aplikasi Android XyDownloader.');
+    if (known > BROWSER_LIMIT) throw new Error('Total ukuran terlalu besar untuk browser. Pakai aplikasi Android DownloadAja.');
     const out = [];
     const used = new Set();
     for (let i = 0; i < files.length; i++) {
@@ -1376,7 +1376,7 @@ const LICENSES = [
   ['hls.js', 'Apache-2.0', 'https://github.com/video-dev/hls.js', 'Pratinjau stream HLS — dimuat dari CDN saat dibutuhkan'],
   ['flag-icons', 'MIT', 'https://github.com/lipis/flag-icons', 'Bendera negara'],
   ['Ikon gaya Lucide', 'ISC', 'https://lucide.dev/', 'Ikon garis antarmuka'],
-  ['XyDownloader', 'GPL-3.0', 'https://github.com/xykal/XyDownloader', 'Kode aplikasi, engine & plugin'],
+  ['DownloadAja', 'GPL-3.0', 'https://github.com/xykal/XyDownloader', 'Kode aplikasi, engine & plugin'],
 ];
 
 function openModal(titleText, build) {
@@ -1407,7 +1407,7 @@ function openModal(titleText, build) {
 }
 
 function openUpdates() {
-  openModal(`Yang baru di XyDownloader ${WEB_VERSION}`, (body) => {
+  openModal(`Yang baru di DownloadAja ${WEB_VERSION}`, (body) => {
     const img = el('img', 'modal-banner');
     img.src = 'whats-new.webp';
     img.alt = '';
@@ -1442,7 +1442,7 @@ function openUpdates() {
 
 function openLicenses() {
   openModal('Lisensi & atribusi', (body) => {
-    body.append(el('p', 'muted small', 'XyDownloader dibangun di atas software open source berikut. Terima kasih kepada semua pengembangnya.'));
+    body.append(el('p', 'muted small', 'DownloadAja dibangun di atas software open source berikut. Terima kasih kepada semua pengembangnya.'));
     const list = el('div', 'lic-list');
     for (const [name, lic, url, what] of LICENSES) {
       const row = el('a', 'lic');
@@ -1478,11 +1478,11 @@ function whatsNewPopup() {
     const ov = el('div', 'promo');
     ov.setAttribute('role', 'dialog');
     ov.setAttribute('aria-modal', 'true');
-    ov.setAttribute('aria-label', `Yang baru di XyDownloader ${WEB_VERSION}`);
+    ov.setAttribute('aria-label', `Yang baru di DownloadAja ${WEB_VERSION}`);
     const box = el('div', 'promo-box');
     const img = el('img');
     img.src = probe.src;
-    img.alt = `Yang baru di XyDownloader ${WEB_VERSION} — ketuk untuk detail`;
+    img.alt = `Yang baru di DownloadAja ${WEB_VERSION} — ketuk untuk detail`;
     img.tabIndex = 0;
     const x = el('button', 'promo-x');
     x.type = 'button';

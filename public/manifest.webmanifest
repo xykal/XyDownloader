@@ -1,6 +1,6 @@
 {
-  "name": "XyDownloader",
-  "short_name": "XyDownloader",
+  "name": "DownloadAja",
+  "short_name": "DownloadAja",
   "description": "Download video, MP3, foto slide & Live Photo dari TikTok, Douyin, Instagram, YouTube, Bilibili, pixiv & 1.700+ situs. Gratis, tanpa watermark. Built in XyVerse.",
   "start_url": "/?utm_source=pwa",
   "scope": "/",

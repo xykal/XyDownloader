@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Android 9 ke bawah: file disimpan langsung di Download/XyDownloader -->
+    <!-- Android 9 ke bawah: file disimpan langsung di Download/DownloadAja -->
     <external-path name="downloads" path="Download/" />
 </paths>

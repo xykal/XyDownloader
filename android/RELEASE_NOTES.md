@@ -1,4 +1,4 @@
-## XyDownloader — built in XyVerse
+## DownloadAja — built in XyVerse
 
 Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, Xiaohongshu, X, Facebook, Threads, pixiv, Vidio & 1.700+ situs lainnya — langsung dari HP.
 
@@ -18,6 +18,6 @@ Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram,
 | `...-armeabi-v7a.apk` | HP lama / 32-bit |
 | `...-x86_64.apk` | Emulator / Chromebook |
 
-Cara pakai: buka TikTok/IG/YouTube, tekan **Bagikan**, pilih **XyDownloader**. File tersimpan di `Download/XyDownloader`.
+Cara pakai: buka TikTok/IG/YouTube, tekan **Bagikan**, pilih **DownloadAja**. File tersimpan di `Download/DownloadAja`.
 
-Versi web: https://xydl.projectkal.my.id
+Versi web: https://dlaja.projectkal.my.id

@@ -134,7 +134,7 @@ fun SplashCredit() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(painterResource(R.drawable.ic_splash), null, Modifier.size(112.dp))
             Spacer(Modifier.height(4.dp))
-            Text("XyDownloader", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = cs.onBackground)
+            Text("DownloadAja", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = cs.onBackground)
             Text("Semua platform, satu aplikasi", color = cs.onSurfaceVariant, fontSize = 14.sp)
         }
         Row(
@@ -157,7 +157,7 @@ fun BrandHeader(modifier: Modifier = Modifier) {
         Image(painterResource(R.drawable.ic_splash), null, Modifier.size(40.dp))
         Spacer(Modifier.width(8.dp))
         Column {
-            Text("XyDownloader", style = MaterialTheme.typography.titleLarge, color = cs.onBackground)
+            Text("DownloadAja", style = MaterialTheme.typography.titleLarge, color = cs.onBackground)
             Text("by XyVerse", color = cs.onSurfaceVariant, fontSize = 12.sp)
         }
     }

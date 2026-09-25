@@ -140,7 +140,7 @@ object AppUpdater {
         return Release(
             tag = tag,
             version = tag.removePrefix("v"),
-            title = o.optString("name").ifBlank { "XyDownloader $tag" },
+            title = o.optString("name").ifBlank { "DownloadAja $tag" },
             notes = o.optString("body"),
             htmlUrl = o.optString("html_url").ifBlank { "https://github.com/$REPO/releases/latest" },
             publishedAt = o.optString("published_at").ifBlank { null },
@@ -192,7 +192,7 @@ object AppUpdater {
     private fun verify(ctx: Context, file: File) {
         val info = ctx.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
             ?: throw IllegalStateException("file APK rusak, coba lagi")
-        if (info.packageName != ctx.packageName) throw IllegalStateException("APK bukan XyDownloader")
+        if (info.packageName != ctx.packageName) throw IllegalStateException("APK bukan DownloadAja")
     }
 
     private fun install(ctx: Context, apk: File) {
@@ -208,7 +208,7 @@ object AppUpdater {
         val sessionId = installer.createSession(params)
         installer.openSession(sessionId).use { session ->
             apk.inputStream().use { input ->
-                session.openWrite("XyDownloader.apk", 0, apk.length()).use { out ->
+                session.openWrite("DownloadAja.apk", 0, apk.length()).use { out ->
                     input.copyTo(out, 1 shl 16)
                     session.fsync(out)
                 }

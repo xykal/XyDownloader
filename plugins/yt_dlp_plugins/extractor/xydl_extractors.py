@@ -1,4 +1,4 @@
-# XyDownloader — custom yt-dlp extractor plugins
+# DownloadAja — custom yt-dlp extractor plugins
 # -----------------------------------------------------------------------------
 # File ini dipakai di DUA tempat sekaligus:
 #   1. Backend web (Vercel)  -> folder `plugins/` dimasukkan ke sys.path
@@ -23,7 +23,7 @@
 #     - playlist   : 'xy_gallery': True, opsional 'xy_audio' = musik latar slide
 #
 # Semua extractor di sini TIDAK butuh login dan TIDAK membobol DRM.
-# Lisensi: GPL-3.0 (sama seperti repo XyDownloader)
+# Lisensi: GPL-3.0 (sama seperti repo DownloadAja)
 # -----------------------------------------------------------------------------
 import json
 import random
@@ -176,7 +176,7 @@ def _first_line(text, limit=100):
 if _YtDlpDouyinIE is not None:
     class XyDouyinIE(_YtDlpDouyinIE):
         IE_NAME = 'xy:douyin'
-        IE_DESC = 'Douyin 抖音 (XyDownloader: cookie otomatis + short link)'
+        IE_DESC = 'Douyin 抖音 (DownloadAja: cookie otomatis + short link)'
         _VALID_URL = (r'https?://(?:(?:www|m)\.)?(?:douyin|iesdouyin)\.com/'
                       r'(?:share/)?(?:video|note|slides)/(?P<id>\d+)'
                       r'|https?://(?:www\.)?douyin\.com/[^#]*?[?&]modal_id=(?P<modal>\d+)'
@@ -255,7 +255,7 @@ if _YtDlpDouyinIE is not None:
             if not detail:
                 raise ExtractorError(
                     'Douyin menolak permintaan (butuh verifikasi). Coba lagi beberapa saat, '
-                    'atau pakai aplikasi Android XyDownloader.', expected=True)
+                    'atau pakai aplikasi Android DownloadAja.', expected=True)
             if traverse_obj(detail, ('images', lambda _, v: isinstance(v, dict))):
                 return self._xy_image_post(detail, video_id)
             info = self._parse_aweme_video_app(detail)
@@ -310,7 +310,7 @@ if _YtDlpDouyinIE is not None:
 # =============================================================================
 class XyKuaishouIE(InfoExtractor):
     IE_NAME = 'xy:kuaishou'
-    IE_DESC = 'Kuaishou 快手 (XyDownloader)'
+    IE_DESC = 'Kuaishou 快手 (DownloadAja)'
     _VALID_URL = (r'https?://(?:(?:www|v|c|live|m)\.)?(?:kuaishou\.com|gifshow\.com|kwai\.app)/\S+'
                   r'|https?://v\.m\.chenzhongtech\.com/\S+')
     _TESTS = []
@@ -408,7 +408,7 @@ class XyKuaishouIE(InfoExtractor):
 # =============================================================================
 class XyThreadsIE(InfoExtractor):
     IE_NAME = 'xy:threads'
-    IE_DESC = 'Threads (XyDownloader)'
+    IE_DESC = 'Threads (DownloadAja)'
     _VALID_URL = r'https?://(?:www\.)?threads\.(?:net|com)/(?:@[\w.]+/post|t)/(?P<id>[\w-]+)'
     _TESTS = []
 
@@ -512,7 +512,7 @@ _BILI_QN_HEIGHT = {127: 4320, 126: 2160, 125: 2160, 120: 2160, 116: 1080, 112: 1
 if _YtDlpBiliBiliIE is not None:
     class XyBiliBiliIE(_YtDlpBiliBiliIE):
         IE_NAME = 'xy:bilibili'
-        IE_DESC = 'Bilibili (XyDownloader: fallback API bila halaman diblokir)'
+        IE_DESC = 'Bilibili (DownloadAja: fallback API bila halaman diblokir)'
         _TESTS = []
 
         def _real_extract(self, url):
@@ -668,7 +668,7 @@ class XyPixivIE(InfoExtractor):
 
         # ilustrasi (0) / manga (1): tiap halaman = 1 gambar resolusi asli.
         # Catatan: vcodec/acodec sengaja tidak diisi supaya format default yt-dlp (-f b) tetap memilihnya;
-        # engine XyDownloader mengenali gambar lewat flag 'xy_image'.
+        # engine DownloadAja mengenali gambar lewat flag 'xy_image'.
         pages = self._api(f'illust/{video_id}/pages', video_id, 'Downloading pages') or []
         entries = []
         for i, page in enumerate(pages):
@@ -703,7 +703,7 @@ class XyPixivIE(InfoExtractor):
 if _YtDlpTikTokIE is not None:
     class XyTikTokIE(_YtDlpTikTokIE):
         IE_NAME = 'xy:tiktok'
-        IE_DESC = 'TikTok (XyDownloader: video + foto slide)'
+        IE_DESC = 'TikTok (DownloadAja: video + foto slide)'
         _VALID_URL = (r'https?://www\.tiktokv?\.com/(?:embed|(?:share|@(?P<user_id>[\w\.-]+)?)/(?:video|photo))'
                       r'/(?P<id>\d+)')
         _EMBED_REGEX = []
@@ -760,7 +760,7 @@ if _YtDlpTikTokIE is not None:
 if _YtDlpTwitterIE is not None:
     class XyTwitterIE(_YtDlpTwitterIE):
         IE_NAME = 'xy:twitter'
-        IE_DESC = 'X / Twitter (XyDownloader: video + foto)'
+        IE_DESC = 'X / Twitter (DownloadAja: video + foto)'
         _EMBED_REGEX = []
         _TESTS = []
 
@@ -818,7 +818,7 @@ if _YtDlpTwitterIE is not None:
 if _YtDlpInstagramIE is not None:
     class XyInstagramIE(_YtDlpInstagramIE):
         IE_NAME = 'xy:instagram'
-        IE_DESC = 'Instagram (XyDownloader: video + foto carousel)'
+        IE_DESC = 'Instagram (DownloadAja: video + foto carousel)'
         _EMBED_REGEX = []
         _TESTS = []
 
@@ -863,7 +863,7 @@ if _YtDlpInstagramIE is not None:
 if _YtDlpBlueskyIE is not None:
     class XyBlueskyIE(_YtDlpBlueskyIE):
         IE_NAME = 'xy:bluesky'
-        IE_DESC = 'Bluesky (XyDownloader: video + foto)'
+        IE_DESC = 'Bluesky (DownloadAja: video + foto)'
         _EMBED_REGEX = []
         _TESTS = []
 
@@ -900,7 +900,7 @@ if _YtDlpBlueskyIE is not None:
 if _YtDlpWeiboIE is not None:
     class XyWeiboIE(_YtDlpWeiboIE):
         IE_NAME = 'xy:weibo'
-        IE_DESC = 'Weibo 微博 (XyDownloader: video + foto + livephoto)'
+        IE_DESC = 'Weibo 微博 (DownloadAja: video + foto + livephoto)'
         _EMBED_REGEX = []
         _TESTS = []
 
@@ -962,7 +962,7 @@ if _YtDlpWeiboIE is not None:
 if _YtDlpXiaoHongShuIE is not None:
     class XyXiaoHongShuIE(_YtDlpXiaoHongShuIE):
         IE_NAME = 'xy:xiaohongshu'
-        IE_DESC = 'Xiaohongshu 小红书 (XyDownloader: video + foto + Live Photo)'
+        IE_DESC = 'Xiaohongshu 小红书 (DownloadAja: video + foto + Live Photo)'
         _VALID_URL = (r'https?://(?:www\.)?xiaohongshu\.com/(?:explore|discovery/item|user/profile/[\da-f]+)'
                       r'/(?P<id>[\da-f]{16,})|https?://xhslink\.com/(?P<short>[\w/]+)')
         _EMBED_REGEX = []

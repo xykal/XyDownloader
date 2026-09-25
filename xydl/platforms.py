@@ -1,6 +1,6 @@
 """Katalog platform yang ditampilkan di web & dipakai untuk deteksi link.
 
-Catatan: ini hanya daftar "unggulan". Engine sebenarnya (yt-dlp + plugin XyDownloader)
+Catatan: ini hanya daftar "unggulan". Engine sebenarnya (yt-dlp + plugin DownloadAja)
 mendukung 1.700+ situs — link dari situs yang tidak ada di daftar ini tetap dicoba.
 """
 from urllib.parse import urlparse
@@ -22,7 +22,7 @@ _PLATFORMS = [
     ('instagram', 'Instagram', 'us', ['instagram.com', 'instagr.am'], '#E1306C', 'Reels & post publik'),
     ('facebook', 'Facebook', 'us', ['facebook.com', 'fb.watch', 'fb.com'], '#1877F2', 'Video & Reels publik'),
     ('twitter', 'X / Twitter', 'us', ['twitter.com', 'x.com', 't.co', 'fxtwitter.com', 'vxtwitter.com'], '#111111', None),
-    ('threads', 'Threads', 'us', ['threads.net', 'threads.com'], '#111111', 'Plugin XyDownloader'),
+    ('threads', 'Threads', 'us', ['threads.net', 'threads.com'], '#111111', 'Plugin DownloadAja'),
     ('reddit', 'Reddit', 'us', ['reddit.com', 'redd.it'], '#FF4500', 'Web: kadang diblokir, pakai Android'),
     ('pinterest', 'Pinterest', 'us', ['pinterest.com', 'pin.it'], '#E60023', None),
     ('snapchat', 'Snapchat', 'us', ['snapchat.com'], '#FFFC00', 'Spotlight'),
@@ -43,7 +43,7 @@ _PLATFORMS = [
     ('douyin', 'Douyin 抖音', 'cn', ['douyin.com', 'iesdouyin.com'], '#FE2C55',
      'Tanpa watermark. Web kadang ditolak (IP cloud), Android paling stabil.'),
     ('kuaishou', 'Kuaishou 快手', 'cn', ['kuaishou.com', 'chenzhongtech.com', 'gifshow.com'], '#FF4906',
-     'Plugin XyDownloader'),
+     'Plugin DownloadAja'),
     ('bilibili', 'Bilibili', 'cn', ['bilibili.com', 'b23.tv', 'bilibili.tv'], '#00A1D6',
      'Web: sering diblokir dari server cloud. Paling stabil lewat aplikasi Android.'),
     ('xiaohongshu', 'Xiaohongshu 小红书', 'cn', ['xiaohongshu.com', 'xhslink.com'], '#FF2442',

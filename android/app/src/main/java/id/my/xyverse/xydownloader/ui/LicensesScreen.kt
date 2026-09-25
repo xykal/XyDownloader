@@ -65,7 +65,7 @@ fun LicensesScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "XyDownloader dirilis dengan lisensi GPL-3.0 dan dibangun di atas software open source berikut. " +
+                    "DownloadAja dirilis dengan lisensi GPL-3.0 dan dibangun di atas software open source berikut. " +
                         "Ketuk untuk membaca teks lisensinya.",
                     style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp),
                 )

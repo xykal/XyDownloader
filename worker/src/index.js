@@ -1,5 +1,5 @@
 /**
- * XyDownloader Proxy — Cloudflare Worker
+ * DownloadAja Proxy — Cloudflare Worker
  * ---------------------------------------------------------------------------
  * Tugasnya cuma satu: meneruskan (stream) file media dari CDN platform ke browser,
  * dengan header yang dibutuhkan (Referer/Cookie/User-Agent) + CORS + nama file.
@@ -17,7 +17,7 @@ let cachedKey = null;
 let cachedKeySource = null;
 
 const ALLOWED_ORIGINS = new Set([
-  'https://xydl.projectkal.my.id',
+  'https://dlaja.projectkal.my.id',
   'https://xydl.vercel.app',
   'http://127.0.0.1:8000',
   'http://localhost:8000',
@@ -25,7 +25,7 @@ const ALLOWED_ORIGINS = new Set([
 
 function corsHeaders(request) {
   const origin = request.headers.get('Origin') || '';
-  const allow = ALLOWED_ORIGINS.has(origin) || (origin.endsWith('.vercel.app') && origin.includes('xydl'))
+  const allow = ALLOWED_ORIGINS.has(origin) || (origin.endsWith('.vercel.app') && origin.includes('xydl') || origin.includes('dlaja'))
     ? origin : '';
   const h = {
     'access-control-allow-methods': 'GET, HEAD, OPTIONS',
@@ -94,7 +94,7 @@ async function verifyToken(token, env) {
   if (!ok) throw new HttpError(403, 'tanda tangan token tidak valid');
   let payload;
   try { payload = JSON.parse(await inflateRaw(b64urlToBytes(body))); } catch { throw new HttpError(400, 'payload rusak'); }
-  if (payload.x && Date.now() / 1000 > payload.x) throw new HttpError(410, 'link kadaluarsa — proses ulang link-nya di XyDownloader');
+  if (payload.x && Date.now() / 1000 > payload.x) throw new HttpError(410, 'link kadaluarsa — proses ulang link-nya di DownloadAja');
   return payload;
 }
 
@@ -252,7 +252,7 @@ export default {
     try {
       if (url.pathname === '/' || url.pathname === '/health') {
         return json(200, {
-          ok: true, service: 'XyDownloader Proxy', version: VERSION, by: 'XyVerse', key: Boolean(env.SIGNING_KEY),
+          ok: true, service: 'DownloadAja Proxy', version: VERSION, by: 'XyVerse', key: Boolean(env.SIGNING_KEY),
         }, request);
       }
       if (url.pathname === '/f' || url.pathname.startsWith('/f/')) return await handleFile(request, env, url);

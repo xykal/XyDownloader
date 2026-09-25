@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="public/logo.svg" width="96" alt="XyDownloader">
+  <img src="public/logo.svg" width="96" alt="DownloadAja">
 </p>
 
-<h1 align="center">XyDownloader</h1>
+<h1 align="center">DownloadAja</h1>
 <p align="center"><b>Download video, MP3, foto slide & Live Photo dari semua platform — Web + Android native</b><br>
 TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · Xiaohongshu · X/Twitter · Facebook · Threads · pixiv · Vidio · Weibo · 1.700+ situs</p>
 
 <p align="center">
-  <a href="https://xydl.projectkal.my.id"><b>Buka versi web</b></a> ·
+  <a href="https://dlaja.projectkal.my.id"><b>Buka versi web</b></a> ·
   <a href="https://github.com/xykal/XyDownloader/releases/latest"><b>Download APK</b></a> ·
   <a href="#cara-kerjanya">Cara kerja</a>
 </p>
@@ -54,11 +54,11 @@ Intinya downloader "all platform" itu **bukan satu scraper raksasa**, tapi 3 lap
 2. **Pengantar file (proxy/streaming)** — URL CDN platform biasanya butuh `Referer`/cookie khusus, tidak boleh diakses lintas domain (CORS), atau terikat IP. Jadi file dialirkan lewat proxy yang menambahkan header yang benar.
 3. **Pengolah** — menggabungkan video+audio terpisah (DASH), mengemas ulang HLS (`.m3u8` → `.mp4`), dan konversi ke MP3 → **FFmpeg**.
 
-### Arsitektur XyDownloader
+### Arsitektur DownloadAja
 
 ```
                          ┌────────────────────────────── Vercel (Python) ─────────────────────────────┐
-  Browser  ── POST ──▶   │  /api/extract   yt-dlp + plugin XyDownloader  ──▶ JSON: judul, thumbnail,    │
+  Browser  ── POST ──▶   │  /api/extract   yt-dlp + plugin DownloadAja  ──▶ JSON: judul, thumbnail,    │
   (web)                  │                 opsi video/audio + link bertanda tangan (HMAC, 6 jam)       │
      │                   │  /api/stream    cadangan untuk link yang terikat IP server (googlevideo)    │
      │                   └─────────────────────────────────────────────────────────────────────────────┘
@@ -74,9 +74,9 @@ Intinya downloader "all platform" itu **bukan satu scraper raksasa**, tapi 3 lap
   Browser: ffmpeg.wasm (merge / remux HLS) + lamejs (MP3)  ──▶  file tersimpan di perangkat
 
 
-  Android: Kotlin + Compose ──▶ daemon Python "hangat" (yt-dlp + plugin XyDownloader yang sama) ──▶ info JSON
+  Android: Kotlin + Compose ──▶ daemon Python "hangat" (yt-dlp + plugin DownloadAja yang sama) ──▶ info JSON
            ──▶ download: youtubedl-android (--load-info-json) + FFmpeg minimal, atau HTTP langsung
-               untuk foto/Live Photo ──▶ Download/XyDownloader
+               untuk foto/Live Photo ──▶ Download/DownloadAja
 ```
 
 Kenapa dibagi begini?
@@ -96,7 +96,7 @@ api/index.py            Vercel Function (ASGI murni): /api/extract, /api/stream,
 xydl/engine.py          Normalisasi hasil yt-dlp → opsi video/audio, pilih format terbaik, bungkus link
 xydl/signer.py          Token HMAC-SHA256 (dipakai juga oleh Worker)
 xydl/platforms.py       Katalog platform per region
-plugins/yt_dlp_plugins/ Plugin extractor + postprocessor yt-dlp XyDownloader (dipakai web DAN Android)
+plugins/yt_dlp_plugins/ Plugin extractor + postprocessor yt-dlp DownloadAja (dipakai web DAN Android)
 public/                 Web UI (HTML/CSS/JS murni) + logos/ (logo asli platform) + flags/ + vendor ffmpeg.wasm & lamejs
 scripts/                fetch_logos.py · sync_android.py · make_banner.py (gambar popup) · gen_notices.py (lisensi)
 worker/                 Cloudflare Worker proxy streaming
@@ -109,7 +109,7 @@ tests/                  Tes offline logika pemilihan format & token
 .github/workflows/      CI (tes), deploy (Vercel + Cloudflare), build & release APK
 ```
 
-### Plugin extractor buatan XyDownloader
+### Plugin extractor buatan DownloadAja
 
 | Plugin | Masalah di yt-dlp | Solusi |
 |---|---|---|
@@ -129,7 +129,7 @@ tests/                  Tes offline logika pemilihan format & token
 
 ### Ukuran APK
 
-`isMinifyEnabled = true` (R8) + `isShrinkResources = true` hanya mengecilkan **kode Kotlin/Java** (dex) dan resource. Sebagian besar isi APK XyDownloader adalah **runtime native** yang tidak bisa disentuh R8, jadi di v1.2 bagian itu dirampingkan terpisah:
+`isMinifyEnabled = true` (R8) + `isShrinkResources = true` hanya mengecilkan **kode Kotlin/Java** (dex) dan resource. Sebagian besar isi APK DownloadAja adalah **runtime native** yang tidak bisa disentuh R8, jadi di v1.2 bagian itu dirampingkan terpisah:
 
 | Bagian (arm64) | v1.1 | v1.2 | Caranya |
 |---|---|---|---|
@@ -145,7 +145,7 @@ Hasil build CI tercetak di langkah *Rapikan nama file & cek isi APK*.
 - Aplikasi mengecek `releases/latest` repo ini (maks. tiap 6 jam). Kalau ada versi baru, muncul **popup gambar** (tombol X; gambar ditekan → halaman Pembaruan). Tombol **Perbarui** mengunduh APK sesuai arsitektur HP lalu memasangnya lewat `PackageInstaller` (Android 12+: `USER_ACTION_NOT_REQUIRED`).
 - Setelah diperbarui, popup "yang baru" tampil sekali.
 - Gambar popup tiap rilis: `android/release-banner.webp` (dilampirkan workflow sebagai `update-banner.webp`). Buat yang baru dari ilustrasi dasar `android/banner/base.webp`:
-  `python scripts/make_banner.py --title "XyDownloader 1.3" --sub "..." --out android/release-banner.webp`
+  `python scripts/make_banner.py --title "DownloadAja 1.3" --sub "..." --out android/release-banner.webp`
 - Catatan rilis: `android/RELEASE_NOTES.md` (ditampilkan juga di halaman Pembaruan aplikasi).
 
 ---
@@ -220,7 +220,7 @@ Catatan lain:
 
 ## Disclaimer
 
-Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengunduhnya, dan patuhi ketentuan layanan tiap platform. XyDownloader tidak berafiliasi dengan platform mana pun dan tidak membobol DRM.
+Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengunduhnya, dan patuhi ketentuan layanan tiap platform. DownloadAja tidak berafiliasi dengan platform mana pun dan tidak membobol DRM.
 
 ## Lisensi & kredit
 

@@ -1,4 +1,4 @@
-"""XyDownloader engine — yt-dlp + plugin XyDownloader, dinormalisasi jadi JSON rapi.
+"""DownloadAja engine — yt-dlp + plugin DownloadAja, dinormalisasi jadi JSON rapi.
 
 Alur:
   1. Ambil URL dari teks yang di-paste (share text TikTok/Douyin biasanya ada kalimatnya).
@@ -37,7 +37,7 @@ from yt_dlp.networking import Request as YRequest  # noqa: E402
 from . import signer  # noqa: E402
 from .platforms import detect_platform  # noqa: E402
 
-VERSION = '1.2.0'
+VERSION = '1.3.0'
 URL_RE = re.compile(r'https?://[^\s<>"\'\u3000-\u303f\uff00-\uffef]+', re.I)
 IP_BOUND_HOSTS = ('googlevideo.com',)  # URL format YouTube terikat IP server yang meng-extract
 MAX_ENTRIES = 12
@@ -222,14 +222,14 @@ def friendly_error(msg):
         (('unsupported url',), 'unsupported',
          'Link ini belum didukung. Pastikan itu link postingan/video (bukan profil atau halaman utama).'),
         (('confirm you', 'not a bot'), 'blocked',
-         'YouTube memblokir server cloud (termasuk server XyDownloader) dengan cek anti-bot. Untuk YouTube, '
-         'pakai aplikasi Android XyDownloader — download langsung dari HP kamu, jauh lebih stabil.'),
+         'YouTube memblokir server cloud (termasuk server DownloadAja) dengan cek anti-bot. Untuk YouTube, '
+         'pakai aplikasi Android DownloadAja — download langsung dari HP kamu, jauh lebih stabil.'),
         (('412', 'precondition failed', 'menolak permintaan', 'butuh verifikasi', 'argus'), 'blocked',
          'Platform ini sedang memblokir IP server cloud kami. Coba lagi beberapa saat lagi, atau pakai aplikasi '
-         'Android XyDownloader (download langsung dari HP kamu).'),
+         'Android DownloadAja (download langsung dari HP kamu).'),
         (('drm',), 'drm', 'Konten ini dilindungi DRM (konten premium/berbayar) dan tidak bisa diunduh.'),
         (('private', 'login', 'log in', 'sign in', 'authentication', 'cookies', 'members-only', 'subscriber'),
-         'private', 'Konten ini privat / butuh login. XyDownloader hanya bisa mengambil konten publik.'),
+         'private', 'Konten ini privat / butuh login. DownloadAja hanya bisa mengambil konten publik.'),
         (('geo', 'not available in your country', 'your region', 'country'), 'geo',
          'Konten ini dibatasi wilayah (geo-block).'),
         (('timed out', 'timeout', 'time out'), 'timeout', 'Server platform lambat merespons. Coba lagi sebentar lagi.'),
@@ -881,7 +881,7 @@ def health():
         pass
     return {
         'ok': True,
-        'service': 'XyDownloader API',
+        'service': 'DownloadAja API',
         'version': VERSION,
         'yt_dlp': yt_dlp.version.__version__,
         'deno': find_deno(),

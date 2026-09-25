@@ -1,12 +1,12 @@
 {
-  "_comment": "Daftar komponen pihak ketiga XyDownloader. Sumber tunggal untuk layar Lisensi (Android), modal Lisensi (web) dan THIRD_PARTY_NOTICES.md (scripts/gen_notices.py).",
+  "_comment": "Daftar komponen pihak ketiga DownloadAja. Sumber tunggal untuk layar Lisensi (Android), modal Lisensi (web) dan THIRD_PARTY_NOTICES.md (scripts/gen_notices.py).",
   "android": [
-    {"name": "XyDownloader", "license": "GPL-3.0-or-later", "file": "GPL-3.0-only.txt", "url": "https://github.com/xykal/XyDownloader", "copyright": "Copyright (c) 2026 XyVerse", "note": "Aplikasi, plugin extractor & engine"},
+    {"name": "DownloadAja", "license": "GPL-3.0-or-later", "file": "GPL-3.0-only.txt", "url": "https://github.com/xykal/XyDownloader", "copyright": "Copyright (c) 2026 XyVerse", "note": "Aplikasi, plugin extractor & engine"},
     {"name": "youtubedl-android", "license": "GPL-3.0", "file": "GPL-3.0-only.txt", "url": "https://github.com/JunkFood02/youtubedl-android", "copyright": "Copyright (c) yausername, JunkFood02 & kontributor", "note": "Menjalankan Python + yt-dlp di Android"},
     {"name": "yt-dlp", "license": "Unlicense", "file": "Unlicense.txt", "url": "https://github.com/yt-dlp/yt-dlp", "copyright": "yt-dlp contributors (public domain)", "note": "Engine pembaca link (diperbarui otomatis dari GitHub)"},
     {"name": "yt-dlp-ejs", "license": "Unlicense", "file": "Unlicense.txt", "url": "https://github.com/yt-dlp/ejs", "copyright": "yt-dlp contributors (public domain)", "note": "Skrip JavaScript tantangan YouTube"},
     {"name": "Python 3.12", "license": "PSF-2.0", "file": "PSF-2.0.txt", "url": "https://www.python.org/", "copyright": "Copyright (c) 2001-2024 Python Software Foundation. All Rights Reserved.", "note": "Runtime (build Termux, dibundel youtubedl-android; versi ramping)"},
-    {"name": "FFmpeg 8.0 (build minimal XyDownloader)", "license": "LGPL-2.1-or-later", "file": "LGPL-2.1-only.txt", "url": "https://ffmpeg.org/", "copyright": "Copyright (c) 2000-2026 the FFmpeg developers", "note": "Merge video + audio, MP3/M4A, ugoira. Dibangun tanpa komponen GPL; skrip build & daftar komponen: android/ffmpeg/build.sh"},
+    {"name": "FFmpeg 8.0 (build minimal DownloadAja)", "license": "LGPL-2.1-or-later", "file": "LGPL-2.1-only.txt", "url": "https://ffmpeg.org/", "copyright": "Copyright (c) 2000-2026 the FFmpeg developers", "note": "Merge video + audio, MP3/M4A, ugoira. Dibangun tanpa komponen GPL; skrip build & daftar komponen: android/ffmpeg/build.sh"},
     {"name": "LAME 3.100", "license": "LGPL-2.0-or-later", "file": "LGPL-2.0-only.txt", "url": "https://lame.sourceforge.io/", "copyright": "Copyright (c) 1999-2017 The LAME Project", "note": "Encoder MP3 (terhubung statis ke FFmpeg)"},
     {"name": "QuickJS", "license": "MIT", "file": "MIT.txt", "url": "https://bellard.org/quickjs/", "copyright": "Copyright (c) 2017-2021 Fabrice Bellard, Charlie Gordon", "note": "Runtime JavaScript untuk YouTube"},
     {"name": "OpenSSL 3", "license": "Apache-2.0", "file": "Apache-2.0.txt", "url": "https://www.openssl.org/", "copyright": "Copyright (c) 1998-2025 The OpenSSL Project Authors", "note": "TLS/HTTPS untuk Python"},
@@ -37,5 +37,5 @@
     {"name": "flag-icons", "license": "MIT", "file": "MIT.txt", "url": "https://github.com/lipis/flag-icons", "copyright": "Copyright (c) 2013 Panayiotis Lipiridis", "note": "Bendera negara"},
     {"name": "Lucide (gaya ikon)", "license": "ISC", "file": "ISC.txt", "url": "https://lucide.dev/", "copyright": "Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.", "note": "Ikon garis"}
   ],
-  "trademarks": "Logo dan nama platform (TikTok, Douyin, Instagram, YouTube, dll) adalah merek dagang milik pemiliknya masing-masing, hanya dipakai untuk menunjukkan kompatibilitas. XyDownloader tidak berafiliasi dengan platform mana pun."
+  "trademarks": "Logo dan nama platform (TikTok, Douyin, Instagram, YouTube, dll) adalah merek dagang milik pemiliknya masing-masing, hanya dipakai untuk menunjukkan kompatibilitas. DownloadAja tidak berafiliasi dengan platform mana pun."
 }

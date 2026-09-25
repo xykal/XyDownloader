@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test XyDownloader di emulator (API 34, x86_64):
+# Smoke test DownloadAja di emulator (API 34, x86_64):
 #  1. pasang v1.1.0 lalu upgrade ke APK baru (uji migrasi + popup "yang baru")
 #  2. share link foto slide TikTok -> galeri, viewer, unduh foto terpilih (HTTP langsung)
 #  3. video TikTok -> pratinjau (ExoPlayer) + unduh MP3 (yt-dlp --load-info-json + FFmpeg minimal)
@@ -17,7 +17,7 @@ tab() { adb shell am start -W -n $PKG/.MainActivity --ei tab "$1" >/dev/null; }
 top() { for i in 1 2 3; do adb shell input swipe 540 700 540 1900 250; done; }
 
 echo "== pasang versi lama (v1.1.0)"
-curl -fsSL --retry 3 -o /tmp/old.apk https://github.com/xykal/XyDownloader/releases/download/v1.1.0/XyDownloader-1.1.0-x86_64.apk \
+curl -fsSL --retry 3 -o /tmp/old.apk https://github.com/xykal/XyDownloader/releases/download/v1.1.0/DownloadAja-1.1.0-x86_64.apk \
   && adb install -g /tmp/old.apk && adb shell am start -W -n $PKG/.MainActivity >/dev/null && sleep 25 \
   && adb shell am force-stop $PKG || echo "versi lama dilewati"
 
@@ -66,8 +66,8 @@ adb shell input keyevent KEYCODE_BACK
 
 echo "== status"
 { adb shell pidof $PKG && echo "PROSES HIDUP" || echo "PROSES MATI"
-  echo "--- /sdcard/Download/XyDownloader"
-  adb shell ls -la /sdcard/Download/XyDownloader/
+  echo "--- /sdcard/Download/DownloadAja"
+  adb shell ls -la /sdcard/Download/DownloadAja/
 } | tee "$OUT/status.txt"
 adb logcat -d > "$OUT/logcat.txt"
 grep -E "XyDaemon|XyEngine|XyYtDlp|XyPyEnv|XyUpdater|WM-WorkerWrapper|FATAL|AndroidRuntime: (FATAL|java)" "$OUT/logcat.txt" > "$OUT/logcat-xy.txt" || true

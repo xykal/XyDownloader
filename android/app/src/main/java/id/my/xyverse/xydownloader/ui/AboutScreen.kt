@@ -55,7 +55,7 @@ fun AboutScreen(vm: MainViewModel) {
     ) {
         Spacer(Modifier.height(8.dp))
         Image(painterResource(R.drawable.ic_splash), null, Modifier.size(84.dp))
-        Text("XyDownloader", style = MaterialTheme.typography.headlineSmall, color = cs.onBackground)
+        Text("DownloadAja", style = MaterialTheme.typography.headlineSmall, color = cs.onBackground)
         Text("Versi ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
 
         XyCard {
@@ -101,7 +101,7 @@ fun AboutScreen(vm: MainViewModel) {
         }
 
         XyCard {
-            InfoLine(R.drawable.ic_folder, "Lokasi file", "Internal storage › Download › XyDownloader")
+            InfoLine(R.drawable.ic_folder, "Lokasi file", "Internal storage › Download › DownloadAja")
             InfoLine(R.drawable.ic_globe, "Versi web", BuildConfig.WEB_URL) { open(BuildConfig.WEB_URL) }
             InfoLine(R.drawable.ic_code, "Source code (GPL-3.0)", BuildConfig.REPO_URL) { open(BuildConfig.REPO_URL) }
         }
@@ -128,7 +128,7 @@ fun AboutScreen(vm: MainViewModel) {
 
         Text(
             "Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengunduhnya. " +
-                "Hormati hak cipta kreator. XyDownloader tidak berafiliasi dengan platform mana pun.",
+                "Hormati hak cipta kreator. DownloadAja tidak berafiliasi dengan platform mana pun.",
             style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 8.dp),
         )

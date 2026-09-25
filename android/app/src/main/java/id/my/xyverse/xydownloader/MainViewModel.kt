@@ -307,6 +307,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         fun safeName(name: String): String =
-            name.replace(Regex("[\\\\/:*?\"<>|\\r\\n\\t]+"), " ").replace(Regex("\\s+"), " ").trim().take(80).ifBlank { "XyDownloader" }
+            name.replace(Regex("[\\\\/:*?\"<>|\\r\\n\\t]+"), " ").replace(Regex("\\s+"), " ").trim().take(80).ifBlank { "DownloadAja" }
     }
 }

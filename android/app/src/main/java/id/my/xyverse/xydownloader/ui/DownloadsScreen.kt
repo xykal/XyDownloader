@@ -55,7 +55,7 @@ fun DownloadsScreen(vm: MainViewModel) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Unduhan", style = MaterialTheme.typography.headlineSmall, color = cs.onBackground)
-                Text("Tersimpan di Download/XyDownloader", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                Text("Tersimpan di Download/DownloadAja", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             }
             if (records.any { it.status == DlRecord.STATUS_DONE || it.status == DlRecord.STATUS_FAILED }) {
                 TextButton(onClick = { Downloads.clearFinished(context) }) { Text("Bersihkan") }

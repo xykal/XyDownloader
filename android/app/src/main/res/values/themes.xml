@@ -1,13 +1,13 @@
 <resources>
-    <style name="Theme.XyDownloader" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.DownloadAja" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/xy_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    <style name="Theme.XyDownloader.Splash" parent="Theme.SplashScreen">
+    <style name="Theme.DownloadAja.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/xy_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
-        <item name="postSplashScreenTheme">@style/Theme.XyDownloader</item>
+        <item name="postSplashScreenTheme">@style/Theme.DownloadAja</item>
     </style>
 </resources>

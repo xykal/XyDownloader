@@ -24,7 +24,7 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:requestLegacyExternalStorage="true"
-        android:theme="@style/Theme.XyDownloader.Splash"
+        android:theme="@style/Theme.DownloadAja.Splash"
         tools:targetApi="35">
 
         <activity

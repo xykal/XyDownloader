@@ -1,4 +1,4 @@
-# Cloudflare Worker — proxy streaming untuk XyDownloader
+# Cloudflare Worker — proxy streaming untuk DownloadAja
 # Deploy: npx wrangler deploy   (secret: npx wrangler secret put SIGNING_KEY)
 name = "xydl-proxy"
 main = "src/index.js"

@@ -46,7 +46,7 @@ class InstallReceiver : BroadcastReceiver() {
                     val pi = PendingIntent.getActivity(
                         context, 7, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                     )
-                    post(context, "Pembaruan siap dipasang", "Ketuk untuk memasang versi terbaru XyDownloader", pi)
+                    post(context, "Pembaruan siap dipasang", "Ketuk untuk memasang versi terbaru DownloadAja", pi)
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> Unit // proses aplikasi akan diganti oleh sistem
@@ -59,7 +59,7 @@ class InstallReceiver : BroadcastReceiver() {
             context, 8, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        post(context, "XyDownloader diperbarui", "Versi ${BuildConfig.VERSION_NAME} siap dipakai. Ketuk untuk membuka.", open)
+        post(context, "DownloadAja diperbarui", "Versi ${BuildConfig.VERSION_NAME} siap dipakai. Ketuk untuk membuka.", open)
     }
 
     private fun post(context: Context, title: String, text: String, pi: PendingIntent) {

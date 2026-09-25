@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "XyDownloader"
+rootProject.name = "DownloadAja"
 include(":app")

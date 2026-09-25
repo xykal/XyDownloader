@@ -70,7 +70,7 @@ fun BannerPopup(bannerUrl: String?, onClose: () -> Unit, onOpen: () -> Unit) {
             Box(Modifier.widthIn(max = 420.dp).fillMaxWidth()) {
                 AsyncImage(
                     model = ImageRequest.Builder(context).data(bannerUrl ?: R.drawable.update_banner).crossfade(true).build(),
-                    contentDescription = "Ada pembaruan XyDownloader — ketuk untuk melihat",
+                    contentDescription = "Ada pembaruan DownloadAja — ketuk untuk melihat",
                     placeholder = painterResource(R.drawable.update_banner),
                     error = painterResource(R.drawable.update_banner),
                     contentScale = ContentScale.Crop,
@@ -149,7 +149,7 @@ fun UpdateScreen(vm: MainViewModel, onBack: () -> Unit) {
                     is AppUpdater.State.Idle, is AppUpdater.State.Checking -> StatusLine(R.drawable.ic_refresh, "Mengecek versi terbaru…")
                     is AppUpdater.State.UpToDate -> StatusLine(R.drawable.ic_check_circle, "Kamu sudah memakai versi terbaru.", cs.primary)
                     is AppUpdater.State.Available -> StatusLine(R.drawable.ic_update, "Versi ${s.release.version} tersedia", cs.primary)
-                    is AppUpdater.State.NeedsPermission -> StatusLine(R.drawable.ic_alert, "Izinkan XyDownloader memasang pembaruan", cs.error)
+                    is AppUpdater.State.NeedsPermission -> StatusLine(R.drawable.ic_alert, "Izinkan DownloadAja memasang pembaruan", cs.error)
                     is AppUpdater.State.Downloading -> {
                         val p = if (s.total > 0) (s.bytes.toFloat() / s.total).coerceIn(0f, 1f) else 0f
                         StatusLine(R.drawable.ic_download, "Mengunduh ${(p * 100).toInt()}% · ${formatBytes(s.bytes)}" +
@@ -167,7 +167,7 @@ fun UpdateScreen(vm: MainViewModel, onBack: () -> Unit) {
                     ) { vm.startUpdate(s.release) }
                     is AppUpdater.State.NeedsPermission -> {
                         Text(
-                            "Android meminta izin \"Instal aplikasi tidak dikenal\" untuk XyDownloader. Aktifkan, lalu kembali ke sini — " +
+                            "Android meminta izin \"Instal aplikasi tidak dikenal\" untuk DownloadAja. Aktifkan, lalu kembali ke sini — " +
                                 "pembaruan lanjut otomatis.",
                             style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                         )

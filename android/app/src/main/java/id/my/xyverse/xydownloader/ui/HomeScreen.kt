@@ -309,9 +309,9 @@ private fun HowToCard() {
         Text("Cara cepat", style = MaterialTheme.typography.titleSmall, color = cs.onSurface)
         Spacer(Modifier.height(8.dp))
         val steps = listOf(
-            R.drawable.ic_share to "Di TikTok, Instagram, YouTube, Douyin, dll: tekan Bagikan lalu pilih XyDownloader.",
+            R.drawable.ic_share to "Di TikTok, Instagram, YouTube, Douyin, dll: tekan Bagikan lalu pilih DownloadAja.",
             R.drawable.ic_paste to "Atau salin link, lalu tekan ikon tempel di kolom atas.",
-            R.drawable.ic_folder to "Pilih kualitas, atau pilih foto satu per satu. File tersimpan di Download/XyDownloader.",
+            R.drawable.ic_folder to "Pilih kualitas, atau pilih foto satu per satu. File tersimpan di Download/DownloadAja.",
         )
         steps.forEach { (icon, text) ->
             Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {

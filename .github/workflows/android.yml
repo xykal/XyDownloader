@@ -110,14 +110,14 @@ jobs:
           mkdir -p out
           for f in android/app/build/outputs/apk/release/*.apk; do
             abi=$(basename "$f" .apk | sed -E 's/^app-//; s/-release(-unsigned)?$//')
-            cp "$f" "out/XyDownloader-${VERSION_NAME}-${abi}.apk"
+            cp "$f" "out/DownloadAja-${VERSION_NAME}-${abi}.apk"
           done
           python3 .github/scripts/check_apk.py out android/app/build/xy-jni android/app/build/xy-res/raw/ytdlp
           cp android/release-banner.webp out/update-banner.webp
 
       - uses: actions/upload-artifact@v4
         with:
-          name: XyDownloader-${{ env.VERSION_NAME }}
+          name: DownloadAja-${{ env.VERSION_NAME }}
           path: out/*.apk
           if-no-files-found: error
 
@@ -125,7 +125,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: XyDownloader ${{ env.VERSION_NAME }}
+          name: DownloadAja ${{ env.VERSION_NAME }}
           files: |
             out/*.apk
             out/update-banner.webp
@@ -141,7 +141,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: XyDownloader-${{ needs.build.outputs.version }}
+          name: DownloadAja-${{ needs.build.outputs.version }}
           path: apk
 
       - name: Aktifkan KVM
