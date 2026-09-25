@@ -7,7 +7,7 @@
 TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · Xiaohongshu · X/Twitter · Facebook · Threads · pixiv · Vidio · Weibo · 1.700+ situs</p>
 
 <p align="center">
-  <a href="https://xydl.vercel.app"><b>Buka versi web</b></a> ·
+  <a href="https://xydl.projectkal.my.id"><b>Buka versi web</b></a> ·
   <a href="https://github.com/xykal/XyDownloader/releases/latest"><b>Download APK</b></a> ·
   <a href="#cara-kerjanya">Cara kerja</a>
 </p>

@@ -28,12 +28,48 @@ STREAM_CHUNK = 8 * 1024 * 1024
 READ_SIZE = 256 * 1024
 RATE_LIMIT = int(os.environ.get('XYDL_RATE_LIMIT', '25'))  # request extract / menit / IP
 
-CORS = [
-    (b'access-control-allow-origin', b'*'),
-    (b'access-control-allow-methods', b'GET, POST, HEAD, OPTIONS'),
-    (b'access-control-allow-headers', b'Content-Type, Range'),
-    (b'access-control-expose-headers', b'Content-Length, Content-Range, Content-Disposition, Accept-Ranges'),
-]
+# Origin yang diizinkan (custom domain + preview Vercel). Bukan open CORS.
+ALLOWED_ORIGINS = {
+    'https://xydl.projectkal.my.id',
+    'https://xydl.vercel.app',  # fallback selama DNS apex belum aktif
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+}
+# User-Agent scrapers yang diblokir di /api/extract (bukan browser/app)
+_BLOCKED_UA = (
+    'scrapy', 'httrack', 'wget/', 'curl/', 'python-requests', 'python-urllib',
+    'go-http-client', 'java/', 'libwww', 'httpclient', # app Android pakai okhttp + UA XyDownloader
+    'bytespider', 'gptbot', 'ccbot', 'anthropic', 'claude-web', 'petalbot',
+    'semrush', 'ahrefs', 'dataforseo', 'mj12bot', 'dotbot', 'magpie-crawler',
+)
+
+
+def _cors_for(origin: str | None):
+    """CORS ketat: hanya origin allowlist. Tanpa origin (same-origin / curl) = tanpa ACAO."""
+    o = (origin or '').strip()
+    allow = o if o in ALLOWED_ORIGINS else ''
+    # Preview deploy Vercel: *.vercel.app milik project
+    if not allow and o.endswith('.vercel.app') and 'xydl' in o:
+        allow = o
+    headers = [
+        (b'access-control-allow-methods', b'GET, POST, HEAD, OPTIONS'),
+        (b'access-control-allow-headers', b'Content-Type, Range'),
+        (b'access-control-expose-headers', b'Content-Length, Content-Range, Content-Disposition, Accept-Ranges'),
+        (b'vary', b'Origin'),
+    ]
+    if allow:
+        headers.insert(0, (b'access-control-allow-origin', allow.encode()))
+    return headers
+
+
+def _ua_blocked(ua: str | None) -> bool:
+    u = (ua or '').lower()
+    if not u or u == 'mozilla/5.0':  # kosong / terlalu generik
+        return True
+    # Browser & app XyDownloader lolos
+    if 'mozilla/' in u or 'xyverse' in u or 'xydownloader' in u:
+        return False
+    return any(b in u for b in _BLOCKED_UA)
 
 _hits = defaultdict(deque)
 
@@ -51,13 +87,14 @@ def _rate_limited(ip):
     return False
 
 
-async def _send_json(send, status, data, extra_headers=()):
+async def _send_json(send, status, data, extra_headers=(), origin=None):
     body = json.dumps(data, ensure_ascii=False).encode()
     headers = [
         (b'content-type', b'application/json; charset=utf-8'),
         (b'content-length', str(len(body)).encode()),
         (b'cache-control', b'no-store'),
-        *CORS, *extra_headers,
+        (b'x-robots-tag', b'noindex, nofollow'),
+        *_cors_for(origin), *extra_headers,
     ]
     await send({'type': 'http.response.start', 'status': status, 'headers': headers})
     await send({'type': 'http.response.body', 'body': body})
@@ -78,7 +115,7 @@ def _content_disposition(filename):
     return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{urllib.parse.quote(filename)}'.encode()
 
 
-async def handle_extract(send, query, receive, method):
+async def handle_extract(send, query, receive, method, origin=None):
     text = query.get('url')
     if method == 'POST':
         try:
@@ -88,29 +125,38 @@ async def handle_extract(send, query, receive, method):
             pass
     try:
         result = await asyncio.to_thread(engine.extract, text or '', PROXY_BASE)
-        await _send_json(send, 200, result)
+        await _send_json(send, 200, result, origin=origin)
     except engine.XyError as e:
-        await _send_json(send, e.status, {'ok': False, 'code': e.code, 'error': e.message, 'detail': e.detail})
+        await _send_json(
+            send, e.status,
+            {'ok': False, 'code': e.code, 'error': e.message, 'detail': e.detail},
+            origin=origin,
+        )
 
 
 async def handle_stream(send, query, headers, method):
+    origin = headers.get('origin')
     try:
         payload = signer.verify(query.get('t', ''))
     except signer.TokenError as e:
-        return await _send_json(send, 403, {'ok': False, 'code': 'token', 'error': str(e)})
+        return await _send_json(send, 403, {'ok': False, 'code': 'token', 'error': str(e)}, origin=origin)
     filename = payload.get('f') or 'video.mp4'
     try:
         ydl, fmt, fheaders = await asyncio.to_thread(engine.resolve_stream_format, payload['s'], payload['fid'],
                                                       payload)
     except engine.XyError as e:
-        return await _send_json(send, e.status, {'ok': False, 'code': e.code, 'error': e.message})
+        return await _send_json(send, e.status, {'ok': False, 'code': e.code, 'error': e.message}, origin=origin)
     except Exception as e:
         raw = engine._clean_error(e)
         code, msg = engine.friendly_error(raw)
-        return await _send_json(send, 502, {'ok': False, 'code': code, 'error': msg, 'detail': raw})
+        return await _send_json(send, 502, {'ok': False, 'code': code, 'error': msg, 'detail': raw}, origin=origin)
 
     ctype = (mimetypes.guess_type(filename)[0] or 'application/octet-stream').encode()
-    base_headers = [(b'content-type', ctype), (b'accept-ranges', b'bytes'), (b'cache-control', b'no-store'), *CORS]
+    base_headers = [
+        (b'content-type', ctype), (b'accept-ranges', b'bytes'), (b'cache-control', b'no-store'),
+        (b'x-robots-tag', b'noindex'),
+        *_cors_for(origin),
+    ]
     if query.get('dl') == '1':
         base_headers.append((b'content-disposition', _content_disposition(filename)))
 
@@ -185,31 +231,47 @@ async def app(scope, receive, send):
     headers = {k.decode('latin-1').lower(): v.decode('latin-1') for k, v in scope.get('headers', [])}
     ip = (headers.get('x-real-ip') or headers.get('x-forwarded-for', '').split(',')[0].strip()
           or (scope.get('client') or ('?',))[0])
+    origin = headers.get('origin')
+    ua = headers.get('user-agent')
 
     if method == 'OPTIONS':
-        await send({'type': 'http.response.start', 'status': 204, 'headers': [*CORS, (b'access-control-max-age', b'86400')]})
+        await send({
+            'type': 'http.response.start', 'status': 204,
+            'headers': [*_cors_for(origin), (b'access-control-max-age', b'86400')],
+        })
         await send({'type': 'http.response.body', 'body': b''})
         return
 
     try:
         if path in ('/api/health', '/api'):
-            return await _send_json(send, 200, engine.health())
+            return await _send_json(send, 200, engine.health(), origin=origin)
         if path == '/api/platforms':
-            return await _send_json(send, 200, catalog(), [(b'cache-control', b'public, max-age=3600')])
+            return await _send_json(
+                send, 200, catalog(),
+                [(b'cache-control', b'public, max-age=3600')],
+                origin=origin,
+            )
         if path == '/api/extract':
             if method not in ('GET', 'POST'):
-                return await _send_json(send, 405, {'ok': False, 'error': 'method not allowed'})
+                return await _send_json(send, 405, {'ok': False, 'error': 'method not allowed'}, origin=origin)
+            # Anti-scrape: tolak UA bot/scraper (browser + app XyDownloader tetap lolos)
+            if _ua_blocked(ua):
+                return await _send_json(send, 403, {
+                    'ok': False, 'code': 'forbidden',
+                    'error': 'Akses API ditolak. Pakai situs resmi atau aplikasi XyDownloader.',
+                }, origin=origin)
             if _rate_limited(ip):
                 return await _send_json(send, 429, {'ok': False, 'code': 'rate_limit',
-                                                    'error': 'Terlalu banyak permintaan. Tunggu 1 menit ya.'})
-            return await handle_extract(send, query, receive, method)
+                                                    'error': 'Terlalu banyak permintaan. Tunggu 1 menit ya.'},
+                                        origin=origin)
+            return await handle_extract(send, query, receive, method, origin=origin)
         if path == '/api/stream':
             return await handle_stream(send, query, headers, method)
-        return await _send_json(send, 404, {'ok': False, 'error': 'not found'})
+        return await _send_json(send, 404, {'ok': False, 'error': 'not found'}, origin=origin)
     except Exception as e:  # jangan sampai function crash tanpa respon
         traceback.print_exc()
         try:
             await _send_json(send, 500, {'ok': False, 'code': 'internal', 'error': 'Terjadi kesalahan server.',
-                                         'detail': str(e)[:300]})
+                                         'detail': str(e)[:300]}, origin=origin)
         except Exception:
             pass

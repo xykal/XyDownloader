@@ -1,0 +1,44 @@
+# XyDownloader — https://xydl.projectkal.my.id
+# Izinkan mesin pencari mengindeks halaman publik; blokir API & aset proses.
+
+User-agent: *
+Allow: /
+Allow: /logos/
+Allow: /assets/
+Allow: /whats-new.webp
+Allow: /og-cover.jpg
+Allow: /icon-192.png
+Allow: /icon-512.png
+Allow: /manifest.webmanifest
+Allow: /licenses.html
+
+# API & proxy bukan konten untuk di-scrape/index
+Disallow: /api/
+Disallow: /vendor/
+Disallow: /mp3-worker.js
+
+# Bot scrapers agresif (bukan search engine) — hemat resource
+User-agent: GPTBot
+Disallow: /
+User-agent: ChatGPT-User
+Disallow: /
+User-agent: CCBot
+Disallow: /
+User-agent: anthropic-ai
+Disallow: /
+User-agent: Claude-Web
+Disallow: /
+User-agent: Google-Extended
+Disallow: /
+User-agent: Bytespider
+Disallow: /
+User-agent: Bytespider
+Disallow: /
+User-agent: Scrapy
+Disallow: /
+User-agent: magpie-crawler
+Disallow: /
+User-agent: DotBot
+Disallow: /
+
+Sitemap: https://xydl.projectkal.my.id/sitemap.xml

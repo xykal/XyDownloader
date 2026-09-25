@@ -14,7 +14,7 @@ def main():
            'XyDownloader (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan memakai komponen open '
            'source berikut. Teks lisensi lengkap ada di folder [`licenses/texts`](licenses/texts) dan juga bisa '
            'dibuka dari aplikasi Android (Tentang → Lisensi open source) serta web (footer → Lisensi).', '']
-    for key, head in (('android', 'Aplikasi Android'), ('web', 'Web (xydl.vercel.app)')):
+    for key, head in (('android', 'Aplikasi Android'), ('web', 'Web (xydl.projectkal.my.id)')):
         out += [f'## {head}', '', '| Komponen | Lisensi | Hak cipta | Keterangan |', '|---|---|---|---|']
         for c in data[key]:
             name = f"[{c['name']}]({c['url']})"

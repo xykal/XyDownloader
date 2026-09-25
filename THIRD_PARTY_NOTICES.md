@@ -32,7 +32,7 @@ XyDownloader (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan 
 | [Jackson](https://github.com/FasterXML/jackson) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 2007- Tatu Saloranta & FasterXML | Dipakai youtubedl-android |
 | [Apache Commons IO & Compress](https://commons.apache.org/) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) The Apache Software Foundation | Dipakai youtubedl-android |
 
-## Web (xydl.vercel.app)
+## Web (xydl.projectkal.my.id)
 
 | Komponen | Lisensi | Hak cipta | Keterangan |
 |---|---|---|---|

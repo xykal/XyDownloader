@@ -34,7 +34,7 @@ android {
         versionName = appVersionName
         // Aplikasi berbahasa Indonesia: buang terjemahan library lain (hemat ukuran)
         resourceConfigurations += listOf("en", "in")
-        buildConfigField("String", "WEB_URL", "\"https://xydl.vercel.app\"")
+        buildConfigField("String", "WEB_URL", "\"https://xydl.projectkal.my.id\"")
         buildConfigField("String", "REPO_URL", "\"https://github.com/xykal/XyDownloader\"")
     }
 

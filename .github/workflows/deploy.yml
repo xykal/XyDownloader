@@ -61,4 +61,4 @@ jobs:
       - name: Smoke test
         run: |
           sleep 5
-          curl -fsS https://xydl.vercel.app/api/health | tee /dev/stderr | grep -q '"ok": true'
+          curl -fsS https://xydl.projectkal.my.id/api/health | tee /dev/stderr | grep -q '"ok": true'

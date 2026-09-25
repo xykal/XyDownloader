@@ -371,3 +371,24 @@ details[open] .chev { transform: rotate(180deg); }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 
 .built picture, .built img { display: block; width: 22px; height: 22px; object-fit: contain; }
+
+/* ------------------------------------------------------------------ support / donate */
+.support-card {
+  display: grid; grid-template-columns: 1.4fr auto; gap: 20px; align-items: center;
+  padding: clamp(20px, 4vw, 32px);
+}
+.support-text h2 { margin: 12px 0 8px; }
+.support-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.support-note { margin: 14px 0 0; }
+.support-badge {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  min-width: 200px;
+}
+.support-badge img { width: 48px; height: 48px; object-fit: contain; }
+.support-badge b { display: block; font-size: 0.95rem; }
+.support-badge span { color: var(--muted); font-size: 0.82rem; }
+@media (max-width: 720px) {
+  .support-card { grid-template-columns: 1fr; }
+  .support-side { display: none; }
+}

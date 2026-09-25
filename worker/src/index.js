@@ -16,12 +16,27 @@ const enc = new TextEncoder();
 let cachedKey = null;
 let cachedKeySource = null;
 
-const CORS_HEADERS = {
-  'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, HEAD, OPTIONS',
-  'access-control-allow-headers': 'Range, Content-Type',
-  'access-control-expose-headers': 'Content-Length, Content-Range, Content-Disposition, Accept-Ranges, Content-Type',
-};
+const ALLOWED_ORIGINS = new Set([
+  'https://xydl.projectkal.my.id',
+  'https://xydl.vercel.app',
+  'http://127.0.0.1:8000',
+  'http://localhost:8000',
+]);
+
+function corsHeaders(request) {
+  const origin = request.headers.get('Origin') || '';
+  const allow = ALLOWED_ORIGINS.has(origin) || (origin.endsWith('.vercel.app') && origin.includes('xydl'))
+    ? origin : '';
+  const h = {
+    'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+    'access-control-allow-headers': 'Range, Content-Type',
+    'access-control-expose-headers': 'Content-Length, Content-Range, Content-Disposition, Accept-Ranges, Content-Type',
+    'vary': 'Origin',
+    'x-robots-tag': 'noindex',
+  };
+  if (allow) h['access-control-allow-origin'] = allow;
+  return h;
+}
 
 // ---------------------------------------------------------------- helpers
 function b64urlToBytes(s) {
@@ -132,10 +147,14 @@ function contentDisposition(filename) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`;
 }
 
-function json(status, data) {
+function json(status, data, request) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...CORS_HEADERS },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      ...(request ? corsHeaders(request) : { 'x-robots-tag': 'noindex' }),
+    },
   });
 }
 
@@ -149,7 +168,7 @@ async function handleFile(request, env, url) {
     redirect: 'follow',
   });
 
-  const headers = new Headers(CORS_HEADERS);
+  const headers = new Headers(corsHeaders(request));
   for (const k of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
     const v = upstream.headers.get(k);
     if (v) headers.set(k, v);
@@ -175,9 +194,9 @@ async function handleM3u8(request, env, url) {
   const h = upstreamHeaders(payload, request);
   h.delete('range');
   const upstream = await fetch(target, { headers: h, redirect: 'follow' });
-  if (!upstream.ok) return json(upstream.status, { ok: false, error: `upstream HTTP ${upstream.status}` });
+  if (!upstream.ok) return json(upstream.status, { ok: false, error: `upstream HTTP ${upstream.status}` }, request);
   const text = await upstream.text();
-  if (!text.trimStart().startsWith('#EXTM3U')) return json(502, { ok: false, error: 'bukan playlist HLS' });
+  if (!text.trimStart().startsWith('#EXTM3U')) return json(502, { ok: false, error: 'bukan playlist HLS' }, request);
   const base = upstream.url || target;
   const origin = url.origin;
   const tokenCache = new Map();
@@ -217,7 +236,7 @@ async function handleM3u8(request, env, url) {
     nextIsPlaylist = false;
   }
   return new Response(out.join('\n'), {
-    headers: { 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'no-store', ...CORS_HEADERS },
+    headers: { 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'no-store', ...corsHeaders(request) },
   });
 }
 
@@ -225,19 +244,23 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: { ...CORS_HEADERS, 'access-control-max-age': '86400' } });
+      return new Response(null, { status: 204, headers: { ...corsHeaders(request), 'access-control-max-age': '86400' } });
     }
-    if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { ok: false, error: 'method not allowed' });
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return json(405, { ok: false, error: 'method not allowed' }, request);
+    }
     try {
       if (url.pathname === '/' || url.pathname === '/health') {
-        return json(200, { ok: true, service: 'XyDownloader Proxy', version: VERSION, by: 'XyVerse', key: Boolean(env.SIGNING_KEY) });
+        return json(200, {
+          ok: true, service: 'XyDownloader Proxy', version: VERSION, by: 'XyVerse', key: Boolean(env.SIGNING_KEY),
+        }, request);
       }
       if (url.pathname === '/f' || url.pathname.startsWith('/f/')) return await handleFile(request, env, url);
       if (url.pathname === '/m3u8') return await handleM3u8(request, env, url);
-      return json(404, { ok: false, error: 'not found' });
+      return json(404, { ok: false, error: 'not found' }, request);
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 502;
-      return json(status, { ok: false, error: e.message || String(e) });
+      return json(status, { ok: false, error: e.message || String(e) }, request);
     }
   },
 };

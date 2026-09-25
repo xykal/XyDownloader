@@ -3,17 +3,81 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>XyDownloader — Download video, audio & gambar dari semua platform</title>
-  <meta name="description" content="Download video, MP3 & gambar dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, Pixiv, Vidio dan 1.700+ situs lain. Gratis, tanpa watermark, tanpa login. Built in XyVerse.">
+  <title>XyDownloader — Download video, MP3, foto slide & Live Photo gratis</title>
+  <meta name="description" content="Download video tanpa watermark, MP3, foto slide & Live Photo dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, X, Facebook, Threads, pixiv, Vidio & 1.700+ situs. Gratis, cepat, tanpa login. Built in XyVerse.">
+  <meta name="keywords" content="download tiktok, download douyin, download youtube, download instagram reels, download bilibili, download pixiv, video downloader, mp3 downloader, tanpa watermark, XyDownloader">
+  <meta name="author" content="XyVerse">
+  <meta name="creator" content="XyVerse">
+  <meta name="publisher" content="XyVerse / projectkal.my.id">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="googlebot" content="index, follow">
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b">
+  <meta name="color-scheme" content="light dark">
+  <meta name="format-detection" content="telephone=no, email=no, address=no">
+  <link rel="canonical" href="https://xydl.projectkal.my.id/">
+  <link rel="alternate" hreflang="id" href="https://xydl.projectkal.my.id/">
+  <link rel="alternate" hreflang="x-default" href="https://xydl.projectkal.my.id/">
+
+  <!-- Open Graph -->
+  <meta property="og:site_name" content="XyDownloader">
   <meta property="og:title" content="XyDownloader — Semua platform, satu tempat">
-  <meta property="og:description" content="Download video, MP3 & gambar dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, Pixiv & 1.700+ situs lain.">
+  <meta property="og:description" content="Download video, MP3, foto slide & Live Photo dari TikTok, Douyin, Instagram, YouTube, Bilibili, pixiv & 1.700+ situs. Gratis, tanpa watermark.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://xydl.projectkal.my.id/">
+  <meta property="og:locale" content="id_ID">
+  <meta property="og:image" content="https://xydl.projectkal.my.id/og-cover.jpg">
+  <meta property="og:image:width" content="1376">
+  <meta property="og:image:height" content="768">
+  <meta property="og:image:alt" content="XyDownloader — New Update">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="XyDownloader — Download video & MP3 semua platform">
+  <meta name="twitter:description" content="Gratis, tanpa watermark, tanpa login. TikTok, Douyin, IG, YouTube, Bilibili, pixiv & 1.700+ situs.">
+  <meta name="twitter:image" content="https://xydl.projectkal.my.id/og-cover.jpg">
+
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
   <link rel="stylesheet" href="style.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "XyDownloader",
+        "url": "https://xydl.projectkal.my.id/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web, Android",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "IDR" },
+        "description": "Download video, MP3, foto slide & Live Photo dari 1.700+ platform tanpa watermark.",
+        "inLanguage": "id",
+        "creator": { "@type": "Organization", "name": "XyVerse", "url": "https://xyverse.my.id" },
+        "isAccessibleForFree": true
+      },
+      {
+        "@type": "Organization",
+        "name": "XyVerse",
+        "url": "https://xyverse.my.id",
+        "logo": "https://xydl.projectkal.my.id/xyverse.png"
+      },
+      {
+        "@type": "WebSite",
+        "name": "XyDownloader",
+        "url": "https://xydl.projectkal.my.id/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://xydl.projectkal.my.id/?url={url}",
+          "query-input": "required name=url"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <!-- Ikon garis (gaya Lucide, ISC) -->
@@ -32,6 +96,7 @@
     <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
     <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19.5 12.572 12 20l-7.5-7.428A5 5 0 1 1 12 5.68a5 5 0 1 1 7.5 6.892z"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol>
     <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
@@ -54,6 +119,7 @@
       <nav>
         <a href="#platforms">Platform</a>
         <a href="#how">Cara kerja</a>
+        <a href="#support">Bantuan</a>
         <a href="#faq">FAQ</a>
         <a class="btn btn-secondary btn-sm" href="#android"><svg class="icon"><use href="#i-phone"/></svg>Android</a>
       </nav>
@@ -160,6 +226,34 @@
       </div>
     </section>
 
+
+    <section id="support" class="container section">
+      <div class="card support-card">
+        <div class="support-text">
+          <span class="chip-label"><svg class="icon"><use href="#i-heart"/></svg>Dukung pengembangan</span>
+          <h2>Bantuan / Sponsor</h2>
+          <p class="muted">XyDownloader gratis dan open source (GPL-3.0). Kalau bermanfaat, kamu bisa bantu biaya server, domain, dan kopi buat maintainer XyVerse.</p>
+          <div class="support-actions">
+            <a class="btn btn-primary" id="btn-saweria" href="https://saweria.co/xyverse" target="_blank" rel="noopener sponsored"><svg class="icon"><use href="#i-heart"/></svg>Donasi via Saweria</a>
+            <a class="btn btn-secondary" href="https://github.com/sponsors/xykal" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>GitHub Sponsors</a>
+            <a class="btn btn-ghost" href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener">Star di GitHub</a>
+          </div>
+          <p class="muted small support-note">Atau transfer manual: cantumkan “XyDownloader” di catatan. Terima kasih — traffic &amp; dukungan yang sehat bikin layanan tetap jalan.</p>
+        </div>
+        <div class="support-side" aria-hidden="true">
+          <div class="support-badge">
+            <picture>
+              <source srcset="xyverse-white.png" media="(prefers-color-scheme: dark)">
+              <img src="xyverse.png" alt="" width="48" height="48">
+            </picture>
+            <div>
+              <b>Built in XyVerse</b>
+              <span>projectkal.my.id</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
     <section id="faq" class="container section">
       <div class="section-head"><h2>FAQ</h2></div>
       <div class="faq">
@@ -183,7 +277,7 @@
         <span>Built in <b>XyVerse</b></span>
       </div>
       <p class="muted small">Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengunduhnya. Logo platform adalah merek milik pemiliknya masing-masing dan hanya dipakai untuk menunjukkan kompatibilitas.</p>
-      <p class="muted small"><a href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener">GitHub</a> · <a href="#" id="open-updates">Yang baru di v1.2</a> · <a href="#" id="open-licenses">Lisensi</a> · GPL-3.0 · Powered by yt-dlp, FFmpeg, Cloudflare &amp; Vercel</p>
+      <p class="muted small"><a href="https://github.com/xykal/XyDownloader" target="_blank" rel="noopener">GitHub</a> · <a href="#" id="open-updates">Yang baru di v1.2</a> · <a href="#" id="open-licenses">Lisensi</a> · GPL-3.0 · <a href="#support">Donasi</a> · GPL-3.0 · <a href="https://xydl.projectkal.my.id/">xydl.projectkal.my.id</a></p>
     </div>
   </footer>
 

@@ -20,4 +20,4 @@ Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram,
 
 Cara pakai: buka TikTok/IG/YouTube, tekan **Bagikan**, pilih **XyDownloader**. File tersimpan di `Download/XyDownloader`.
 
-Versi web: https://xydl.vercel.app
+Versi web: https://xydl.projectkal.my.id
