@@ -117,8 +117,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             state = try {
                 val info = withContext(Dispatchers.IO) { Engine.fetchInfo(ctx, target) }
                 selected = info.gallery.map { it.index }.toSet()
-                liveMode = LiveMode.BOTH
-                HomeState.Loaded(info)
+                liveMode = when (AppSettings.livePhotoMode(ctx)) {
+                    "photo" -> LiveMode.PHOTO
+                    "video" -> LiveMode.VIDEO
+                    else -> LiveMode.BOTH
+                }
+                val loaded = HomeState.Loaded(info)
+                // Auto-buka pratinjau video jika diizinkan & ada sumber
+                showPreview = info.preview != null
+                    && AppSettings.autoplayVideo(ctx)
+                    && !AppSettings.dataSaver(ctx)
+                loaded
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -165,19 +174,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun downloadGallery(info: MediaInfo, only: GalleryItem? = null, onlyPhoto: Boolean? = null): Int {
         val items = if (only != null) listOf(only) else info.gallery.filter { it.index in selected }
         if (items.isEmpty()) return 0
-        val base = safeName(info.title)
+        val base = "DownloadAja-" + safeName(info.title).take(40)
         val multi = info.gallery.size > 1
         val files = ArrayList<Downloads.FileJob>()
         var viaEngine = 0
         for (it in items) {
-            val num = if (multi) " (${it.index})" else ""
+            val num = if (multi) "-p${it.index.toString().padStart(2, '0')}" else ""
             when (it.type) {
                 ItemType.IMAGE -> it.image?.let { s -> files.add(job(s, "$base$num", "jpg")) }
                 ItemType.LIVE -> {
                     val photo = onlyPhoto ?: (liveMode != LiveMode.VIDEO)
                     val video = if (onlyPhoto != null) !onlyPhoto else liveMode != LiveMode.PHOTO
                     if (photo) it.image?.let { s -> files.add(job(s, "$base$num", "jpg")) }
-                    if (video) it.video?.let { s -> files.add(job(s, "$base$num live", "mp4")) }
+                    if (video) it.video?.let { s -> files.add(job(s, "$base$num-live", "mp4")) }
                 }
                 ItemType.VIDEO -> {
                     val v = it.video

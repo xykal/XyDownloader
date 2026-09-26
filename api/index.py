@@ -30,7 +30,8 @@ RATE_LIMIT = int(os.environ.get('XYDL_RATE_LIMIT', '25'))  # request extract / m
 
 # Origin yang diizinkan (custom domain + preview Vercel). Bukan open CORS.
 ALLOWED_ORIGINS = {
-    'https://dlaja.projectkal.my.id',
+    'https://dlaja.xyverse.my.id',
+    'https://dlaja.projectkal.my.id',  # legacy redirect host
     'https://xydl.vercel.app',  # fallback selama DNS apex belum aktif
     'http://127.0.0.1:8000',
     'http://localhost:8000',

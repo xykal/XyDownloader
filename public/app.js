@@ -13,6 +13,87 @@ const STRIP = ['tiktok', 'youtube', 'instagram', 'facebook', 'twitter', 'douyin'
   'threads', 'pixiv', 'xiaohongshu', 'weibo', 'vidio', 'reddit', 'pinterest', 'soundcloud'];
 
 const $ = (s, el = document) => el.querySelector(s);
+
+// ------------------------------------------------------------------ pengaturan pengguna
+const SETTINGS_KEY = 'dlaja-settings-v1';
+const SETTINGS_DEFAULTS = {
+  autoplayVideo: true,     // muted autoplay
+  autoplayMusic: true,
+  previewSize: 'comfortable', // compact | comfortable | large
+  dataSaver: false,
+  openMusicPlayer: true,
+  defaultVideoTier: 'normal', // hemat | normal | tinggi | maksimal | auto | last
+  defaultAudioKbps: 192,      // 128 | 192 | 320 | original
+  livePhotoMode: 'both',      // photo | video | both
+};
+
+function loadSettings() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    return { ...SETTINGS_DEFAULTS, ...raw };
+  } catch {
+    return { ...SETTINGS_DEFAULTS };
+  }
+}
+function saveSettings(next) {
+  const s = { ...loadSettings(), ...next };
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* privat */ }
+  return s;
+}
+let settings = loadSettings();
+
+function preferCellularDataSaver() {
+  try {
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (c && (c.saveData || /^(slow-2g|2g|3g)$/i.test(c.effectiveType || ''))) return true;
+  } catch { /* abaikan */ }
+  return false;
+}
+function effectiveSettings() {
+  const s = { ...settings };
+  if (s.dataSaver || preferCellularDataSaver()) {
+    s.autoplayVideo = false;
+    s.autoplayMusic = false;
+  }
+  return s;
+}
+
+function tierRank(t) {
+  return ({ hemat: 1, normal: 2, tinggi: 3, maksimal: 4, auto: 2 })[t] || 2;
+}
+function pickDefaultVideoOpt(opts) {
+  if (!opts || !opts.length) return null;
+  const s = effectiveSettings();
+  const want = s.defaultVideoTier || 'normal';
+  if (want === 'auto') {
+    // 720p-ish preferred
+    return opts.find((o) => (o.quality || 0) >= 700 && (o.quality || 0) <= 800)
+      || opts.find((o) => (o.tier || '') === 'normal')
+      || opts[Math.min(1, opts.length - 1)]
+      || opts[0];
+  }
+  // exact tier first
+  const exact = opts.filter((o) => o.tier === want);
+  if (exact.length) return exact[0];
+  // nearest by rank
+  const target = tierRank(want);
+  return opts.slice().sort((a, b) => Math.abs(tierRank(a.tier) - target) - Math.abs(tierRank(b.tier) - target)
+    || Math.abs((a.quality || 0) - (want === 'maksimal' ? 9999 : want === 'tinggi' ? 1080 : want === 'normal' ? 720 : 480))
+      - Math.abs((b.quality || 0) - (want === 'maksimal' ? 9999 : want === 'tinggi' ? 1080 : want === 'normal' ? 720 : 480)))[0];
+}
+function pickDefaultAudioOpt(opts) {
+  if (!opts || !opts.length) return null;
+  const s = effectiveSettings();
+  const kbps = s.defaultAudioKbps;
+  if (kbps === 'original' || kbps === 0) {
+    return opts.find((o) => o.kind === 'original') || opts[0];
+  }
+  return opts.find((o) => o.kind === 'mp3' && o.bitrate === kbps)
+    || opts.find((o) => o.kind === 'mp3')
+    || opts[0];
+}
+
+
 const form = $('#form');
 const input = $('#url');
 const goBtn = $('#go');
@@ -745,7 +826,7 @@ async function downloadGallery(card, entry, files) {
       out.push({ name, data: new Uint8Array(await got.blob.arrayBuffer()) });
     }
     task.stage('Membuat ZIP…');
-    const base = safeName(entry.title);
+    const base = `DownloadAja-${safeName(entry.title)}`;
     saveBlob(zipStore(out), `${base}.zip`);
     task.done('Selesai', `${out.length} file tersimpan dalam ${base}.zip`);
   } catch (e) {
@@ -797,6 +878,11 @@ function syncAudio(video, audioUrl) {
 }
 
 function stopMedia(root) {
+  if (!root) return;
+  if (root._stop) { try { root._stop(); } catch { /* */ } }
+  if (root._audioEl) {
+    try { root._audioEl.pause(); root._audioEl.removeAttribute('src'); root._audioEl.load(); } catch { /* */ }
+  }
   root.querySelectorAll('video').forEach((v) => {
     try { v.pause(); } catch { /* abaikan */ }
     if (v._hls) { v._hls.destroy(); v._hls = null; }
@@ -804,18 +890,29 @@ function stopMedia(root) {
     v.removeAttribute('src');
     v.load();
   });
+  root.querySelectorAll('audio').forEach((a) => {
+    try { a.pause(); a.removeAttribute('src'); a.load(); } catch { /* */ }
+  });
 }
 
-function openPlayer(card, entry) {
+function openPlayer(card, entry, opts = {}) {
   const pv = entry.preview;
+  if (!pv) return;
   const old = $('.player', card);
   if (old) { stopMedia(old); old.remove(); }
-  const box = el('div', 'player');
+  const s = effectiveSettings();
+  const size = opts.size || s.previewSize || 'comfortable';
+  const box = el('div', `player hero${size === 'compact' ? ' compact' : ''}${size === 'large' ? ' hero' : ''}`);
+  if (size === 'large') box.classList.add('hero');
+  if (size === 'compact') box.classList.add('compact');
   const v = el('video');
   v.controls = true;
   v.playsInline = true;
-  v.autoplay = true;
-  v.preload = 'metadata';
+  v.preload = s.dataSaver ? 'none' : 'metadata';
+  // muted autoplay = policy browser; user bisa unmute
+  const wantAuto = opts.autoplay !== false && s.autoplayVideo && !s.dataSaver;
+  v.autoplay = wantAuto;
+  v.muted = wantAuto; // start muted if autoplay
   if (entry.thumbnail) v.poster = entry.thumbnail;
   if (pv.width && pv.height && pv.height > pv.width) box.classList.add('portrait');
   const close = el('button', 'player-close');
@@ -824,7 +921,9 @@ function openPlayer(card, entry) {
   close.setAttribute('aria-label', 'Tutup pratinjau');
   close.append(icon('x'));
   box.append(v, close);
-  $('.entry-head', card).after(box);
+  const anchor = $('.entry-head', card);
+  if (anchor) anchor.after(box);
+  else card.prepend(box);
   const fail = (msg) => {
     stopMedia(box);
     box.classList.add('failed');
@@ -838,9 +937,137 @@ function openPlayer(card, entry) {
   });
   if (pv.type === 'pair' && pv.audio) v._audio = syncAudio(v, pv.audio);
   attachSource(v, pv.url, pv.type === 'hls').catch(() => fail('Browser ini belum bisa memutar stream HLS. Langsung download saja.'));
+  if (wantAuto) v.play().catch(() => { /* butuh gesture */ });
   close.onclick = () => { stopMedia(box); box.remove(); };
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+function openMusicPlayer(card, entry, audioOpt) {
+  const old = $('.music-player', card) || $('.player', card);
+  if (old) { stopMedia(old); old.remove(); }
+  // pick stream source: prefer original audio / music track for preview quality, else first
+  const opt = audioOpt || pickDefaultAudioOpt(entry.audio) || (entry.audio || [])[0];
+  if (!opt || !(opt.sources || []).length) {
+    toast('Tidak ada audio untuk dipratinjau');
+    return;
+  }
+  // For MP3 convert options, source is still original audio stream — OK for preview
+  const src = opt.sources[0];
+  const s = effectiveSettings();
+  const box = el('div', 'music-player');
+  const art = el('div', 'art');
+  if (entry.thumbnail) {
+    const img = el('img');
+    img.src = entry.thumbnail;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = () => { img.remove(); art.append(icon('music', 'icon art-fallback')); };
+    art.append(img);
+  } else {
+    art.append(icon('music', 'icon art-fallback'));
+  }
+  const meta = el('div', 'meta');
+  meta.append(el('p', 'mtitle', entry.title || 'Audio'));
+  const subBits = [entry.uploader, opt.label || 'Audio'].filter(Boolean);
+  meta.append(el('p', 'msub', subBits.join(' · ')));
+  const controls = el('div', 'controls');
+  const playBtn = el('button', 'play-main');
+  playBtn.type = 'button';
+  playBtn.setAttribute('aria-label', 'Putar');
+  playBtn.append(icon('play'));
+  const seekwrap = el('div', 'seekwrap');
+  const range = el('input');
+  range.type = 'range';
+  range.min = '0';
+  range.max = '1000';
+  range.value = '0';
+  range.step = '1';
+  range.setAttribute('aria-label', 'Posisi');
+  const times = el('div', 'times');
+  const t0 = el('span', '', '0:00');
+  const t1 = el('span', '', entry.duration ? fmtDur(entry.duration) : '–:––');
+  times.append(t0, t1);
+  seekwrap.append(range, times);
+  controls.append(playBtn, seekwrap);
+  meta.append(controls);
+  const close = el('button', 'player-close');
+  close.type = 'button';
+  close.title = 'Tutup';
+  close.setAttribute('aria-label', 'Tutup pratinjau musik');
+  close.append(icon('x'));
+  close.style.position = 'absolute';
+  close.style.top = '8px';
+  close.style.right = '8px';
+  box.style.position = 'relative';
+  box.append(art, meta, close);
+
+  const audio = new Audio();
+  audio.preload = s.dataSaver ? 'none' : 'metadata';
+  audio.crossOrigin = 'anonymous';
+  box._audioEl = audio;
+  // stopMedia looks for video; extend cleanup
+  box.querySelectorAll = box.querySelectorAll.bind(box);
+
+  let url = src.url;
+  // Prefer direct playable; alt as fallback
+  audio.src = url;
+  let usingAlt = false;
+  audio.addEventListener('error', () => {
+    if (!usingAlt && src.alt) {
+      usingAlt = true;
+      audio.src = src.alt;
+      audio.load();
+      audio.play().catch(() => {});
+      return;
+    }
+    toast('Pratinjau musik gagal diputar — coba unduh saja');
+  });
+  audio.addEventListener('loadedmetadata', () => {
+    if (audio.duration && isFinite(audio.duration)) t1.textContent = fmtDur(Math.round(audio.duration));
+  });
+  audio.addEventListener('timeupdate', () => {
+    if (!audio.duration || !isFinite(audio.duration)) return;
+    range.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
+    t0.textContent = fmtDur(Math.round(audio.currentTime));
+  });
+  range.addEventListener('input', () => {
+    if (!audio.duration || !isFinite(audio.duration)) return;
+    audio.currentTime = (range.value / 1000) * audio.duration;
+  });
+
+  const setPlaying = (on) => {
+    playBtn.textContent = '';
+    playBtn.append(icon(on ? 'pause' : 'play'));
+    playBtn.setAttribute('aria-label', on ? 'Jeda' : 'Putar');
+  };
+  playBtn.onclick = () => {
+    if (audio.paused) audio.play().then(() => setPlaying(true)).catch(() => toast('Browser memblokir autoplay — ketuk lagi'));
+    else { audio.pause(); setPlaying(false); }
+  };
+  audio.addEventListener('play', () => setPlaying(true));
+  audio.addEventListener('pause', () => setPlaying(false));
+  audio.addEventListener('ended', () => setPlaying(false));
+
+  const shut = () => {
+    try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch { /* */ }
+    box.remove();
+  };
+  close.onclick = shut;
+
+  // patch stopMedia for this box via custom
+  box._stop = shut;
+
+  const anchor = $('.entry-head', card);
+  if (anchor) anchor.after(box);
+  else card.prepend(box);
+
+  if (s.autoplayMusic && !s.dataSaver) {
+    audio.play().then(() => setPlaying(true)).catch(() => { /* butuh gesture */ });
+  }
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// enhance stopMedia to also kill music players
 
 // ------------------------------------------------------------------ viewer galeri
 function openViewer(card, entry, start, onChange) {
@@ -1003,19 +1230,24 @@ function renderError(err) {
   resultEl.append(card);
 }
 
-function optionRow(card, entry, opt, isAudio) {
-  const row = el('div', 'opt');
+function optionRow(card, entry, opt, isAudio, recommended) {
+  const row = el('div', `opt${recommended ? ' recommended' : ''}`);
   const main = el('div', 'opt-main');
   const bits = [];
   if (isAudio) {
     main.append(el('span', 'q', opt.kind === 'mp3' ? 'MP3' : (opt.ext || '').toUpperCase()));
     bits.push(opt.kind === 'mp3' ? `${opt.bitrate} kbps` : opt.label);
+    if (opt.kind === 'mp3' && opt.bitrate === 192) bits.push('Normal');
+    if (opt.kind === 'mp3' && opt.bitrate === 320) bits.push('Tinggi');
+    if (opt.kind === 'mp3' && opt.bitrate === 128) bits.push('Hemat');
   } else {
+    if (opt.tier) main.append(el('span', 'tier-pill', opt.tier));
     main.append(el('span', 'q', opt.label));
     bits.push((opt.ext || '').toUpperCase());
     if (opt.codec) bits.push(opt.codec);
   }
   if (opt.size) bits.push(`${opt.mode === 'mp3' ? '±' : ''}${fmtBytes(opt.size)}`);
+  if (recommended) bits.push('disarankan');
   main.append(el('span', 'desc', bits.join(' · ')));
   row.append(main);
   const badges = [];
@@ -1030,10 +1262,63 @@ function optionRow(card, entry, opt, isAudio) {
   return row;
 }
 
+function renderQualityChips(card, entry, panel, kind) {
+  const opts = kind === 'audio' ? entry.audio : entry.video;
+  if (!opts || opts.length < 2) return;
+  const chips = el('div', 'qchips');
+  const rec = kind === 'audio' ? pickDefaultAudioOpt(opts) : pickDefaultVideoOpt(opts);
+  if (kind === 'video') {
+    // group by tier unique order
+    const order = ['hemat', 'normal', 'tinggi', 'maksimal'];
+    const byTier = new Map();
+    for (const o of opts) {
+      const t = o.tier || 'auto';
+      if (!byTier.has(t)) byTier.set(t, o);
+    }
+    const list = order.filter((t) => byTier.has(t)).map((t) => byTier.get(t));
+    // if no tiers, fall back to top few raw
+    const show = list.length ? list : opts.slice(0, 4);
+    for (const o of show) {
+      const c = el('button', `qchip${rec && rec.id === o.id ? ' active' : ''}`);
+      c.type = 'button';
+      const name = (o.tier || 'auto');
+      c.append(document.createTextNode(name === 'auto' ? o.label : name.charAt(0).toUpperCase() + name.slice(1)));
+      if (o.quality) {
+        const sub = el('span', 'sub', o.quality > 0 && o.quality < 9000 ? `${o.quality}p` : '');
+        if (sub.textContent) c.append(sub);
+      }
+      c.onclick = () => {
+        chips.querySelectorAll('.qchip').forEach((x) => x.classList.remove('active'));
+        c.classList.add('active');
+        // scroll to matching row
+        const rows = panel.querySelectorAll('.opt');
+        const idx = opts.indexOf(o);
+        if (rows[idx]) rows[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        startDownload(card, entry, o);
+      };
+      chips.append(c);
+    }
+  } else {
+    for (const o of opts) {
+      const c = el('button', `qchip${rec && rec.id === o.id ? ' active' : ''}`);
+      c.type = 'button';
+      c.textContent = o.kind === 'mp3' ? `MP3 ${o.bitrate}` : (o.label || o.ext || 'Audio');
+      c.onclick = () => {
+        chips.querySelectorAll('.qchip').forEach((x) => x.classList.remove('active'));
+        c.classList.add('active');
+        startDownload(card, entry, o);
+      };
+      chips.append(c);
+    }
+  }
+  panel.prepend(chips);
+}
+
+
 function renderGallery(card, entry, panel) {
   const items = entry.gallery || [];
   entry._sel = new Set(items.map((it) => it.index));
-  let liveMode = 'both';
+  let liveMode = (effectiveSettings().livePhotoMode || 'both');
   const counts = { image: 0, live: 0, video: 0 };
   items.forEach((it) => { counts[it.type] = (counts[it.type] || 0) + 1; });
 
@@ -1139,16 +1424,21 @@ function renderResult(data) {
   resultEl.innerHTML = '';
   resultEl.classList.remove('hidden');
   const tpl = $('#tpl-entry');
+  const s = effectiveSettings();
   data.entries.forEach((entry, idx) => {
     const card = tpl.content.firstElementChild.cloneNode(true);
     const img = $('.thumb img', card);
     if (entry.thumbnail) {
       img.src = entry.thumbnail;
+      img.loading = 'lazy';
+      img.decoding = 'async';
       img.onerror = () => img.remove();
     } else img.remove();
     const gallery = entry.gallery || [];
     $('.dur', card).textContent = gallery.length ? `${gallery.length} item` : entry.ugoira ? '' : fmtDur(entry.duration);
-    if (entry.preview) {
+    const isAudioOnly = entry.media_kind === 'audio' || ((!entry.video || !entry.video.length) && entry.audio && entry.audio.length && !gallery.length && !entry.ugoira);
+
+    if (entry.preview && !isAudioOnly) {
       const thumb = $('.thumb', card);
       const play = el('button', 'play-btn');
       play.type = 'button';
@@ -1158,42 +1448,88 @@ function renderResult(data) {
       play.onclick = () => openPlayer(card, entry);
       thumb.append(play);
       thumb.classList.add('has-preview');
+      thumb.addEventListener('click', (ev) => {
+        if (ev.target.closest('.play-btn')) return;
+        openPlayer(card, entry);
+      });
     }
+    if (isAudioOnly || (entry.audio && entry.audio.length && s.openMusicPlayer && !entry.preview && !gallery.length)) {
+      const thumb = $('.thumb', card);
+      thumb.classList.add('has-preview');
+      const play = el('button', 'play-btn');
+      play.type = 'button';
+      play.title = 'Putar musik';
+      play.setAttribute('aria-label', 'Putar musik');
+      play.append(icon('music'));
+      play.onclick = (e) => { e.stopPropagation(); openMusicPlayer(card, entry); };
+      thumb.append(play);
+    }
+
     const pf = $('.platform', card);
-    const p = data.platform || {};
-    pf.append(logoImg(p), document.createTextNode(p.name || entry.extractor || 'Web'));
+    const plat = data.platform || {};
+    pf.append(logoImg(plat), document.createTextNode(plat.name || entry.extractor || 'Web'));
     if (data.count > 1) pf.append(el('span', 'count', `${idx + 1} / ${data.count}`));
     $('.title', card).textContent = entry.title || 'Tanpa judul';
     $('.uploader', card).textContent = entry.uploader ? `oleh ${entry.uploader}` : '';
 
     const panels = { video: $('[data-panel="video"]', card), audio: $('[data-panel="audio"]', card), images: $('[data-panel="images"]', card) };
-    entry.video.forEach((o) => panels.video.append(optionRow(card, entry, o, false)));
-    entry.audio.forEach((o) => panels.audio.append(optionRow(card, entry, o, true)));
+    const recV = pickDefaultVideoOpt(entry.video);
+    const recA = pickDefaultAudioOpt(entry.audio);
+    if (entry.video && entry.video.length) {
+      renderQualityChips(card, entry, panels.video, 'video');
+      entry.video.forEach((o) => panels.video.append(optionRow(card, entry, o, false, recV && recV.id === o.id)));
+    }
+    if (entry.audio && entry.audio.length) {
+      renderQualityChips(card, entry, panels.audio, 'audio');
+      // quick listen button on audio panel
+      const listen = el('button', 'btn btn-secondary btn-sm');
+      listen.type = 'button';
+      listen.style.marginBottom = '10px';
+      listen.append(icon('music'), document.createTextNode(' Putar pratinjau'));
+      listen.onclick = () => openMusicPlayer(card, entry, recA);
+      panels.audio.prepend(listen);
+      entry.audio.forEach((o) => panels.audio.append(optionRow(card, entry, o, true, recA && recA.id === o.id)));
+    }
     if (gallery.length) renderGallery(card, entry, panels.images);
 
     const available = {
-      video: entry.video.length > 0,
-      audio: entry.audio.length > 0,
+      video: entry.video && entry.video.length > 0,
+      audio: entry.audio && entry.audio.length > 0,
       images: gallery.length > 0,
     };
     const tabs = card.querySelectorAll('.tab');
-    tabs.forEach((t) => {
-      if (!available[t.dataset.tab]) t.classList.add('hidden');
-      t.onclick = () => {
-        tabs.forEach((x) => x.classList.toggle('active', x === t));
-        Object.entries(panels).forEach(([k, pnl]) => pnl.classList.toggle('hidden', k !== t.dataset.tab));
+    tabs.forEach((tab) => {
+      if (!available[tab.dataset.tab]) tab.classList.add('hidden');
+      tab.onclick = () => {
+        tabs.forEach((x) => x.classList.toggle('active', x === tab));
+        Object.entries(panels).forEach(([k, pnl]) => pnl.classList.toggle('hidden', k !== tab.dataset.tab));
+        // open music player when switching to audio if setting on
+        if (tab.dataset.tab === 'audio' && s.openMusicPlayer && !card.querySelector('.music-player')) {
+          openMusicPlayer(card, entry, recA);
+        }
       };
     });
-    const first = ['images', 'video', 'audio'].find((k) => available[k]) || 'video';
+    let first = ['images', 'video', 'audio'].find((k) => available[k]) || 'video';
+    if (isAudioOnly && available.audio) first = 'audio';
     card.querySelector(`.tab[data-tab="${first}"]`).click();
     if (Object.values(available).filter(Boolean).length < 2) $('.tabs', card).classList.add('hidden');
     resultEl.append(card);
+
+    // Auto open preview
+    requestAnimationFrame(() => {
+      if (isAudioOnly && s.openMusicPlayer && available.audio) {
+        openMusicPlayer(card, entry, recA);
+      } else if (entry.preview && s.autoplayVideo && !s.dataSaver) {
+        openPlayer(card, entry);
+      }
+    });
   });
-  if (data.entries.some((e) => [...e.video, ...e.audio].some((o) => (o.sources || []).some((s) => s.via === 'server')))) {
+  if (data.entries.some((e) => [...(e.video || []), ...(e.audio || [])].some((o) => (o.sources || []).some((s) => s.via === 'server')))) {
     toast('Konten ini diproses lewat jalur server — bisa sedikit lebih lambat.');
   }
   resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
 
 // ------------------------------------------------------------------ alur proses link
 function setBusy(v) {
@@ -1359,9 +1695,12 @@ fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest')
   .catch(() => {});
 
 // ------------------------------------------------------------------ modal (pembaruan, lisensi) & popup "yang baru"
-const WEB_VERSION = '1.2.0';
+const WEB_VERSION = '1.3.1';
 const RELEASES = 'https://github.com/xykal/XyDownloader/releases';
 const CHANGES = [
+  ['Pratinjau adaptif + pemutar musik', 'Video autoplay (bisa diatur), player musik untuk link audio, chip kualitas Normal/Hemat/Tinggi.'],
+  ['Nama file DownloadAja-…', 'Setiap unduhan memakai nama branded yang unik dan rapi di folder Download.'],
+  ['Pengaturan di web', 'Autoplay, ukuran preview, kualitas default, dan mode hemat data — tersimpan di perangkat.'],
   ['Pratinjau sebelum download', 'Putar video langsung di halaman hasil, atau lihat foto satu per satu di galeri.'],
   ['Foto slide & Live Photo', 'TikTok, Douyin, Xiaohongshu, Kuaishou, X, Instagram, Threads, Bluesky, Weibo & pixiv. Pilih foto satu per satu, Live Photo bisa diunduh sebagai foto, video, atau keduanya.'],
   ['Aplikasi Android lebih ringan & cepat', 'APK jauh lebih kecil, proses mencari link lebih cepat, dan ada tombol Perbarui yang memasang versi terbaru otomatis.'],
@@ -1468,6 +1807,78 @@ function openLicenses() {
   });
 }
 
+
+function openSettings() {
+  settings = loadSettings();
+  openModal('Pengaturan DownloadAja', (body) => {
+    const grid = el('div', 'settings-grid');
+
+    function block(title) {
+      const b = el('div', 'settings-block card');
+      b.style.padding = '12px 14px';
+      b.append(el('h4', '', title));
+      grid.append(b);
+      return b;
+    }
+    function rowCheck(parent, key, label, hint) {
+      const row = el('div', 'settings-row');
+      const lab = el('label');
+      lab.append(document.createTextNode(label));
+      if (hint) lab.append(el('span', '', hint));
+      const inp = el('input');
+      inp.type = 'checkbox';
+      inp.checked = !!settings[key];
+      inp.onchange = () => { settings = saveSettings({ [key]: inp.checked }); };
+      row.append(lab, inp);
+      parent.append(row);
+    }
+    function rowSelect(parent, key, label, hint, options) {
+      const row = el('div', 'settings-row');
+      const lab = el('label');
+      lab.append(document.createTextNode(label));
+      if (hint) lab.append(el('span', '', hint));
+      const sel = el('select');
+      for (const [val, text] of options) {
+        const o = el('option', '', text);
+        o.value = val;
+        if (String(settings[key]) === String(val)) o.selected = true;
+        sel.append(o);
+      }
+      sel.onchange = () => {
+        let v = sel.value;
+        if (key === 'defaultAudioKbps') v = (v === 'original' ? 'original' : parseInt(v, 10));
+        settings = saveSettings({ [key]: v });
+      };
+      row.append(lab, sel);
+      parent.append(row);
+    }
+
+    const prev = block('Pratinjau');
+    rowCheck(prev, 'autoplayVideo', 'Autoplay video', 'Mulai diputar otomatis (awal tanpa suara)');
+    rowCheck(prev, 'autoplayMusic', 'Autoplay musik', 'Putar lagu otomatis saat link audio');
+    rowCheck(prev, 'openMusicPlayer', 'Buka pemutar musik otomatis', 'Tampilkan player di hasil audio');
+    rowSelect(prev, 'previewSize', 'Ukuran pratinjau video', 'Sesuaikan layar', [
+      ['compact', 'Ringkas'], ['comfortable', 'Normal'], ['large', 'Besar'],
+    ]);
+    rowCheck(prev, 'dataSaver', 'Mode hemat data', 'Matikan autoplay & kurangi preload');
+
+    const dl = block('Download default');
+    rowSelect(dl, 'defaultVideoTier', 'Kualitas video', 'Dipakai chip “disarankan”', [
+      ['hemat', 'Hemat (~480p)'], ['normal', 'Normal (~720p)'], ['tinggi', 'Tinggi (~1080p)'],
+      ['maksimal', 'Maksimal'], ['auto', 'Otomatis'],
+    ]);
+    rowSelect(dl, 'defaultAudioKbps', 'Kualitas audio / MP3', '', [
+      ['128', 'Hemat · 128 kbps'], ['192', 'Normal · 192 kbps'], ['320', 'Tinggi · 320 kbps'], ['original', 'Asli (tanpa convert)'],
+    ]);
+    rowSelect(dl, 'livePhotoMode', 'Live Photo default', 'Saat unduh galeri', [
+      ['photo', 'Foto saja'], ['video', 'Video saja'], ['both', 'Foto + Video'],
+    ]);
+
+    body.append(grid);
+    body.append(el('p', 'muted small', 'Nama file unduhan memakai pola DownloadAja-judul-id (contoh DownloadAja-Scramble-a8f2c1-720p.mp4). Pengaturan disimpan di perangkat ini saja.'));
+  });
+}
+
 function whatsNewPopup() {
   let seen = null;
   try { seen = localStorage.getItem('xy-seen-version'); } catch { /* mode privat */ }
@@ -1500,6 +1911,7 @@ function whatsNewPopup() {
   probe.src = 'whats-new.webp';
 }
 
+$('#btn-settings')?.addEventListener('click', () => openSettings());
 $('#open-updates')?.addEventListener('click', (e) => { e.preventDefault(); openUpdates(); });
 $('#open-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLicenses(); });
 if (!shared) setTimeout(whatsNewPopup, 900);

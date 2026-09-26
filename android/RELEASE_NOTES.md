@@ -20,4 +20,4 @@ Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram,
 
 Cara pakai: buka TikTok/IG/YouTube, tekan **Bagikan**, pilih **DownloadAja**. File tersimpan di `Download/DownloadAja`.
 
-Versi web: https://dlaja.projectkal.my.id
+Versi web: https://dlaja.xyverse.my.id

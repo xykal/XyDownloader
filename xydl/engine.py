@@ -9,6 +9,7 @@ Alur:
        - /api/stream Vercel (khusus link yang terikat IP server, mis. googlevideo/YouTube)
 """
 import ipaddress
+import hashlib
 import os
 import re
 import shutil
@@ -37,7 +38,7 @@ from yt_dlp.networking import Request as YRequest  # noqa: E402
 from . import signer  # noqa: E402
 from .platforms import detect_platform  # noqa: E402
 
-VERSION = '1.3.0'
+VERSION = '1.3.1'
 URL_RE = re.compile(r'https?://[^\s<>"\'\u3000-\u303f\uff00-\uffef]+', re.I)
 IP_BOUND_HOSTS = ('googlevideo.com',)  # URL format YouTube terikat IP server yang meng-extract
 MAX_ENTRIES = 12
@@ -103,6 +104,53 @@ def safe_filename(name, max_len=90):
     if len(name) > max_len:
         name = name[:max_len].rstrip() + '…'
     return name or 'video'
+
+
+
+def _slug_title(name, max_len=36):
+    """Judul aman untuk nama file branded (tanpa spasi aneh)."""
+    s = safe_filename(name, max_len=max_len + 10)
+    s = re.sub(r'[^A-Za-z0-9\u00c0-\u024f\u0400-\u04ff\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+', '-', s)
+    s = re.sub(r'-{2,}', '-', s).strip('-')
+    if len(s) > max_len:
+        s = s[:max_len].rstrip('-')
+    return s or 'file'
+
+
+def content_id(info, page_url=''):
+    """ID stabil pendek dari id platform / hash URL — untuk nama file DownloadAja-…"""
+    raw = str(info.get('id') or '').strip()
+    if not raw:
+        raw = page_url or info.get('webpage_url') or info.get('original_url') or info.get('title') or 'x'
+    h = hashlib.sha1(raw.encode('utf-8', 'ignore')).hexdigest()[:8]
+    return h
+
+
+def branded_name(info, title, page_url='', tag='', ext='mp4'):
+    """DownloadAja-<slug>-<id>[-tag].ext"""
+    slug = _slug_title(title or info.get('title') or 'file')
+    cid = content_id(info, page_url)
+    base = f'DownloadAja-{slug}-{cid}'
+    if tag:
+        tag = re.sub(r'[\\/:*?"<>|\s]+', '', str(tag))
+        if tag:
+            base = f'{base}-{tag}'
+    ext = (ext or 'bin').lstrip('.').lower() or 'bin'
+    return f'{base}.{ext}'
+
+
+def quality_tier(q):
+    """Label manusiawi di atas resolusi mentah."""
+    q = int(q or 0)
+    if q <= 0:
+        return 'auto'
+    if q <= 480:
+        return 'hemat'
+    if q <= 720:
+        return 'normal'
+    if q <= 1080:
+        return 'tinggi'
+    return 'maksimal'
 
 
 # ---------------------------------------------------------------------------
@@ -449,14 +497,14 @@ def _build_ugoira_entry(ctx, info, title, base_name):
     fmt = next((f for f in info.get('formats') or [] if f.get('url')), None)
     if fmt is None:
         return entry
-    src = ctx.source(fmt, 'frames', f'{base_name}.zip')
+    src = ctx.source(fmt, 'frames', branded_name(info, title, ctx.page_url, tag='ugoira', ext='zip'))
     frames = (info.get('xy_ugoira') or {}).get('frames') or []
     entry['ugoira'] = {'frames': frames}
     q = _short_side(fmt)
     for ext, label, codec in (('mp4', 'MP4', 'H.264'), ('gif', 'GIF', None)):
         entry['video'].append({
             'id': f'ugoira-{ext}', 'label': label, 'quality': q, 'ext': ext, 'codec': codec, 'size': None,
-            'no_audio': False, 'mode': 'ugoira', 'filename': f'{base_name}.{ext}', 'sources': [src],
+            'no_audio': False, 'mode': 'ugoira', 'filename': branded_name(info, title, ctx.page_url, tag=ext, ext=ext), 'sources': [src],
         })
     return entry
 
@@ -501,12 +549,12 @@ def _preview_payload(ctx, info, formats, best_audio, base_name):
     if not pick:
         return None
     kind, f, a = pick
-    v = _media_src(ctx, f, 'av' if kind != 'pair' else 'video', f'{base_name} (preview).{f.get("ext") or "mp4"}')
+    v = _media_src(ctx, f, 'av' if kind != 'pair' else 'video', branded_name(info, base_name, ctx.page_url, tag='preview', ext=f.get('ext') or 'mp4'))
     if v['via'] == 'server':  # stream lewat Vercel terlalu berat untuk pratinjau
         return None
     out = {'type': kind, 'url': v['url'], 'alt': v.get('alt'), 'width': f.get('width'), 'height': f.get('height')}
     if a is not None:
-        au = _media_src(ctx, a, 'audio', f'{base_name} (preview).{_audio_ext(a)}')
+        au = _media_src(ctx, a, 'audio', branded_name(info, base_name, ctx.page_url, tag='preview-a', ext=_audio_ext(a)))
         if au['via'] == 'server':
             return None
         out['audio'] = au['url']
@@ -526,13 +574,13 @@ def _gallery_item(ctx, e, idx, base_name, total):
             return None
         ext = (img.get('ext') or 'jpg').lower()
         item.update(type='image', width=img.get('width'), height=img.get('height'))
-        item['image'] = _media_src(ctx, img, 'image', f'{base_name}{num}.{ext}')
+        item['image'] = _media_src(ctx, img, 'image', branded_name(e, e.get('title') or base_name, ctx.page_url, tag=(f'p{idx:02d}' if total > 1 else 'img'), ext=ext))
         item['thumb'] = ctx.thumb(thumb_url or img['url'])
         live = next((f for f in fmts if f.get('format_id') == 'live'), None) if e.get('xy_live') else None
         if live is not None:
             v_ext = (live.get('ext') or 'mp4').lower()
             item['type'] = 'live'
-            item['video'] = _media_src(ctx, live, 'av', f'{base_name}{num} (live).{v_ext}')
+            item['video'] = _media_src(ctx, live, 'av', branded_name(e, e.get('title') or base_name, ctx.page_url, tag=(f'p{idx:02d}-live' if total > 1 else 'live'), ext=v_ext))
         return item
     # video di dalam carousel: pilih format muxed siap-putar terbaik (<=1080p)
     cands = [f for f in fmts if _usable(f) and _has_video(f) and _has_audio(f) and not _watermarked(f)]
@@ -549,7 +597,7 @@ def _gallery_item(ctx, e, idx, base_name, total):
     v_ext = 'mp4' if (_proto(best) == 'hls' or (best.get('ext') in (None, 'mp4', 'm4v', 'unknown_video'))) \
         else best.get('ext')
     item.update(type='video', width=best.get('width'), height=best.get('height'))
-    item['video'] = _media_src(ctx, best, 'av', f'{base_name}{num}.{v_ext}')
+    item['video'] = _media_src(ctx, best, 'av', branded_name(e, e.get('title') or base_name, ctx.page_url, tag=(f'p{idx:02d}' if total > 1 else 'vid'), ext=v_ext))
     item['video']['mode'] = 'hls' if _proto(best) == 'hls' else ('fetch' if item['video']['via'] == 'server'
                                                                else 'direct')
     item['thumb'] = ctx.thumb(thumb_url)
@@ -580,14 +628,14 @@ def build_gallery(ydl, info, entries, proxy_base, page_url):
         a_ext = (music.get('ext') or 'mp3').lower()
         fmt = {'url': music['url'], 'ext': a_ext, 'format_id': 'music', 'protocol': 'https',
                'http_headers': music.get('http_headers') or {}, 'vcodec': 'none', 'acodec': a_ext}
-        src = ctx.source(fmt, 'audio', f'{base_name} (musik).{a_ext}')
+        src = ctx.source(fmt, 'audio', branded_name(info, title, ctx.page_url, tag='musik', ext=a_ext))
         if a_ext != 'mp3':
             entry['audio'].append({
                 'id': 'music-mp3', 'label': 'Musik latar (MP3)', 'kind': 'mp3', 'bitrate': 192, 'ext': 'mp3',
-                'mode': 'mp3', 'filename': f'{base_name} (musik).mp3', 'sources': [src], 'size': None})
+                'mode': 'mp3', 'filename': branded_name(info, title, ctx.page_url, tag='musik-mp3', ext='mp3'), 'sources': [src], 'size': None})
         entry['audio'].append({
             'id': 'music', 'label': f'Musik latar ({a_ext.upper()})', 'kind': 'original', 'ext': a_ext,
-            'filename': f'{base_name} (musik).{a_ext}', 'sources': [src], 'mode': 'direct', 'size': None})
+            'filename': branded_name(info, title, ctx.page_url, tag='musik', ext=a_ext), 'sources': [src], 'mode': 'direct', 'size': None})
     return entry
 
 
@@ -640,10 +688,16 @@ def build_entry(ctx, info):
     for q in sorted(buckets, reverse=True):
         f = max(buckets[q], key=vkey)
         muxed = _has_audio(f)
-        label = _quality_label(q)
+        raw_label = _quality_label(q)
         fps = int(f['fps']) if f.get('fps') and f['fps'] > 30 else None
         if fps:
-            label += f'{fps}'
+            raw_label += f'{fps}'
+        tier = quality_tier(q)
+        # Label UI: "Normal · 720p" agar ada pilihan manusiawi, bukan cuma angka
+        if q and tier in ('hemat', 'normal', 'tinggi', 'maksimal'):
+            label = f'{tier.capitalize()} · {raw_label}'
+        else:
+            label = raw_label
         need_audio = not muxed and best_audio is not None
         if need_audio:
             a_ext = _audio_ext(best_audio)
@@ -651,10 +705,11 @@ def build_entry(ctx, info):
             ext = 'mp4' if (v_ext in ('mp4', 'm4v') and a_ext == 'm4a') else ('webm' if v_ext == 'webm' and a_ext == 'webm' else 'mkv')
         else:
             ext = 'mp4' if (f.get('ext') in (None, 'mp4', 'm4v', 'unknown_video') or _proto(f) == 'hls') else f.get('ext')
-        filename = f'{base_name} [{label}].{ext}'
+        tag = raw_label if raw_label and raw_label != 'Video' else (tier if tier != 'auto' else 'video')
+        filename = branded_name(info, title, ctx.page_url, tag=tag, ext=ext)
         sources = [ctx.source(f, 'av' if muxed else 'video', filename)]
         if need_audio:
-            sources.append(ctx.source(best_audio, 'audio', f'{base_name}.{_audio_ext(best_audio)}'))
+            sources.append(ctx.source(best_audio, 'audio', branded_name(info, title, ctx.page_url, tag='audio', ext=_audio_ext(best_audio))))
         protos = {s['proto'] for s in sources}
         vias = {s['via'] for s in sources}
         if len(sources) > 1:
@@ -669,6 +724,7 @@ def build_entry(ctx, info):
         video_options.append({
             'id': f'v{q}-{f.get("format_id")}',
             'label': label,
+            'tier': tier,
             'quality': q,
             'ext': ext,
             'codec': _vcodec_label(f),
@@ -686,17 +742,17 @@ def build_entry(ctx, info):
     if mp3_src_fmt is None and muxed_videos:
         mp3_src_fmt = min(muxed_videos, key=lambda f: (_proto(f) != 'direct', _short_side(f) or 9999, _size(f) or 0))
     if mp3_src_fmt is not None:
-        src = ctx.source(mp3_src_fmt, 'audio' if mp3_src_fmt is best_audio else 'av', f'{base_name}.mp3')
+        src = ctx.source(mp3_src_fmt, 'audio' if mp3_src_fmt is best_audio else 'av', branded_name(info, title, ctx.page_url, tag='mp3', ext='mp3'))
         for kbps in (320, 192, 128):
             audio_options.append({
                 'id': f'mp3-{kbps}', 'label': f'MP3 {kbps} kbps', 'kind': 'mp3', 'bitrate': kbps, 'ext': 'mp3',
-                'mode': 'mp3', 'filename': f'{base_name}.mp3', 'sources': [src],
+                'mode': 'mp3', 'filename': branded_name(info, title, ctx.page_url, tag=f'mp3-{kbps}', ext='mp3'), 'sources': [src],
                 'size': int((info.get('duration') or 0) * kbps * 125) or None,
             })
     if best_audio is not None:
         a_ext = _audio_ext(best_audio)
         abr = int(best_audio.get('abr') or best_audio.get('tbr') or 0)
-        fname = f'{base_name}.{a_ext}'
+        fname = branded_name(info, title, ctx.page_url, tag='asli', ext=a_ext)
         src = ctx.source(best_audio, 'audio', fname)
         audio_options.append({
             'id': 'orig', 'label': f'{a_ext.upper()} asli' + (f' {abr} kbps' if abr else ''),
@@ -706,7 +762,7 @@ def build_entry(ctx, info):
         })
 
     if music_track is not None:
-        fname = f'{base_name} (musik).{_audio_ext(music_track)}'
+        fname = branded_name(info, title, ctx.page_url, tag='musik', ext=_audio_ext(music_track))
         src = ctx.source(music_track, 'audio', fname)
         audio_options.append({
             'id': 'music', 'label': f'Musik latar ({_audio_ext(music_track).upper()})', 'kind': 'original',
@@ -717,6 +773,13 @@ def build_entry(ctx, info):
     entry = _entry_meta(ctx, info, title)
     entry['video'] = video_options
     entry['audio'] = audio_options
+    # bantu UI: audio-only (SoundCloud dll) vs video vs gallery
+    if not video_options and audio_options and not info.get('xy_ugoira'):
+        entry['media_kind'] = 'audio'
+    elif video_options:
+        entry['media_kind'] = 'video'
+    else:
+        entry['media_kind'] = 'other'
     try:
         entry['preview'] = _preview_payload(ctx, info, formats, best_audio, base_name)
     except Exception:  # pratinjau opsional, jangan gagalkan ekstraksi

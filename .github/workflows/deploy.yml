@@ -61,4 +61,4 @@ jobs:
       - name: Smoke test
         run: |
           sleep 5
-          curl -fsS https://dlaja.projectkal.my.id/api/health | tee /dev/stderr | grep -q '"ok": true'
+          curl -fsS https://dlaja.xyverse.my.id/api/health | tee /dev/stderr | grep -q '"ok": true'

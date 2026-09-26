@@ -1,4 +1,4 @@
-# DownloadAja — https://dlaja.projectkal.my.id
+# DownloadAja — https://dlaja.xyverse.my.id
 # Izinkan mesin pencari mengindeks halaman publik; blokir API & aset proses.
 
 User-agent: *
@@ -41,4 +41,4 @@ Disallow: /
 User-agent: DotBot
 Disallow: /
 
-Sitemap: https://dlaja.projectkal.my.id/sitemap.xml
+Sitemap: https://dlaja.xyverse.my.id/sitemap.xml

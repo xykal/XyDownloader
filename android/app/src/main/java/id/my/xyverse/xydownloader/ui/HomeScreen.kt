@@ -58,6 +58,7 @@ import id.my.xyverse.xydownloader.MediaInfo
 import id.my.xyverse.xydownloader.PlatformCatalog
 import id.my.xyverse.xydownloader.R
 import id.my.xyverse.xydownloader.XyApp
+import id.my.xyverse.xydownloader.AppSettings
 import androidx.compose.material3.Surface
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -231,10 +232,15 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                     }
                     else -> {
                         item { SectionTitle("Video", R.drawable.ic_video) }
+                        val recH = AppSettings.pickVideoHeight(context, info.videoOptions)
                         items(info.videoOptions, key = { "v-${it.height}" }) { o ->
+                            val rec = o.height == recH && recH > 0
                             OptionRow(
                                 R.drawable.ic_video,
-                                if (o.height > 0) o.label else "Kualitas terbaik",
+                                buildString {
+                                    append(if (o.height > 0) o.label else "Kualitas terbaik")
+                                    if (rec) append(" · disarankan")
+                                },
                                 listOfNotNull("MP4", o.codec, o.sizeBytes?.let { "±" + formatBytes(it) }).joinToString(" · "),
                             ) {
                                 vm.download(info, "video", o.height, label = if (o.height > 0) "${o.label} · MP4" else "Video terbaik")
@@ -243,13 +249,16 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                         }
                         if (info.hasAudio) {
                             item { SectionTitle("Audio", R.drawable.ic_music) }
+                            val wantKbps = AppSettings.defaultAudioKbps(context)
                             val audio = listOf(
                                 Triple("mp3", 320, "MP3 · 320 kbps"), Triple("mp3", 192, "MP3 · 192 kbps"),
                                 Triple("mp3", 128, "MP3 · 128 kbps"), Triple("m4a", 0, "M4A · kualitas asli"),
                             )
                             items(audio, key = { "a-${it.third}" }) { (kind, kbps, label) ->
+                                val rec = (kind == "mp3" && kbps == wantKbps) || (kind == "m4a" && wantKbps == 0)
                                 OptionRow(
-                                    R.drawable.ic_music, label,
+                                    R.drawable.ic_music,
+                                    if (rec) "$label · disarankan" else label,
                                     if (kind == "mp3") "Dikonversi dengan FFmpeg di HP" else "Tanpa konversi",
                                 ) {
                                     vm.download(info, kind, kbps = if (kbps > 0) kbps else 192, label = label)
@@ -421,7 +430,7 @@ private fun InfoCard(info: MediaInfo, onPreview: (() -> Unit)?) {
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (onPreview != null) {
-                    Text("Ketuk ikon play untuk pratinjau", style = MaterialTheme.typography.bodySmall, color = cs.primary,
+                    Text("Pratinjau siap — ketuk play bila di-pause", style = MaterialTheme.typography.bodySmall, color = cs.primary,
                         modifier = Modifier.padding(top = 2.dp))
                 }
             }

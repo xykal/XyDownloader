@@ -205,7 +205,7 @@ object Engine {
         val info = infoPath?.let { File(it) }
             ?.takeIf { it.exists() && System.currentTimeMillis() - it.lastModified() < 40 * 60_000L }
         val req = base(ctx, url, infoJson = info)
-        req.addOption("-o", File(outDir, "%(title).90B [%(id)s].%(ext)s").absolutePath)
+        req.addOption("-o", File(outDir, "DownloadAja-%(title).40B-%(id).8B.%(ext)s").absolutePath)
         req.addOption("--no-mtime")
         req.addOption("--newline")
         req.addOption("--concurrent-fragments", 4)

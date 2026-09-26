@@ -49,6 +49,7 @@ import id.my.xyverse.xydownloader.MainViewModel
 import id.my.xyverse.xydownloader.Popup
 import id.my.xyverse.xydownloader.Screen
 import id.my.xyverse.xydownloader.R
+import androidx.compose.material.icons.outlined.Settings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -93,6 +94,10 @@ fun XyRoot(vm: MainViewModel) {
                         )
                         NavigationBarItem(
                             selected = vm.tab == 2, onClick = { vm.tab = 2 }, colors = colors,
+                            icon = { Icon(Icons.Outlined.Settings, null) }, label = { Text("Atur") },
+                        )
+                        NavigationBarItem(
+                            selected = vm.tab == 3, onClick = { vm.tab = 3 }, colors = colors,
                             icon = { Icon(Icons.Outlined.Info, null) }, label = { Text("Tentang") },
                         )
                     }
@@ -103,6 +108,7 @@ fun XyRoot(vm: MainViewModel) {
                 when (vm.tab) {
                     0 -> HomeScreen(vm) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
                     1 -> DownloadsScreen(vm)
+                    2 -> SettingsScreen()
                     else -> AboutScreen(vm)
                 }
             }

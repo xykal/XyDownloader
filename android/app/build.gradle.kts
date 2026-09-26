@@ -9,7 +9,7 @@ plugins {
 }
 
 // Versi diisi dari CI (tag v1.2.3 -> 1.2.3). Build lokal pakai default.
-val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.2.0-dev"
+val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.3.1-dev"
 val appVersionCode: Int = (System.getenv("VERSION_CODE") ?: "1").toInt()
 
 // Signing release dari GitHub Secrets (KEYSTORE_BASE64 -> file, lihat workflow android.yml)
@@ -34,7 +34,7 @@ android {
         versionName = appVersionName
         // Aplikasi berbahasa Indonesia: buang terjemahan library lain (hemat ukuran)
         resourceConfigurations += listOf("en", "in")
-        buildConfigField("String", "WEB_URL", "\"https://dlaja.projectkal.my.id\"")
+        buildConfigField("String", "WEB_URL", "\"https://dlaja.xyverse.my.id\"")
         buildConfigField("String", "REPO_URL", "\"https://github.com/xykal/XyDownloader\"")
     }
 

@@ -58,8 +58,9 @@ def test_muxed_direct_preferred_and_music_track_separate():
         fmt('bytevc1_720p', 'https://v.tiktok.com/720.mp4', vcodec='h265', acodec='aac', width=720, height=1280),
     ]}
     e = engine.build_entry(ctx(info), info)
-    assert [v['label'] for v in e['video']] == ['720p', '576p']
+    assert [v['label'] for v in e['video']] == ['Normal · 720p', 'Normal · 576p']
     assert all(v['mode'] == 'direct' for v in e['video'])
+    assert all(str(v['filename']).startswith('DownloadAja-') for v in e['video'])
     ids = [a['id'] for a in e['audio']]
     assert 'music' in ids and 'mp3-320' in ids
     mp3 = next(a for a in e['audio'] if a['id'] == 'mp3-128')
@@ -74,7 +75,8 @@ def test_merge_when_video_only_plus_audio():
     ]}
     e = engine.build_entry(ctx(info), info)
     v = e['video'][0]
-    assert v['label'] == '1080p' and v['mode'] == 'merge' and v['codec'] == 'H.264'
+    assert v['label'] == 'Tinggi · 1080p' and v['mode'] == 'merge' and v['codec'] == 'H.264'
+    assert v['filename'].startswith('DownloadAja-') and v.get('tier') == 'tinggi'
     assert [s['type'] for s in v['sources']] == ['video', 'audio']
     assert v['ext'] == 'mp4'
 
@@ -86,7 +88,7 @@ def test_video_only_dropped_when_no_audio_to_merge():
         fmt('480v', 'https://video.fbcdn.net/480.mp4', vcodec='vp09', acodec='none', width=480, height=848),
     ]}
     e = engine.build_entry(ctx(info), info)
-    assert [v['label'] for v in e['video']] == ['HD', 'SD']
+    assert [v['label'] for v in e['video']] == ['Normal · HD', 'Hemat · SD']
 
 
 def test_images_and_drm_ignored_and_hls_proxied():
@@ -96,7 +98,7 @@ def test_images_and_drm_ignored_and_hls_proxied():
         fmt('hls-720', 'https://w.cn/720.m3u8', protocol='m3u8_native', width=1280, height=720),
     ]}
     e = engine.build_entry(ctx(info), info)
-    assert [v['label'] for v in e['video']] == ['720p']
+    assert [v['label'] for v in e['video']] == ['Normal · 720p']
     src = e['video'][0]['sources'][0]
     assert src['proto'] == 'hls' and src['url'].startswith('https://proxy.test/m3u8?t=')
 
@@ -171,7 +173,7 @@ def test_pixiv_gallery_and_ugoira():
     assert not e['video'] and not e['audio'] and len(e['gallery']) == 1
     it = e['gallery'][0]
     assert it['type'] == 'image' and it['image']['ext'] == 'png' and it['width'] == 1400
-    assert it['image']['filename'] == 'Karya p1.png'
+    assert it['image']['filename'].startswith('DownloadAja-') and it['image']['filename'].endswith('.png')
     payload = signer.verify(it['image']['url'].split('t=', 1)[1])
     assert payload['h']['Referer'] == 'https://www.pixiv.net/' and payload['a'] == ['pximg.net']
 
@@ -204,8 +206,8 @@ def test_mixed_gallery_live_photo_and_music():
     e = engine.build_gallery(FakeYdl(), pl, pl['entries'], 'https://proxy.test', 'https://www.douyin.com/note/n')
     types = [it['type'] for it in e['gallery']]
     assert types == ['image', 'live', 'video']
-    assert e['gallery'][1]['video']['filename'] == 'Slide (2) (live).mp4'
-    assert e['gallery'][2]['video']['filename'] == 'Slide (3).mp4' and e['gallery'][2]['width'] == 720
+    assert e['gallery'][1]['video']['filename'].startswith('DownloadAja-') and 'live' in e['gallery'][1]['video']['filename']
+    assert e['gallery'][2]['video']['filename'].startswith('DownloadAja-') and e['gallery'][2]['width'] == 720
     assert e['gallery'][2]['video']['mode'] == 'direct'
     assert [a['id'] for a in e['audio']] == ['music']  # sudah MP3 -> tanpa konversi
 

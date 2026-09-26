@@ -17,6 +17,7 @@ let cachedKey = null;
 let cachedKeySource = null;
 
 const ALLOWED_ORIGINS = new Set([
+  'https://dlaja.xyverse.my.id',
   'https://dlaja.projectkal.my.id',
   'https://xydl.vercel.app',
   'http://127.0.0.1:8000',
