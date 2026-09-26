@@ -315,6 +315,10 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                 it.copy(status = DlRecord.STATUS_DONE, progress = 1f, uri = uri.toString(), mime = mime,
                     fileName = first.name, line = null, error = null, count = outputs.size)
             }
+            runCatching {
+                val plat = PlatformCatalog.detect(url)?.id
+                Analytics.track(ctx, "download", platform = plat, count = outputs.size.coerceAtLeast(1))
+            }
             notifyDone(if (outputs.size > 1) "$title (${outputs.size} file)" else title, uri, mime)
             Result.success(workDataOf(Downloads.K_URI to uri.toString(), Downloads.K_MIME to mime, Downloads.K_NAME to first.name))
         } catch (e: YoutubeDL.CanceledException) {
@@ -397,6 +401,9 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         Downloads.upsert(ctx, taskId) {
             it.copy(status = DlRecord.STATUS_DONE, progress = 1f, uri = uri.toString(), mime = firstMime,
                 fileName = firstName, line = null, error = partial, count = ok)
+        }
+        runCatching {
+            Analytics.track(ctx, "download", platform = null, count = ok.coerceAtLeast(1))
         }
         notifyDone(if (ok > 1) "$title ($ok file)" else title, uri, firstMime)
         return Result.success(workDataOf(Downloads.K_URI to uri.toString(), Downloads.K_MIME to firstMime, Downloads.K_NAME to firstName))

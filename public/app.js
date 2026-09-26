@@ -2,6 +2,65 @@
 // Proses berat (merge video+audio, remux HLS, ugoira, konversi MP3) berjalan di browser.
 
 const API = '/api';
+
+// ------------------------------------------------------------------ analytics beacon (dash)
+const DASH_BEACON = [
+  'https://dash.dlaja.xyverse.my.id/api/public/beacon',
+  'https://dlaja-dash.akuntiktok76y.workers.dev/api/public/beacon',
+];
+function dlajaCid() {
+  try {
+    const k = 'dlaja_cid_v1';
+    let id = localStorage.getItem(k);
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        (`w_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`);
+      localStorage.setItem(k, id);
+    }
+    return id;
+  } catch {
+    return `w_${Date.now().toString(36)}`;
+  }
+}
+function track(type, extra = {}) {
+  try {
+    const body = JSON.stringify({
+      type,
+      client: 'web',
+      cid: dlajaCid(),
+      ua: navigator.userAgent || '',
+      ...extra,
+    });
+    // Prefer sendBeacon; fall back to fetch keepalive
+    let sent = false;
+    for (const url of DASH_BEACON) {
+      try {
+        if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))) {
+          sent = true;
+          break;
+        }
+      } catch { /* try next */ }
+    }
+    if (!sent) {
+      const url = DASH_BEACON[0];
+      fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+        keepalive: true,
+        mode: 'cors',
+      }).catch(() => {
+        fetch(DASH_BEACON[1], {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+          keepalive: true,
+          mode: 'cors',
+        }).catch(() => {});
+      });
+    }
+  } catch { /* never block UX */ }
+}
 const FFMPEG_CORE_BASES = [
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm',
   'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm',
@@ -709,6 +768,7 @@ async function startDownload(card, entry, opt) {
       task.stage('Mengecek link…');
       if (await probeOk(src.url, task.signal)) {
         navDownload(`${src.url}&dl=1`);
+        try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: 1 }); } catch {}
         task.done('Download dimulai', 'Cek notifikasi atau folder Download di perangkat kamu.');
         return;
       }
@@ -751,6 +811,7 @@ async function startDownload(card, entry, opt) {
     } else {
       throw new Error(`Mode tidak dikenal: ${opt.mode}`);
     }
+    try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: 1 }); } catch {}
     task.done('Selesai', `${opt.filename} tersimpan di folder Download.`);
   } catch (e) {
     console.error(e);
@@ -805,7 +866,8 @@ async function downloadGallery(card, entry, files) {
         task.stage('Mengecek link…');
         if (await probeOk(f.url, task.signal)) {
           navDownload(`${f.url}&dl=1`);
-          task.done('Download dimulai', f.filename);
+          try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: files.length || 1 }); } catch {}
+    task.done('Download dimulai', f.filename);
           return;
         }
       }
@@ -1561,6 +1623,10 @@ async function processLink(text) {
     let data;
     try { data = await res.json(); } catch { throw { error: `Server sedang sibuk (HTTP ${res.status}). Coba lagi sebentar lagi.` }; }
     if (!data.ok) throw data;
+    try {
+      const plat = (data.platform && (data.platform.id || data.platform.name)) || (detectPlatform(url) || {}).id || 'unknown';
+      track('extract', { platform: plat });
+    } catch { /* */ }
     renderResult(data);
   } catch (e) {
     if (e && e.name === 'AbortError') renderError({ error: 'Kelamaan menunggu respon server. Coba lagi.' });
@@ -1917,6 +1983,8 @@ $('#btn-settings')?.addEventListener('click', () => openSettings());
 $('#open-updates')?.addEventListener('click', (e) => { e.preventDefault(); openUpdates(); });
 $('#open-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLicenses(); });
 
+
+track('session');
 
 // Remote config (admin dash) — non-blocking
 (async () => {

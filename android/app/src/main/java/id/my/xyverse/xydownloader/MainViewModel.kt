@@ -123,6 +123,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     else -> LiveMode.BOTH
                 }
                 val loaded = HomeState.Loaded(info)
+                runCatching {
+                    Analytics.track(ctx, "extract", platform = info.platform ?: PlatformCatalog.detect(target)?.id)
+                }
                 // Auto-buka pratinjau video jika diizinkan & ada sumber
                 showPreview = info.preview != null
                     && AppSettings.autoplayVideo(ctx)

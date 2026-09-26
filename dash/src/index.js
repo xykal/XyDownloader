@@ -1,14 +1,15 @@
 /**
  * DownloadAja Admin — dash.dlaja.xyverse.my.id
- * Auth: username + password (PBKDF2) + Cloudflare Turnstile
+ * Auth: username + password (HMAC) + Cloudflare Turnstile
  * Gate path: /g/<GATE_PATH>/…  (obscure entry; not real security)
- * Data: KV CONFIG (remote flags) + Analytics Engine (optional metrics)
+ * Data: KV CONFIG (remote flags + analytics aggregates)
  */
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 const COOKIE = 'dlaja_admin_sess';
 const SESSION_TTL = 60 * 60 * 12; // 12h
+const STATS_DAYS_KEEP = 90;
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -20,6 +21,15 @@ function json(data, status = 200, extra = {}) {
       ...extra,
     },
   });
+}
+
+function corsPublic(extra = {}) {
+  return {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    ...extra,
+  };
 }
 
 function b64url(buf) {
@@ -63,7 +73,6 @@ async function hmacHex(keyRaw, msg) {
 
 async function verifyPassword(password, stored, env) {
   const s = String(stored || '');
-  // Preferred: hmac-sha256$hex  (pepper = PASS_PEPPER)
   if (s.startsWith('hmac-sha256$')) {
     const want = s.slice('hmac-sha256$'.length);
     const pepper = env.PASS_PEPPER || env.SESSION_SECRET || '';
@@ -71,7 +80,6 @@ async function verifyPassword(password, stored, env) {
     const got = await hmacHex(pepper, password);
     return timingSafeEqualHex(got, want);
   }
-  // Legacy pbkdf2$iter$salt$b64hash
   const parts = s.split('$');
   if (parts.length === 4 && parts[0] === 'pbkdf2') {
     try {
@@ -131,15 +139,14 @@ async function readSession(env, req) {
 }
 
 function sessionCookie(value, maxAge) {
-  const parts = [
+  return [
     `${COOKIE}=${value}`,
     'Path=/',
     'HttpOnly',
     'Secure',
     'SameSite=Strict',
     `Max-Age=${maxAge}`,
-  ];
-  return parts.join('; ');
+  ].join('; ');
 }
 
 async function verifyTurnstile(env, token, ip) {
@@ -161,12 +168,12 @@ const DEFAULT_CONFIG = {
   maintenance_mode: false,
   maintenance_message: '',
   min_android_version: '',
-  youtube_web_policy: 'warn', // hide | warn | allow
+  youtube_web_policy: 'warn',
   default_autoplay: true,
   default_filename_template: 'brand-title-id',
   default_video_tier: 'normal',
   default_audio_kbps: 192,
-  announce_banner: null, // { title, image, link, version }
+  announce_banner: null,
   disabled_platforms: [],
   recommend_apk_url: '',
   updated_at: null,
@@ -195,12 +202,9 @@ async function putConfig(env, next, user) {
 
 function gateOk(env, url) {
   const gate = env.GATE_PATH;
-  if (!gate) return true; // no gate configured
-  // allow /api/public/* without gate
+  if (!gate) return true;
   if (url.pathname.startsWith('/api/public/')) return true;
-  // login APIs need gate? allow /api/login from gate pages only via Origin check soft
   if (url.pathname === '/api/login' || url.pathname === '/api/logout' || url.pathname === '/api/me') return true;
-  // HTML entry must be under /g/<gate>/
   if (url.pathname === '/' || url.pathname === '/login' || url.pathname === '/app' || url.pathname === '/index.html') {
     return false;
   }
@@ -223,188 +227,609 @@ function rewriteGatePath(url, env) {
   return url.pathname;
 }
 
-export default {
-  async fetch(request, env, ctx) {
+// ---------------- analytics ----------------
+
+function dayKey(d = new Date()) {
+  return d.toISOString().slice(0, 10); // UTC
+}
+
+function emptyDay(day) {
+  return {
+    day,
+    pageviews: 0,
+    sessions: 0,
+    extracts: 0,
+    downloads: 0,
+    clients: { web: 0, apk: 0 },
+    devices: { mobile: 0, desktop: 0, tablet: 0, bot: 0, apk: 0, other: 0 },
+    browsers: { chrome: 0, safari: 0, firefox: 0, edge: 0, samsung: 0, opera: 0, other: 0 },
+    os: { android: 0, ios: 0, windows: 0, macos: 0, linux: 0, chromeos: 0, other: 0 },
+    platforms: {},
+    events: { session: 0, extract: 0, download: 0, hit: 0 },
+  };
+}
+
+function emptyTotal() {
+  return {
+    pageviews: 0,
+    sessions: 0,
+    extracts: 0,
+    downloads: 0,
+    unique_all_approx: 0,
+    clients: { web: 0, apk: 0 },
+    devices: { mobile: 0, desktop: 0, tablet: 0, bot: 0, apk: 0, other: 0 },
+    browsers: { chrome: 0, safari: 0, firefox: 0, edge: 0, samsung: 0, opera: 0, other: 0 },
+    os: { android: 0, ios: 0, windows: 0, macos: 0, linux: 0, chromeos: 0, other: 0 },
+    platforms: {},
+    first_seen: null,
+    last_seen: null,
+  };
+}
+
+function bump(map, key, n = 1) {
+  if (!key) key = 'other';
+  map[key] = (map[key] || 0) + n;
+}
+
+function classifyUa(uaRaw, clientHint) {
+  const ua = String(uaRaw || '').toLowerCase();
+  const client = String(clientHint || '').toLowerCase();
+
+  // APK first
+  if (client === 'apk' || ua.includes('downloadaja') || ua.includes('xydownloader') || ua.includes('xyverse-android')) {
+    return {
+      client: 'apk',
+      device: 'apk',
+      browser: 'apk',
+      os: ua.includes('android') ? 'android' : 'android',
+      kind: 'apk',
+    };
+  }
+
+  const botRe =
+    /bot|crawl|spider|slurp|scrapy|wget|curl\/|python-requests|python-urllib|httpclient|libwww|bytespider|gptbot|ccbot|anthropic|claude|petalbot|semrush|ahrefs|mj12bot|dotbot|facebookexternalhit|twitterbot|linkedinbot|discordbot|telegrambot|preview|headless|phantom|selenium|puppeteer|playwright|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|monitor|scanner|archiver/;
+  if (!ua || ua === 'mozilla/5.0' || botRe.test(ua)) {
+    return { client: 'web', device: 'bot', browser: 'other', os: 'other', kind: 'bot' };
+  }
+
+  let os = 'other';
+  if (/android/.test(ua)) os = 'android';
+  else if (/iphone|ipad|ipod|ios/.test(ua)) os = 'ios';
+  else if (/windows/.test(ua)) os = 'windows';
+  else if (/mac os x|macintosh/.test(ua)) os = 'macos';
+  else if (/cros/.test(ua)) os = 'chromeos';
+  else if (/linux/.test(ua)) os = 'linux';
+
+  let device = 'desktop';
+  if (/ipad|tablet|kindle|silk/.test(ua) || (os === 'android' && !/mobile/.test(ua))) device = 'tablet';
+  else if (/mobi|iphone|ipod|android.*mobile|windows phone/.test(ua)) device = 'mobile';
+  else if (os === 'android' || os === 'ios') device = 'mobile';
+
+  let browser = 'other';
+  if (/edg\//.test(ua)) browser = 'edge';
+  else if (/opr\/|opera/.test(ua)) browser = 'opera';
+  else if (/samsungbrowser/.test(ua)) browser = 'samsung';
+  else if (/firefox|fxios/.test(ua)) browser = 'firefox';
+  else if (/chrome|crios|chromium/.test(ua) && !/edg\//.test(ua)) browser = 'chrome';
+  else if (/safari/.test(ua) && !/chrome|crios|chromium|android/.test(ua)) browser = 'safari';
+
+  return { client: 'web', device, browser, os, kind: device };
+}
+
+function normalizePlatform(p) {
+  let s = String(p || 'unknown').toLowerCase().trim().replace(/\s+/g, '');
+  if (!s) s = 'unknown';
+  // collapse common aliases
+  const map = {
+    youtu: 'youtube',
+    'youtube-nocookie': 'youtube',
+    wwwyoutube: 'youtube',
+    myoutube: 'youtube',
+    youtubeshorts: 'youtube',
+    tiktokweb: 'tiktok',
+    vtiktiktok: 'tiktok',
+    instagramreels: 'instagram',
+    ig: 'instagram',
+    fb: 'facebook',
+    fbwatch: 'facebook',
+    x: 'twitter',
+    twitterx: 'twitter',
+  };
+  if (map[s]) return map[s];
+  if (s.includes('youtube')) return 'youtube';
+  if (s.includes('tiktok')) return 'tiktok';
+  if (s.includes('instagram') || s === 'ig') return 'instagram';
+  if (s.includes('facebook') || s.includes('fb.')) return 'facebook';
+  if (s.includes('twitter') || s === 'x') return 'twitter';
+  if (s.includes('bilibili')) return 'bilibili';
+  if (s.includes('pixiv')) return 'pixiv';
+  if (s.includes('reddit')) return 'reddit';
+  if (s.includes('vimeo')) return 'vimeo';
+  if (s.includes('twitch')) return 'twitch';
+  if (s.includes('soundcloud')) return 'soundcloud';
+  if (s.length > 32) s = s.slice(0, 32);
+  return s;
+}
+
+async function shaShort(text) {
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(String(text || '')));
+  return b64url(buf).slice(0, 22);
+}
+
+async function loadDay(env, day) {
   try {
-    const url = new URL(request.url);
+    const raw = await env.CONFIG.get(`stats:day:${day}`, 'json');
+    if (!raw) return emptyDay(day);
+    const base = emptyDay(day);
+    return {
+      ...base,
+      ...raw,
+      clients: { ...base.clients, ...(raw.clients || {}) },
+      devices: { ...base.devices, ...(raw.devices || {}) },
+      browsers: { ...base.browsers, ...(raw.browsers || {}) },
+      os: { ...base.os, ...(raw.os || {}) },
+      platforms: { ...(raw.platforms || {}) },
+      events: { ...base.events, ...(raw.events || {}) },
+    };
+  } catch {
+    return emptyDay(day);
+  }
+}
 
-    // robots
-    if (url.pathname === '/robots.txt') {
-      return new Response('User-agent: *\nDisallow: /\n', {
-        headers: { 'content-type': 'text/plain', 'x-robots-tag': 'noindex' },
-      });
-    }
+async function loadTotal(env) {
+  try {
+    const raw = await env.CONFIG.get('stats:total', 'json');
+    if (!raw) return emptyTotal();
+    const base = emptyTotal();
+    return {
+      ...base,
+      ...raw,
+      clients: { ...base.clients, ...(raw.clients || {}) },
+      devices: { ...base.devices, ...(raw.devices || {}) },
+      browsers: { ...base.browsers, ...(raw.browsers || {}) },
+      os: { ...base.os, ...(raw.os || {}) },
+      platforms: { ...(raw.platforms || {}) },
+    };
+  } catch {
+    return emptyTotal();
+  }
+}
 
-    // Public config for main app (CORS limited)
-    if (url.pathname === '/api/public/config' && request.method === 'GET') {
-      const cfg = await getConfig(env);
-      const publicCfg = {
-        maintenance_mode: cfg.maintenance_mode,
-        maintenance_message: cfg.maintenance_message,
-        min_android_version: cfg.min_android_version,
-        youtube_web_policy: cfg.youtube_web_policy,
-        default_autoplay: cfg.default_autoplay,
-        default_filename_template: cfg.default_filename_template,
-        default_video_tier: cfg.default_video_tier,
-        default_audio_kbps: cfg.default_audio_kbps,
-        announce_banner: cfg.announce_banner,
-        disabled_platforms: cfg.disabled_platforms,
-        recommend_apk_url: cfg.recommend_apk_url,
-        updated_at: cfg.updated_at,
-      };
-      return json(publicCfg, 200, {
-        'access-control-allow-origin': '*',
-        'cache-control': 'public, max-age=60, s-maxage=300',
-      });
-    }
+async function saveStats(env, day, dayObj, totalObj) {
+  const exp = 60 * 60 * 24 * (STATS_DAYS_KEEP + 5);
+  await Promise.all([
+    env.CONFIG.put(`stats:day:${day}`, JSON.stringify(dayObj), { expirationTtl: exp }),
+    env.CONFIG.put('stats:total', JSON.stringify(totalObj)),
+  ]);
+}
 
-    // Gate check for document navigations
-    if (request.method === 'GET' && !url.pathname.startsWith('/api/')) {
-      if (!gateOk(env, url) && url.pathname !== '/robots.txt') {
-        return new Response('Not Found', { status: 404, headers: { 'x-robots-tag': 'noindex' } });
+async function markUnique(env, day, scope, cidHash) {
+  if (!cidHash) return false;
+  const key = `stats:uniq:${scope}:${day}:${cidHash}`;
+  try {
+    const existed = await env.CONFIG.get(key);
+    if (existed) return false;
+    await env.CONFIG.put(key, '1', { expirationTtl: 60 * 60 * 48 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function markLifetimeUnique(env, cidHash) {
+  if (!cidHash) return false;
+  const key = `stats:uniq:life:${cidHash}`;
+  try {
+    const existed = await env.CONFIG.get(key);
+    if (existed) return false;
+    // ~2 years
+    await env.CONFIG.put(key, '1', { expirationTtl: 60 * 60 * 24 * 800 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function applyClass(day, total, cls) {
+  bump(day.clients, cls.client);
+  bump(total.clients, cls.client);
+  bump(day.devices, cls.device);
+  bump(total.devices, cls.device);
+  bump(day.browsers, cls.browser);
+  bump(total.browsers, cls.browser);
+  bump(day.os, cls.os);
+  bump(total.os, cls.os);
+}
+
+async function recordEvent(env, evt) {
+  const day = dayKey();
+  const [dayObj, total] = await Promise.all([loadDay(env, day), loadTotal(env)]);
+  const nowIso = new Date().toISOString();
+  if (!total.first_seen) total.first_seen = nowIso;
+  total.last_seen = nowIso;
+
+  const type = evt.type || 'session';
+  const cls = classifyUa(evt.ua, evt.client);
+  const platform = evt.platform ? normalizePlatform(evt.platform) : null;
+
+  // Always bump event counter
+  bump(dayObj.events, type === 'pageview' ? 'session' : type);
+  if (type === 'hit') bump(dayObj.events, 'hit');
+
+  if (type === 'session' || type === 'pageview') {
+    dayObj.pageviews += 1;
+    total.pageviews += 1;
+    applyClass(dayObj, total, cls);
+    if (evt.cidHash) {
+      if (await markUnique(env, day, 'sess', evt.cidHash)) {
+        dayObj.sessions += 1;
+        total.sessions += 1;
+      }
+      if (await markLifetimeUnique(env, evt.cidHash)) {
+        total.unique_all_approx += 1;
       }
     }
-
-    // --- API ---
-
-    if (url.pathname === '/api/ping') {
-      return json({ ok: true, has_gate: !!env.GATE_PATH, has_user: !!env.ADMIN_USER, has_assets: !!env.ASSETS });
+  } else if (type === 'extract') {
+    dayObj.extracts += 1;
+    total.extracts += 1;
+    applyClass(dayObj, total, cls);
+    if (platform) {
+      bump(dayObj.platforms, platform);
+      bump(total.platforms, platform);
     }
+    if (evt.cidHash && (await markUnique(env, day, 'sess', evt.cidHash))) {
+      dayObj.sessions += 1;
+      total.sessions += 1;
+    }
+  } else if (type === 'download') {
+    const n = Math.max(1, Math.min(50, parseInt(evt.count, 10) || 1));
+    dayObj.downloads += n;
+    total.downloads += n;
+    applyClass(dayObj, total, cls);
+    if (platform) {
+      bump(dayObj.platforms, platform, n);
+      bump(total.platforms, platform, n);
+    }
+    if (evt.cidHash && (await markUnique(env, day, 'sess', evt.cidHash))) {
+      dayObj.sessions += 1;
+      total.sessions += 1;
+    }
+  } else if (type === 'hit') {
+    // passive config/API hit — mostly for bot/crawl visibility
+    dayObj.pageviews += 1;
+    total.pageviews += 1;
+    applyClass(dayObj, total, cls);
+  }
 
-    if (url.pathname.startsWith('/api/')) {
-      if (request.method === 'OPTIONS') {
-        return new Response(null, {
-          headers: {
-            'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
-            'access-control-allow-headers': 'content-type',
-            'access-control-allow-credentials': 'true',
-          },
+  await saveStats(env, day, dayObj, total);
+  return { day: dayObj, total };
+}
+
+function topMap(map, limit = 12) {
+  return Object.entries(map || {})
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
+
+function sumMap(map) {
+  return Object.values(map || {}).reduce((a, b) => a + (b || 0), 0);
+}
+
+async function buildOverview(env) {
+  const cfg = await getConfig(env);
+  const today = dayKey();
+  const days = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push(dayKey(d));
+  }
+  const [total, ...dayObjs] = await Promise.all([loadTotal(env), ...days.map((d) => loadDay(env, d))]);
+  const todayObj = dayObjs[0];
+  const last7 = dayObjs.slice(0, 7);
+  const sumField = (arr, f) => arr.reduce((a, x) => a + (x[f] || 0), 0);
+  const mergeMaps = (arr, key) => {
+    const out = {};
+    for (const d of arr) {
+      const m = d[key] || {};
+      for (const [k, v] of Object.entries(m)) bump(out, k, v);
+    }
+    return out;
+  };
+
+  const platforms7 = mergeMaps(last7, 'platforms');
+  const devices7 = mergeMaps(last7, 'devices');
+  const browsers7 = mergeMaps(last7, 'browsers');
+  const os7 = mergeMaps(last7, 'os');
+  const clients7 = mergeMaps(last7, 'clients');
+
+  return {
+    product: 'https://dlaja.xyverse.my.id',
+    api_health: 'https://dlaja.xyverse.my.id/api/health',
+    maintenance_mode: cfg.maintenance_mode,
+    youtube_web_policy: cfg.youtube_web_policy,
+    default_video_tier: cfg.default_video_tier,
+    updated_at: cfg.updated_at,
+    generated_at: new Date().toISOString(),
+    today: {
+      day: today,
+      pageviews: todayObj.pageviews,
+      unique_users: todayObj.sessions,
+      extracts: todayObj.extracts,
+      downloads: todayObj.downloads,
+    },
+    last7: {
+      pageviews: sumField(last7, 'pageviews'),
+      unique_users: sumField(last7, 'sessions'),
+      extracts: sumField(last7, 'extracts'),
+      downloads: sumField(last7, 'downloads'),
+    },
+    total: {
+      pageviews: total.pageviews,
+      unique_users_approx: total.unique_all_approx || total.sessions,
+      extracts: total.extracts,
+      downloads: total.downloads,
+      first_seen: total.first_seen,
+      last_seen: total.last_seen,
+    },
+    clients: {
+      today: todayObj.clients,
+      last7: clients7,
+      total: total.clients,
+    },
+    devices: {
+      today: todayObj.devices,
+      last7: devices7,
+      total: total.devices,
+      top_last7: topMap(devices7),
+    },
+    browsers: {
+      today: todayObj.browsers,
+      last7: browsers7,
+      total: total.browsers,
+      top_last7: topMap(browsers7),
+    },
+    os: {
+      today: todayObj.os,
+      last7: os7,
+      total: total.os,
+      top_last7: topMap(os7),
+    },
+    platforms: {
+      today: topMap(todayObj.platforms),
+      last7: topMap(platforms7),
+      total: topMap(total.platforms, 20),
+      top: topMap(platforms7, 1)[0] || topMap(total.platforms, 1)[0] || null,
+    },
+    series: dayObjs
+      .slice()
+      .reverse()
+      .map((d) => ({
+        day: d.day,
+        pageviews: d.pageviews,
+        unique_users: d.sessions,
+        extracts: d.extracts,
+        downloads: d.downloads,
+      })),
+    note: 'Unique user = client-id unik per hari (web localStorage / APK install id). Bot/crawl dilacak dari User-Agent.',
+  };
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      const url = new URL(request.url);
+
+      if (url.pathname === '/robots.txt') {
+        return new Response('User-agent: *\nDisallow: /\n', {
+          headers: { 'content-type': 'text/plain', 'x-robots-tag': 'noindex' },
         });
       }
 
-      if (url.pathname === '/api/login' && request.method === 'POST') {
+      // Public CORS preflight
+      if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/public/')) {
+        return new Response(null, { status: 204, headers: corsPublic({ 'access-control-max-age': '86400' }) });
+      }
+
+      // Public config for main app
+      if (url.pathname === '/api/public/config' && request.method === 'GET') {
+        const cfg = await getConfig(env);
+        const publicCfg = {
+          maintenance_mode: cfg.maintenance_mode,
+          maintenance_message: cfg.maintenance_message,
+          min_android_version: cfg.min_android_version,
+          youtube_web_policy: cfg.youtube_web_policy,
+          default_autoplay: cfg.default_autoplay,
+          default_filename_template: cfg.default_filename_template,
+          default_video_tier: cfg.default_video_tier,
+          default_audio_kbps: cfg.default_audio_kbps,
+          announce_banner: cfg.announce_banner,
+          disabled_platforms: cfg.disabled_platforms,
+          recommend_apk_url: cfg.recommend_apk_url,
+          updated_at: cfg.updated_at,
+        };
+        // Soft passive hit (bot visibility) — don't block response
+        const ua = request.headers.get('user-agent') || '';
+        ctx.waitUntil(
+          recordEvent(env, { type: 'hit', ua, client: 'web' }).catch(() => {}),
+        );
+        return json(publicCfg, 200, {
+          ...corsPublic(),
+          'cache-control': 'public, max-age=60, s-maxage=300',
+        });
+      }
+
+      // Public analytics beacon
+      if (url.pathname === '/api/public/beacon' && request.method === 'POST') {
+        let body;
         try {
+          body = await request.json();
+        } catch {
+          return json({ ok: false, error: 'invalid_json' }, 400, corsPublic());
+        }
+        const type = String(body.type || body.event || 'session').toLowerCase();
+        if (!['session', 'pageview', 'extract', 'download'].includes(type)) {
+          return json({ ok: false, error: 'bad_type' }, 400, corsPublic());
+        }
+        const ua = String(body.ua || request.headers.get('user-agent') || '').slice(0, 400);
+        const client = String(body.client || '').toLowerCase() === 'apk' ? 'apk' : 'web';
+        const cidRaw = String(body.cid || body.client_id || '').slice(0, 80);
+        // reject obvious garbage flood
+        if (cidRaw && !/^[A-Za-z0-9._:-]{8,80}$/.test(cidRaw)) {
+          return json({ ok: false, error: 'bad_cid' }, 400, corsPublic());
+        }
+        const cidHash = cidRaw ? await shaShort(cidRaw) : null;
+        const platform = body.platform ? String(body.platform).slice(0, 64) : null;
+        const count = body.count;
+
+        // Fire-and-forget-ish but await for consistency (cheap KV)
+        try {
+          await recordEvent(env, { type, ua, client, cidHash, platform, count });
+        } catch (e) {
+          return json({ ok: false, error: 'stats_write', detail: String(e && e.message || e) }, 500, corsPublic());
+        }
+        return json({ ok: true }, 200, corsPublic());
+      }
+
+      // Gate check for document navigations
+      if (request.method === 'GET' && !url.pathname.startsWith('/api/')) {
+        if (!gateOk(env, url) && url.pathname !== '/robots.txt') {
+          return new Response('Not Found', { status: 404, headers: { 'x-robots-tag': 'noindex' } });
+        }
+      }
+
+      // --- API ---
+
+      if (url.pathname === '/api/ping') {
+        return json({ ok: true, has_gate: !!env.GATE_PATH, has_user: !!env.ADMIN_USER, has_assets: !!env.ASSETS });
+      }
+
+      if (url.pathname.startsWith('/api/')) {
+        if (request.method === 'OPTIONS') {
+          return new Response(null, {
+            headers: {
+              'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
+              'access-control-allow-headers': 'content-type',
+              'access-control-allow-credentials': 'true',
+            },
+          });
+        }
+
+        if (url.pathname === '/api/login' && request.method === 'POST') {
+          try {
+            let body;
+            try {
+              body = await request.json();
+            } catch {
+              return json({ ok: false, error: 'invalid_json' }, 400);
+            }
+            const ip = request.headers.get('CF-Connecting-IP') || '';
+            const ts = await verifyTurnstile(env, body.turnstile_token, ip);
+            if (!ts.ok) return json({ ok: false, error: 'turnstile_failed', detail: ts.error }, 403);
+
+            const user = String(body.username || '');
+            const pass = String(body.password || '');
+            if (!env.ADMIN_USER || !env.ADMIN_PASS_HASH) {
+              return json({ ok: false, error: 'server_misconfigured', detail: 'admin secrets missing' }, 500);
+            }
+            if (user !== env.ADMIN_USER) return json({ ok: false, error: 'invalid_credentials' }, 401);
+            const ok = await verifyPassword(pass, env.ADMIN_PASS_HASH, env);
+            if (!ok) return json({ ok: false, error: 'invalid_credentials' }, 401);
+            if (!env.SESSION_SECRET) {
+              return json({ ok: false, error: 'server_misconfigured', detail: 'SESSION_SECRET missing' }, 500);
+            }
+
+            const sess = await makeSession(env, user);
+            return json(
+              { ok: true, user },
+              200,
+              { 'set-cookie': sessionCookie(sess, SESSION_TTL) },
+            );
+          } catch (e) {
+            return json({ ok: false, error: 'login_exception', detail: String(e && e.message || e) }, 500);
+          }
+        }
+
+        if (url.pathname === '/api/logout' && request.method === 'POST') {
+          return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', 0) });
+        }
+
+        const sess = await readSession(env, request);
+
+        if (url.pathname === '/api/me' && request.method === 'GET') {
+          if (!sess) return json({ ok: false }, 401);
+          return json({ ok: true, user: sess.u, exp: sess.exp });
+        }
+
+        if (!sess) return json({ ok: false, error: 'unauthorized' }, 401);
+
+        if (url.pathname === '/api/config' && request.method === 'GET') {
+          return json({ ok: true, config: await getConfig(env) });
+        }
+
+        if (url.pathname === '/api/config' && request.method === 'PUT') {
           let body;
           try {
             body = await request.json();
           } catch {
             return json({ ok: false, error: 'invalid_json' }, 400);
           }
-          const ip = request.headers.get('CF-Connecting-IP') || '';
-          const ts = await verifyTurnstile(env, body.turnstile_token, ip);
-          if (!ts.ok) return json({ ok: false, error: 'turnstile_failed', detail: ts.error }, 403);
-
-          const user = String(body.username || '');
-          const pass = String(body.password || '');
-          if (!env.ADMIN_USER || !env.ADMIN_PASS_HASH) {
-            return json({ ok: false, error: 'server_misconfigured', detail: 'admin secrets missing' }, 500);
+          const allowed = [
+            'maintenance_mode', 'maintenance_message', 'min_android_version',
+            'youtube_web_policy', 'default_autoplay', 'default_filename_template',
+            'default_video_tier', 'default_audio_kbps', 'announce_banner',
+            'disabled_platforms', 'recommend_apk_url',
+          ];
+          const patch = {};
+          for (const k of allowed) {
+            if (k in (body || {})) patch[k] = body[k];
           }
-          if (user !== env.ADMIN_USER) return json({ ok: false, error: 'invalid_credentials' }, 401);
-          const ok = await verifyPassword(pass, env.ADMIN_PASS_HASH, env);
-          if (!ok) return json({ ok: false, error: 'invalid_credentials' }, 401);
-          if (!env.SESSION_SECRET) {
-            return json({ ok: false, error: 'server_misconfigured', detail: 'SESSION_SECRET missing' }, 500);
-          }
-
-          const sess = await makeSession(env, user);
-          return json(
-            { ok: true, user },
-            200,
-            { 'set-cookie': sessionCookie(sess, SESSION_TTL) },
-          );
-        } catch (e) {
-          return json({ ok: false, error: 'login_exception', detail: String(e && e.message || e) }, 500);
+          const cfg = await putConfig(env, { ...(await getConfig(env)), ...patch }, sess.u);
+          return json({ ok: true, config: cfg });
         }
+
+        if ((url.pathname === '/api/overview' || url.pathname === '/api/stats') && request.method === 'GET') {
+          try {
+            const overview = await buildOverview(env);
+            return json({ ok: true, overview });
+          } catch (e) {
+            return json({ ok: false, error: 'overview_failed', detail: String(e && e.message || e) }, 500);
+          }
+        }
+
+        return json({ ok: false, error: 'not_found' }, 404);
       }
 
-      if (url.pathname === '/api/logout' && request.method === 'POST') {
-        return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', 0) });
-      }
-
-      const sess = await readSession(env, request);
-
-      if (url.pathname === '/api/me' && request.method === 'GET') {
-        if (!sess) return json({ ok: false }, 401);
-        return json({ ok: true, user: sess.u, exp: sess.exp });
-      }
-
-      if (!sess) return json({ ok: false, error: 'unauthorized' }, 401);
-
-      if (url.pathname === '/api/config' && request.method === 'GET') {
-        return json({ ok: true, config: await getConfig(env) });
-      }
-
-      if (url.pathname === '/api/config' && request.method === 'PUT') {
-        let body;
+      // Static assets via Workers assets
+      if (env.ASSETS) {
+        let path = rewriteGatePath(url, env);
+        if (!path || path === '/') path = '/login.html';
+        if (!path.split('/').pop().includes('.')) {
+          if (path.endsWith('/')) path = path.slice(0, -1);
+          path = path + '.html';
+        }
         try {
-          body = await request.json();
-        } catch {
-          return json({ ok: false, error: 'invalid_json' }, 400);
+          let res = await env.ASSETS.fetch(new URL(path, 'https://assets.local'));
+          if (res.status === 404) {
+            res = await env.ASSETS.fetch(new URL(path, url.origin));
+          }
+          if (res && res.status !== 404) {
+            const headers = new Headers(res.headers);
+            headers.set('x-robots-tag', 'noindex, nofollow');
+            headers.set('referrer-policy', 'no-referrer');
+            headers.set('x-frame-options', 'DENY');
+            headers.set('cache-control', 'no-store');
+            return new Response(res.body, { status: res.status, headers });
+          }
+        } catch (e) {
+          return json({ ok: false, error: 'asset_fetch', detail: String(e), path }, 500);
         }
-        const allowed = [
-          'maintenance_mode', 'maintenance_message', 'min_android_version',
-          'youtube_web_policy', 'default_autoplay', 'default_filename_template',
-          'default_video_tier', 'default_audio_kbps', 'announce_banner',
-          'disabled_platforms', 'recommend_apk_url',
-        ];
-        const patch = {};
-        for (const k of allowed) {
-          if (k in (body || {})) patch[k] = body[k];
-        }
-        const cfg = await putConfig(env, { ...(await getConfig(env)), ...patch }, sess.u);
-        return json({ ok: true, config: cfg });
       }
 
-      if (url.pathname === '/api/overview' && request.method === 'GET') {
-        const cfg = await getConfig(env);
-        // Metrics: placeholder until AE queries wired; show config health
-        return json({
-          ok: true,
-          overview: {
-            note: 'Unique analytics beacon menyusul. Ringkasan saat ini dari remote config + health.',
-            maintenance_mode: cfg.maintenance_mode,
-            youtube_web_policy: cfg.youtube_web_policy,
-            default_video_tier: cfg.default_video_tier,
-            updated_at: cfg.updated_at,
-            product: 'https://dlaja.xyverse.my.id',
-            api_health: 'https://dlaja.xyverse.my.id/api/health',
-          },
-        });
-      }
-
-      return json({ ok: false, error: 'not_found' }, 404);
+      return new Response('Not Found', { status: 404, headers: { 'x-robots-tag': 'noindex' } });
+    } catch (e) {
+      return json({ ok: false, error: 'worker_exception', detail: String(e && e.message || e) }, 500);
     }
-
-    // Static assets via Workers assets
-    if (env.ASSETS) {
-      let path = rewriteGatePath(url, env);
-      if (!path || path === '/') path = '/login.html';
-      if (!path.split('/').pop().includes('.')) {
-        if (path.endsWith('/')) path = path.slice(0, -1);
-        path = path + '.html';
-      }
-      try {
-        // CF Workers Assets: fetch with URL path
-        let res = await env.ASSETS.fetch(new URL(path, 'https://assets.local'));
-        if (res.status === 404) {
-          res = await env.ASSETS.fetch(new URL(path, url.origin));
-        }
-        if (res && res.status !== 404) {
-          const headers = new Headers(res.headers);
-          headers.set('x-robots-tag', 'noindex, nofollow');
-          headers.set('referrer-policy', 'no-referrer');
-          headers.set('x-frame-options', 'DENY');
-          headers.set('cache-control', 'no-store');
-          return new Response(res.body, { status: res.status, headers });
-        }
-      } catch (e) {
-        return json({ ok: false, error: 'asset_fetch', detail: String(e), path }, 500);
-      }
-    }
-
-    return new Response('Not Found', { status: 404, headers: { 'x-robots-tag': 'noindex' } });
-  } catch (e) {
-    return json({ ok: false, error: 'worker_exception', detail: String(e && e.message || e) }, 500);
-  }
   },
 };

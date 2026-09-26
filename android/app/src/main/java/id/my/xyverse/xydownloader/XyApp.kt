@@ -13,6 +13,7 @@ class XyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Analytics.track(this, "session")
         Downloads.createChannels(this)
         Downloads.load(this)
         appScope.launch {
