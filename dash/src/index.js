@@ -168,25 +168,6 @@ function gateOk(env, url) {
   if (url.pathname.startsWith('/api/public/')) return true;
   // login APIs need gate? allow /api/login from gate pages only via Origin check soft
   if (url.pathname === '/api/login' || url.pathname === '/api/logout' || url.pathname === '/api/me') return true;
-  if (url.pathname === '/api/debug-path') {
-      return json({
-        ok: true,
-        path: url.pathname,
-        rewrite: rewriteGatePath(url, env),
-        gateOk: gateOk(env, url),
-        gateLen: (env.GATE_PATH || '').length,
-        gatePrefix: (env.GATE_PATH || '').slice(0, 4),
-      });
-    }
-
-    if (url.pathname === '/api/ping') {
-      return json({ ok: true, has_gate: !!env.GATE_PATH, has_user: !!env.ADMIN_USER, has_assets: !!env.ASSETS });
-    }
-
-    if (url.pathname.startsWith('/api/')) {
-    // protected APIs checked by session later
-    return true;
-  }
   // HTML entry must be under /g/<gate>/
   if (url.pathname === '/' || url.pathname === '/login' || url.pathname === '/app' || url.pathname === '/index.html') {
     return false;

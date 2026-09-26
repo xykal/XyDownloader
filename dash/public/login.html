@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Login — DownloadAja Admin</title>
   <link rel="icon" href="https://dlaja.xyverse.my.id/logo.svg" type="image/svg+xml">
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
   <style>
     :root {
       --bg: #0b0b10; --card: #14141c; --text: #f4f4f5; --muted: #a1a1aa;
@@ -41,7 +41,7 @@
       background: var(--accent); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
     }
     button:disabled { opacity: .6; cursor: wait; }
-    .err { color: var(--danger); font-size: .85rem; min-height: 1.2em; margin-top: 10px; }
+    .err { color: var(--danger); font-size: .85rem; min-height: 1.2em; margin-top: 10px; white-space: pre-wrap; }
     .foot { margin-top: 16px; text-align: center; color: var(--muted); font-size: .75rem; }
   </style>
 </head>
@@ -49,49 +49,96 @@
   <form class="card" id="form" autocomplete="on">
     <div class="brand">
       <img src="https://dlaja.xyverse.my.id/icon-192.png" alt="">
-      <div>
-        <h1>DownloadAja Admin</h1>
-      </div>
+      <div><h1>DownloadAja Admin</h1></div>
     </div>
     <p class="sub">Masuk untuk remote config &amp; ringkasan. Built in XyVerse.</p>
     <label for="user">Username</label>
     <input id="user" name="username" autocomplete="username" required>
     <label for="pass">Password</label>
     <input id="pass" name="password" type="password" autocomplete="current-password" required>
-    <div class="cf">
-      <div class="cf-turnstile" data-sitekey="0x4AAAAAAFD_XYBwsyLUiWkO" data-theme="dark"></div>
-    </div>
+    <div class="cf"><div id="cf-slot"></div></div>
     <button type="submit" id="go">Masuk</button>
     <div class="err" id="err"></div>
     <p class="foot">Akses terbatas · noindex</p>
   </form>
   <script>
+    const SITEKEY = '0x4AAAAAAFD_XYBwsyLUiWkO';
     const GATE = (location.pathname.match(/\/g\/([^/]+)/) || [])[1] || '';
     const form = document.getElementById('form');
     const err = document.getElementById('err');
+    let tsToken = '';
+    let tsWidgetId = null;
+
+    function renderTurnstile() {
+      if (!window.turnstile) return;
+      const slot = document.getElementById('cf-slot');
+      slot.innerHTML = '';
+      tsToken = '';
+      tsWidgetId = turnstile.render(slot, {
+        sitekey: SITEKEY,
+        theme: 'dark',
+        callback: (t) => { tsToken = t; },
+        'expired-callback': () => { tsToken = ''; },
+        'error-callback': () => { tsToken = ''; err.textContent = 'Turnstile gagal dimuat. Refresh halaman.'; },
+      });
+    }
+
+    function whenTurnstileReady() {
+      return new Promise((resolve) => {
+        if (window.turnstile) { resolve(); return; }
+        const t0 = Date.now();
+        const id = setInterval(() => {
+          if (window.turnstile) { clearInterval(id); resolve(); }
+          else if (Date.now() - t0 > 12000) { clearInterval(id); resolve(); }
+        }, 50);
+      });
+    }
+
+    whenTurnstileReady().then(renderTurnstile);
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.textContent = '';
       const btn = document.getElementById('go');
       btn.disabled = true;
       try {
-        const token = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+        if (!tsToken) {
+          // try read hidden field as fallback
+          tsToken = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+        }
+        if (!tsToken) throw new Error('Centang/selesaikan verifikasi Turnstile dulu');
+
         const res = await fetch('/api/login', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'accept': 'application/json' },
           credentials: 'same-origin',
           body: JSON.stringify({
             username: document.getElementById('user').value.trim(),
             password: document.getElementById('pass').value,
-            turnstile_token: token,
+            turnstile_token: tsToken,
           }),
         });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'gagal');
-        location.href = GATE ? `/g/${GATE}/app` : '/app.html';
+        const raw = await res.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          throw new Error('Server tidak mengembalikan JSON (HTTP ' + res.status + '). Coba refresh / pakai URL workers.dev.');
+        }
+        if (!data.ok) {
+          const map = {
+            turnstile_failed: 'Verifikasi Turnstile gagal — refresh & coba lagi',
+            invalid_credentials: 'Username / password salah',
+            invalid_json: 'Request tidak valid',
+          };
+          throw new Error(map[data.error] || data.error || ('gagal HTTP ' + res.status));
+        }
+        location.href = GATE ? ('/g/' + GATE + '/app') : '/app.html';
       } catch (ex) {
         err.textContent = 'Login gagal: ' + (ex.message || ex);
-        if (window.turnstile) turnstile.reset();
+        tsToken = '';
+        if (window.turnstile && tsWidgetId != null) turnstile.reset(tsWidgetId);
+        else renderTurnstile();
       } finally {
         btn.disabled = false;
       }
