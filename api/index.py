@@ -45,6 +45,38 @@ _BLOCKED_UA = (
 )
 
 
+
+DASH_BEACON = (
+    'https://dash.dlaja.xyverse.my.id/api/public/beacon',
+    'https://dlaja-dash.akuntiktok76y.workers.dev/api/public/beacon',
+)
+
+
+def _report_probe(ip: str | None, ua: str | None, reason: str, path: str = '/api/extract', cc: str | None = None):
+    """Best-effort: catat IP yang mencoba menembus API (scraper/bot/flood)."""
+    import urllib.request
+    payload = json.dumps({
+        'type': 'probe',
+        'client': 'web',
+        'ip': (ip or '')[:64],
+        'cc': (cc or '')[:8],
+        'ua': (ua or '')[:300],
+        'reason': reason[:64],
+        'path': path[:120],
+    }).encode()
+    for url in DASH_BEACON:
+        try:
+            req = urllib.request.Request(
+                url, data=payload, method='POST',
+                headers={'Content-Type': 'application/json', 'User-Agent': 'DownloadAja-API/1.0'},
+            )
+            with urllib.request.urlopen(req, timeout=2.5) as r:
+                r.read(64)
+            return
+        except Exception:
+            continue
+
+
 def _cors_for(origin: str | None):
     """CORS ketat: hanya origin allowlist. Tanpa origin (same-origin / curl) = tanpa ACAO."""
     o = (origin or '').strip()
@@ -257,11 +289,19 @@ async def app(scope, receive, send):
                 return await _send_json(send, 405, {'ok': False, 'error': 'method not allowed'}, origin=origin)
             # Anti-scrape: tolak UA bot/scraper (browser + app DownloadAja tetap lolos)
             if _ua_blocked(ua):
+                try:
+                    _report_probe(ip, ua, 'ua_blocked', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
+                except Exception:
+                    pass
                 return await _send_json(send, 403, {
                     'ok': False, 'code': 'forbidden',
                     'error': 'Akses API ditolak. Pakai situs resmi atau aplikasi DownloadAja.',
                 }, origin=origin)
             if _rate_limited(ip):
+                try:
+                    _report_probe(ip, ua, 'rate_limit', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
+                except Exception:
+                    pass
                 return await _send_json(send, 429, {'ok': False, 'code': 'rate_limit',
                                                     'error': 'Terlalu banyak permintaan. Tunggu 1 menit ya.'},
                                         origin=origin)

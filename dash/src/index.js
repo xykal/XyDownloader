@@ -245,6 +245,9 @@ function emptyDay(day) {
     browsers: { chrome: 0, safari: 0, firefox: 0, edge: 0, samsung: 0, opera: 0, other: 0 },
     os: { android: 0, ios: 0, windows: 0, macos: 0, linux: 0, chromeos: 0, other: 0 },
     platforms: {},
+    bots: {},
+    models: {},
+    countries: {},
     events: { session: 0, extract: 0, download: 0, hit: 0 },
   };
 }
@@ -271,30 +274,82 @@ function bump(map, key, n = 1) {
   map[key] = (map[key] || 0) + n;
 }
 
+function botName(ua) {
+  const u = ua;
+  const rules = [
+    ['googlebot', /googlebot/],
+    ['bingbot', /bingbot|msnbot/],
+    ['yandex', /yandex/],
+    ['baidu', /baiduspider/],
+    ['duckduck', /duckduckbot/],
+    ['bytespider', /bytespider/],
+    ['gptbot', /gptbot|chatgpt/],
+    ['claudebot', /claude|anthropic/],
+    ['semrush', /semrush/],
+    ['ahrefs', /ahrefs/],
+    ['petalbot', /petalbot/],
+    ['scrapy', /scrapy/],
+    ['curl', /\bcurl\//],
+    ['wget', /\bwget/],
+    ['python', /python-requests|python-urllib|aiohttp|httpx/],
+    ['java', /\bjava\//],
+    ['go-http', /go-http-client/],
+    ['headless', /headless|puppeteer|playwright|selenium|phantom/],
+    ['lighthouse', /lighthouse|pagespeed/],
+    ['uptime', /pingdom|uptimerobot|statuscake|monitor/],
+    ['facebook', /facebookexternalhit/],
+    ['twitter', /twitterbot/],
+    ['discord', /discordbot/],
+    ['telegram', /telegrambot/],
+    ['scanner', /scanner|nikto|sqlmap|nmap|masscan|zgrab|nuclei/],
+    ['archive', /archive\.org|ia_archiver/],
+    ['generic-bot', /bot|crawl|spider|slurp/],
+  ];
+  for (const [name, re] of rules) if (re.test(u)) return name;
+  return 'bot';
+}
+
 function classifyUa(uaRaw, clientHint) {
-  const ua = String(uaRaw || '').toLowerCase();
+  const uaOrig = String(uaRaw || '');
+  const ua = uaOrig.toLowerCase();
   const client = String(clientHint || '').toLowerCase();
 
-  // APK first
   if (client === 'apk' || ua.includes('downloadaja') || ua.includes('xydownloader') || ua.includes('xyverse-android')) {
+    let model = '';
+    const m = uaOrig.match(/DownloadAja\/[^\s]+ \(Android [^;]+; ([^)]+)\)/i);
+    if (m) model = m[1].trim().slice(0, 40);
     return {
       client: 'apk',
       device: 'apk',
       browser: 'apk',
-      os: ua.includes('android') ? 'android' : 'android',
+      os: 'android',
       kind: 'apk',
+      bot: null,
+      model: model || 'Android app',
+      label: model ? `APK · ${model}` : 'APK Android',
     };
   }
 
   const botRe =
-    /bot|crawl|spider|slurp|scrapy|wget|curl\/|python-requests|python-urllib|httpclient|libwww|bytespider|gptbot|ccbot|anthropic|claude|petalbot|semrush|ahrefs|mj12bot|dotbot|facebookexternalhit|twitterbot|linkedinbot|discordbot|telegrambot|preview|headless|phantom|selenium|puppeteer|playwright|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|monitor|scanner|archiver/;
+    /bot|crawl|spider|slurp|scrapy|wget|curl\/|python-requests|python-urllib|httpclient|libwww|bytespider|gptbot|ccbot|anthropic|claude|petalbot|semrush|ahrefs|mj12bot|dotbot|facebookexternalhit|twitterbot|linkedinbot|discordbot|telegrambot|preview|headless|phantom|selenium|puppeteer|playwright|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|monitor|scanner|archiver|sqlmap|nikto|nmap|masscan|zgrab|nuclei|aiohttp|httpx/;
   if (!ua || ua === 'mozilla/5.0' || botRe.test(ua)) {
-    return { client: 'web', device: 'bot', browser: 'other', os: 'other', kind: 'bot' };
+    const bn = botName(ua || 'empty');
+    return {
+      client: 'web',
+      device: 'bot',
+      browser: 'other',
+      os: 'other',
+      kind: 'bot',
+      bot: bn,
+      model: bn,
+      label: `Bot · ${bn}`,
+    };
   }
 
   let os = 'other';
   if (/android/.test(ua)) os = 'android';
-  else if (/iphone|ipad|ipod|ios/.test(ua)) os = 'ios';
+  else if (/iphone|ipod/.test(ua)) os = 'ios';
+  else if (/ipad/.test(ua)) os = 'ios';
   else if (/windows/.test(ua)) os = 'windows';
   else if (/mac os x|macintosh/.test(ua)) os = 'macos';
   else if (/cros/.test(ua)) os = 'chromeos';
@@ -311,9 +366,28 @@ function classifyUa(uaRaw, clientHint) {
   else if (/samsungbrowser/.test(ua)) browser = 'samsung';
   else if (/firefox|fxios/.test(ua)) browser = 'firefox';
   else if (/chrome|crios|chromium/.test(ua) && !/edg\//.test(ua)) browser = 'chrome';
-  else if (/safari/.test(ua) && !/chrome|crios|chromium|android/.test(ua)) browser = 'safari';
+  else if (/safari/.test(ua) && !/chrome|crios|chromium/.test(ua)) browser = 'safari';
 
-  return { client: 'web', device, browser, os, kind: device };
+  // brand / model hints
+  let model = '';
+  if (/iphone/.test(ua)) model = 'iPhone';
+  else if (/ipad/.test(ua)) model = 'iPad';
+  else if (/pixel[^;)\s]*/.test(ua)) model = (uaOrig.match(/Pixel[^;)\s]*/i) || ['Pixel'])[0];
+  else if (/sm-[a-z0-9]+/i.test(uaOrig)) model = (uaOrig.match(/SM-[A-Z0-9]+/i) || [''])[0];
+  else if (/xiaomi|redmi|poco/i.test(ua)) model = (uaOrig.match(/(Redmi|POCO|Mi)[^;)\s]*/i) || ['Xiaomi'])[0];
+  else if (/huawei|honor/i.test(ua)) model = 'Huawei';
+  else if (/oppo|cph[0-9]/i.test(ua)) model = 'OPPO';
+  else if (/vivo/i.test(ua)) model = 'vivo';
+  else if (/realme/i.test(ua)) model = 'realme';
+  else if (/oneplus/i.test(ua)) model = 'OnePlus';
+  else if (/macintosh|mac os x/.test(ua)) model = 'Mac';
+  else if (/windows nt 10/.test(ua)) model = 'Windows 10/11';
+  else if (/windows/.test(ua)) model = 'Windows';
+  else if (/android/.test(ua)) model = 'Android';
+  else if (/linux/.test(ua)) model = 'Linux';
+
+  const label = [device, os, browser, model].filter(Boolean).join(' · ');
+  return { client: 'web', device, browser, os, kind: device, bot: null, model, label };
 }
 
 function normalizePlatform(p) {
@@ -396,6 +470,9 @@ async function readEvents(env, keys) {
 
 function foldEvents(day, events) {
   const d = emptyDay(day);
+  d.bots = {};
+  d.models = {};
+  d.countries = {};
   const uniqSess = new Set();
   for (const e of events) {
     const type = e.t || e.type || 'session';
@@ -410,6 +487,10 @@ function foldEvents(day, events) {
     const n = Math.max(1, Math.min(50, parseInt(e.n, 10) || 1));
 
     bump(d.events, type === 'pageview' ? 'session' : type);
+    if (e.bt) bump(d.bots, e.bt);
+    if (e.m) bump(d.models, e.m);
+    if (e.cc) bump(d.countries, e.cc);
+
     if (type === 'session' || type === 'pageview' || type === 'hit') {
       d.pageviews += 1;
       applyClassOnly(d, cls);
@@ -557,8 +638,9 @@ async function recordEvent(env, evt) {
   const platform = evt.platform ? normalizePlatform(evt.platform) : null;
   const n = Math.max(1, Math.min(50, parseInt(evt.count, 10) || 1));
   const id = b64url(crypto.getRandomValues(new Uint8Array(10)));
+  const ip = String(evt.ip || '').slice(0, 64) || undefined;
+  const cc = String(evt.cc || evt.country || '').slice(0, 8).toUpperCase() || undefined;
 
-  // Compact event record (append-only — no lost updates under concurrency)
   const row = {
     t: type === 'pageview' ? 'session' : type,
     c: cls.client,
@@ -568,10 +650,34 @@ async function recordEvent(env, evt) {
     p: platform || undefined,
     u: evt.cidHash || undefined,
     n: type === 'download' ? n : undefined,
+    ip: ip,
+    cc: cc,
+    bt: cls.bot || undefined,
+    m: (cls.model || '').slice(0, 48) || undefined,
+    lb: (cls.label || '').slice(0, 80) || undefined,
     ts: Date.now(),
   };
   const exp = 60 * 60 * 24 * (STATS_DAYS_KEEP + 5);
   await env.CONFIG.put(`stats:evt:${day}:${id}`, JSON.stringify(row), { expirationTtl: exp });
+
+  // Keep a short recent-device feed (admin UI)
+  if (type === 'session' || type === 'extract' || type === 'download') {
+    try {
+      await pushRecent(env, 'stats:recent:devices', {
+        ts: row.ts,
+        ip,
+        cc,
+        client: cls.client,
+        device: cls.device,
+        browser: cls.browser,
+        os: cls.os,
+        model: cls.model,
+        label: cls.label,
+        platform: platform || null,
+        type: row.t,
+      }, 40);
+    } catch { /* */ }
+  }
 
   let newSessionDay = false;
   let newLifetime = false;
@@ -584,7 +690,6 @@ async function recordEvent(env, evt) {
     }
   }
 
-  // Best-effort totals (race-tolerant enough for dashboard)
   await bumpTotal(env, {
     type: row.t,
     cls,
@@ -597,6 +702,96 @@ async function recordEvent(env, evt) {
   return { ok: true, day, id };
 }
 
+async function pushRecent(env, key, item, limit = 40) {
+  let list = [];
+  try {
+    list = (await env.CONFIG.get(key, 'json')) || [];
+    if (!Array.isArray(list)) list = [];
+  } catch {
+    list = [];
+  }
+  list.unshift(item);
+  if (list.length > limit) list = list.slice(0, limit);
+  await env.CONFIG.put(key, JSON.stringify(list), { expirationTtl: 60 * 60 * 24 * 30 });
+}
+
+async function recordProbe(env, probe) {
+  const day = dayKey();
+  const id = b64url(crypto.getRandomValues(new Uint8Array(8)));
+  const ua = String(probe.ua || '').slice(0, 300);
+  const cls = classifyUa(ua, probe.client || 'web');
+  const ip = String(probe.ip || '').slice(0, 64);
+  const cc = String(probe.cc || '').slice(0, 8).toUpperCase();
+  const reason = String(probe.reason || 'probe').slice(0, 64);
+  const path = String(probe.path || '').slice(0, 120);
+  const row = {
+    ts: Date.now(),
+    ip,
+    cc: cc || undefined,
+    reason,
+    path: path || undefined,
+    ua: ua.slice(0, 180),
+    device: cls.device,
+    bot: cls.bot || undefined,
+    label: cls.label,
+    browser: cls.browser,
+    os: cls.os,
+  };
+  const exp = 60 * 60 * 24 * 30;
+  await env.CONFIG.put(`stats:probe:${day}:${id}`, JSON.stringify(row), { expirationTtl: exp });
+  await pushRecent(env, 'stats:recent:probes', row, 60);
+
+  // Aggregate probe counts by IP (today)
+  try {
+    const k = `stats:probeip:${day}`;
+    const map = (await env.CONFIG.get(k, 'json')) || {};
+    const cur = map[ip] || { count: 0, reasons: {}, cc, last_ua: '', last_ts: 0, label: '' };
+    cur.count += 1;
+    cur.reasons[reason] = (cur.reasons[reason] || 0) + 1;
+    cur.cc = cc || cur.cc;
+    cur.last_ua = ua.slice(0, 120);
+    cur.last_ts = row.ts;
+    cur.label = cls.label;
+    map[ip || 'unknown'] = cur;
+    // cap map size
+    const entries = Object.entries(map);
+    if (entries.length > 200) {
+      entries.sort((a, b) => (b[1].last_ts || 0) - (a[1].last_ts || 0));
+      const trimmed = Object.fromEntries(entries.slice(0, 150));
+      await env.CONFIG.put(k, JSON.stringify(trimmed), { expirationTtl: exp });
+    } else {
+      await env.CONFIG.put(k, JSON.stringify(map), { expirationTtl: exp });
+    }
+  } catch { /* */ }
+
+  return row;
+}
+
+async function loadRecentProbes(env) {
+  try {
+    const list = (await env.CONFIG.get('stats:recent:probes', 'json')) || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadRecentDevices(env) {
+  try {
+    const list = (await env.CONFIG.get('stats:recent:devices', 'json')) || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadProbeIps(env, day) {
+  try {
+    return (await env.CONFIG.get(`stats:probeip:${day}`, 'json')) || {};
+  } catch {
+    return {};
+  }
+}
 
 function topMap(map, limit = 12) {
   return Object.entries(map || {})
@@ -618,7 +813,13 @@ async function buildOverview(env) {
     const d = new Date(Date.now() - i * 86400000);
     days.push(dayKey(d));
   }
-  const [total, ...dayObjs] = await Promise.all([loadTotal(env), ...days.map((d) => loadDay(env, d))]);
+  const [total, recentDevices, recentProbes, probeIps, ...dayObjs] = await Promise.all([
+    loadTotal(env),
+    loadRecentDevices(env),
+    loadRecentProbes(env),
+    loadProbeIps(env, today),
+    ...days.map((d) => loadDay(env, d)),
+  ]);
   const todayObj = dayObjs[0];
   const last7 = dayObjs.slice(0, 7);
   const sumField = (arr, f) => arr.reduce((a, x) => a + (x[f] || 0), 0);
@@ -636,6 +837,22 @@ async function buildOverview(env) {
   const browsers7 = mergeMaps(last7, 'browsers');
   const os7 = mergeMaps(last7, 'os');
   const clients7 = mergeMaps(last7, 'clients');
+  const bots7 = mergeMaps(last7, 'bots');
+  const models7 = mergeMaps(last7, 'models');
+  const countries7 = mergeMaps(last7, 'countries');
+
+  const probeTop = Object.entries(probeIps || {})
+    .map(([ip, v]) => ({
+      ip,
+      count: v.count || 0,
+      cc: v.cc || '',
+      label: v.label || '',
+      last_ua: v.last_ua || '',
+      last_ts: v.last_ts || 0,
+      reasons: v.reasons || {},
+    }))
+    .sort((a, b) => b.count - a.count || b.last_ts - a.last_ts)
+    .slice(0, 30);
 
   return {
     product: 'https://dlaja.xyverse.my.id',
@@ -645,6 +862,7 @@ async function buildOverview(env) {
     default_video_tier: cfg.default_video_tier,
     updated_at: cfg.updated_at,
     generated_at: new Date().toISOString(),
+    realtime: true,
     today: {
       day: today,
       pageviews: todayObj.pageviews,
@@ -689,6 +907,17 @@ async function buildOverview(env) {
       total: total.os,
       top_last7: topMap(os7),
     },
+    bots: {
+      last7: topMap(bots7, 15),
+      today: topMap(todayObj.bots || {}, 15),
+    },
+    models: {
+      last7: topMap(models7, 15),
+    },
+    countries: {
+      last7: topMap(countries7, 15),
+      today: topMap(todayObj.countries || {}, 15),
+    },
     platforms: {
       today: topMap(todayObj.platforms),
       last7: topMap(platforms7),
@@ -705,7 +934,13 @@ async function buildOverview(env) {
         extracts: d.extracts,
         downloads: d.downloads,
       })),
-    note: 'Unique user = client-id unik per hari (web localStorage / APK install id). Bot/crawl dilacak dari User-Agent.',
+    recent_devices: (recentDevices || []).slice(0, 25),
+    probes: {
+      recent: (recentProbes || []).slice(0, 40),
+      top_ips_today: probeTop,
+      today_count: probeTop.reduce((a, x) => a + (x.count || 0), 0),
+    },
+    note: 'Data real-time dari beacon web + APK (event append-only di KV). Unique = client-id per hari. IP probe = percobaan menembus (UA terlarang, login gagal, path gelap, flood).',
   };
 }
 
@@ -753,7 +988,7 @@ export default {
         });
       }
 
-      // Public analytics beacon
+      // Public analytics beacon (+ probe reports from product API)
       if (url.pathname === '/api/public/beacon' && request.method === 'POST') {
         let body;
         try {
@@ -761,24 +996,49 @@ export default {
         } catch {
           return json({ ok: false, error: 'invalid_json' }, 400, corsPublic());
         }
+        const ip = request.headers.get('CF-Connecting-IP') || body.ip || '';
+        const cc = request.headers.get('CF-IPCountry') || body.cc || body.country || '';
         const type = String(body.type || body.event || 'session').toLowerCase();
-        if (!['session', 'pageview', 'extract', 'download'].includes(type)) {
-          return json({ ok: false, error: 'bad_type' }, 400, corsPublic());
-        }
         const ua = String(body.ua || request.headers.get('user-agent') || '').slice(0, 400);
         const client = String(body.client || '').toLowerCase() === 'apk' ? 'apk' : 'web';
+
+        if (type === 'probe') {
+          try {
+            await recordProbe(env, {
+              ip: body.ip || ip,
+              cc: body.cc || cc,
+              ua: body.ua || ua,
+              reason: body.reason || 'probe',
+              path: body.path || '',
+              client,
+            });
+          } catch (e) {
+            return json({ ok: false, error: 'probe_write', detail: String(e && e.message || e) }, 500, corsPublic());
+          }
+          return json({ ok: true }, 200, corsPublic());
+        }
+
+        if (!['session', 'pageview', 'extract', 'download'].includes(type)) {
+          ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bad_type', path: '/api/public/beacon', client }).catch(() => {}));
+          return json({ ok: false, error: 'bad_type' }, 400, corsPublic());
+        }
         const cidRaw = String(body.cid || body.client_id || '').slice(0, 80);
-        // reject obvious garbage flood
         if (cidRaw && !/^[A-Za-z0-9._:-]{8,80}$/.test(cidRaw)) {
+          ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bad_cid', path: '/api/public/beacon', client }).catch(() => {}));
           return json({ ok: false, error: 'bad_cid' }, 400, corsPublic());
         }
         const cidHash = cidRaw ? await shaShort(cidRaw) : null;
         const platform = body.platform ? String(body.platform).slice(0, 64) : null;
         const count = body.count;
 
-        // Fire-and-forget-ish but await for consistency (cheap KV)
+        // Flag obvious bots hitting beacon as probe too (still count event)
+        const cls = classifyUa(ua, client);
+        if (cls.device === 'bot') {
+          ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bot_beacon', path: '/api/public/beacon', client }).catch(() => {}));
+        }
+
         try {
-          await recordEvent(env, { type, ua, client, cidHash, platform, count });
+          await recordEvent(env, { type, ua, client, cidHash, platform, count, ip, cc });
         } catch (e) {
           return json({ ok: false, error: 'stats_write', detail: String(e && e.message || e) }, 500, corsPublic());
         }
@@ -788,6 +1048,17 @@ export default {
       // Gate check for document navigations
       if (request.method === 'GET' && !url.pathname.startsWith('/api/')) {
         if (!gateOk(env, url) && url.pathname !== '/robots.txt') {
+          const ip = request.headers.get('CF-Connecting-IP') || '';
+          const cc = request.headers.get('CF-IPCountry') || '';
+          const ua = request.headers.get('user-agent') || '';
+          // path scanning / dark gate probe
+          if (url.pathname === '/' || url.pathname === '/login' || url.pathname === '/app'
+              || url.pathname.startsWith('/g/') || url.pathname.includes('admin')
+              || url.pathname.includes('.env') || url.pathname.includes('wp-')) {
+            ctx.waitUntil(recordProbe(env, {
+              ip, cc, ua, reason: 'path_scan', path: url.pathname.slice(0, 120),
+            }).catch(() => {}));
+          }
           return new Response('Not Found', { status: 404, headers: { 'x-robots-tag': 'noindex' } });
         }
       }
@@ -819,16 +1090,40 @@ export default {
             }
             const ip = request.headers.get('CF-Connecting-IP') || '';
             const ts = await verifyTurnstile(env, body.turnstile_token, ip);
-            if (!ts.ok) return json({ ok: false, error: 'turnstile_failed', detail: ts.error }, 403);
+            if (!ts.ok) {
+              ctx.waitUntil(recordProbe(env, {
+                ip, cc: request.headers.get('CF-IPCountry') || '',
+                ua: request.headers.get('user-agent') || '',
+                reason: 'login_turnstile',
+                path: '/api/login',
+              }).catch(() => {}));
+              return json({ ok: false, error: 'turnstile_failed', detail: ts.error }, 403);
+            }
 
             const user = String(body.username || '');
             const pass = String(body.password || '');
             if (!env.ADMIN_USER || !env.ADMIN_PASS_HASH) {
               return json({ ok: false, error: 'server_misconfigured', detail: 'admin secrets missing' }, 500);
             }
-            if (user !== env.ADMIN_USER) return json({ ok: false, error: 'invalid_credentials' }, 401);
+            if (user !== env.ADMIN_USER) {
+              ctx.waitUntil(recordProbe(env, {
+                ip, cc: request.headers.get('CF-IPCountry') || '',
+                ua: request.headers.get('user-agent') || '',
+                reason: 'login_user',
+                path: '/api/login',
+              }).catch(() => {}));
+              return json({ ok: false, error: 'invalid_credentials' }, 401);
+            }
             const ok = await verifyPassword(pass, env.ADMIN_PASS_HASH, env);
-            if (!ok) return json({ ok: false, error: 'invalid_credentials' }, 401);
+            if (!ok) {
+              ctx.waitUntil(recordProbe(env, {
+                ip, cc: request.headers.get('CF-IPCountry') || '',
+                ua: request.headers.get('user-agent') || '',
+                reason: 'login_pass',
+                path: '/api/login',
+              }).catch(() => {}));
+              return json({ ok: false, error: 'invalid_credentials' }, 401);
+            }
             if (!env.SESSION_SECRET) {
               return json({ ok: false, error: 'server_misconfigured', detail: 'SESSION_SECRET missing' }, 500);
             }
