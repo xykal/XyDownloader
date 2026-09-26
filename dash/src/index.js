@@ -597,6 +597,19 @@ async function recordEvent(env, evt) {
   return { ok: true, day, id };
 }
 
+
+function topMap(map, limit = 12) {
+  return Object.entries(map || {})
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
+
+function sumMap(map) {
+  return Object.values(map || {}).reduce((a, b) => a + (b || 0), 0);
+}
+
 async function buildOverview(env) {
   const cfg = await getConfig(env);
   const today = dayKey();
