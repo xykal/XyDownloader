@@ -7,10 +7,12 @@ Allow: /logos/
 Allow: /assets/
 Allow: /whats-new.webp
 Allow: /og-cover.jpg
+Allow: /assets/promo-poster.jpg
 Allow: /icon-192.png
 Allow: /icon-512.png
 Allow: /manifest.webmanifest
 Allow: /licenses.html
+Allow: /googleb2a7847179613098.html
 
 # API & proxy bukan konten untuk di-scrape/index
 Disallow: /api/
