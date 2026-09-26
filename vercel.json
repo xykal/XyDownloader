@@ -43,7 +43,7 @@
       ]
     },
     {
-      "source": "/(og-cover.jpg|whats-new.webp|icon-192.png|icon-512.png|logo.svg|xyverse.png|robots.txt|sitemap.xml|manifest.webmanifest|googleb2a7847179613098.html|assets/promo-poster.jpg)",
+      "source": "/(og-cover.jpg|whats-new.webp|icon-192.png|icon-512.png|logo.svg|xyverse.png|robots.txt|sitemap.xml|manifest.webmanifest|googleb2a7847179613098.html|assets/promo-poster.jpg|licenses.html)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400" }
       ]

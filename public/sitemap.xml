@@ -1,10 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://dlaja.xyverse.my.id/</loc>
     <lastmod>2026-09-26</lastmod>
-    <changefreq>weekly</changefreq>
+    <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://dlaja.xyverse.my.id/og-cover.jpg</image:loc>
+      <image:title>DownloadAja — Satu link. Semua platform.</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://dlaja.xyverse.my.id/assets/promo-poster.jpg</image:loc>
+      <image:title>DownloadAja promo — Built in XyVerse Technology</image:title>
+    </image:image>
   </url>
   <url>
     <loc>https://dlaja.xyverse.my.id/licenses.html</loc>

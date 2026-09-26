@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lisensi &amp; atribusi — DownloadAja</title>
+  <meta name="description" content="Daftar komponen open source dan lisensi yang dipakai DownloadAja (Web + Android). Built in XyVerse.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://dlaja.xyverse.my.id/licenses.html">
+  <meta property="og:title" content="Lisensi & atribusi — DownloadAja">
+  <meta property="og:description" content="Komponen open source DownloadAja. Built in XyVerse.">
+  <meta property="og:url" content="https://dlaja.xyverse.my.id/licenses.html">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://dlaja.xyverse.my.id/og-cover.jpg">
+  <meta name="theme-color" content="#6d4aff">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .lic-page { max-width: 860px; margin: 0 auto; padding: 28px 16px 64px; }
+    .lic-page h1 { font-size: 1.6rem; margin: 0 0 12px; }
+    .lic-page h2 { font-size: 1.15rem; margin: 28px 0 10px; }
+    .lic-page p { color: var(--muted); line-height: 1.55; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 12px 0 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--surface-2); font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    .back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <img src="logo.svg" alt="" width="28" height="28">
+        <span>DownloadAja</span>
+      </a>
+      <nav>
+        <a class="btn btn-secondary btn-sm" href="/">Kembali</a>
+      </nav>
+    </div>
+  </header>
+  <main class="lic-page">
+    <a class="back muted small" href="/">← Beranda DownloadAja</a>
+    <h1>Third-party notices — DownloadAja</h1>
+
+<p>DownloadAja (Built in XyVerse) dirilis dengan lisensi <b>GPL-3.0-or-later</b> dan memakai komponen open source berikut. Teks lisensi lengkap ada di folder <a href="licenses/texts" rel="noopener" target="_blank"><code>licenses/texts</code></a> dan juga bisa dibuka dari aplikasi Android (Tentang → Lisensi open source) serta web (footer → Lisensi).</p>
+
+<h2>Aplikasi Android</h2>
+
+<div class="table-wrap"><table><thead><tr><th>Komponen</th><th>Lisensi</th><th>Hak cipta</th><th>Keterangan</th></tr></thead><tbody>
+<tr><td><a href="https://github.com/xykal/XyDownloader" rel="noopener" target="_blank">DownloadAja</a></td><td><a href="licenses/texts/GPL-3.0-only.txt" rel="noopener" target="_blank">GPL-3.0-or-later</a></td><td>Copyright (c) 2026 XyVerse</td><td>Aplikasi, plugin extractor &amp; engine</td></tr>
+<tr><td><a href="https://github.com/JunkFood02/youtubedl-android" rel="noopener" target="_blank">youtubedl-android</a></td><td><a href="licenses/texts/GPL-3.0-only.txt" rel="noopener" target="_blank">GPL-3.0</a></td><td>Copyright (c) yausername, JunkFood02 &amp; kontributor</td><td>Menjalankan Python + yt-dlp di Android</td></tr>
+<tr><td><a href="https://github.com/yt-dlp/yt-dlp" rel="noopener" target="_blank">yt-dlp</a></td><td><a href="licenses/texts/Unlicense.txt" rel="noopener" target="_blank">Unlicense</a></td><td>yt-dlp contributors (public domain)</td><td>Engine pembaca link (diperbarui otomatis dari GitHub)</td></tr>
+<tr><td><a href="https://github.com/yt-dlp/ejs" rel="noopener" target="_blank">yt-dlp-ejs</a></td><td><a href="licenses/texts/Unlicense.txt" rel="noopener" target="_blank">Unlicense</a></td><td>yt-dlp contributors (public domain)</td><td>Skrip JavaScript tantangan YouTube</td></tr>
+<tr><td><a href="https://www.python.org/" rel="noopener" target="_blank">Python 3.12</a></td><td><a href="licenses/texts/PSF-2.0.txt" rel="noopener" target="_blank">PSF-2.0</a></td><td>Copyright (c) 2001-2024 Python Software Foundation. All Rights Reserved.</td><td>Runtime (build Termux, dibundel youtubedl-android; versi ramping)</td></tr>
+<tr><td><a href="https://ffmpeg.org/" rel="noopener" target="_blank">FFmpeg 8.0 (build minimal DownloadAja)</a></td><td><a href="licenses/texts/LGPL-2.1-only.txt" rel="noopener" target="_blank">LGPL-2.1-or-later</a></td><td>Copyright (c) 2000-2026 the FFmpeg developers</td><td>Merge video + audio, MP3/M4A, ugoira. Dibangun tanpa komponen GPL; skrip build &amp; daftar komponen: android/ffmpeg/build.sh</td></tr>
+<tr><td><a href="https://lame.sourceforge.io/" rel="noopener" target="_blank">LAME 3.100</a></td><td><a href="licenses/texts/LGPL-2.0-only.txt" rel="noopener" target="_blank">LGPL-2.0-or-later</a></td><td>Copyright (c) 1999-2017 The LAME Project</td><td>Encoder MP3 (terhubung statis ke FFmpeg)</td></tr>
+<tr><td><a href="https://bellard.org/quickjs/" rel="noopener" target="_blank">QuickJS</a></td><td><a href="licenses/texts/MIT.txt" rel="noopener" target="_blank">MIT</a></td><td>Copyright (c) 2017-2021 Fabrice Bellard, Charlie Gordon</td><td>Runtime JavaScript untuk YouTube</td></tr>
+<tr><td><a href="https://www.openssl.org/" rel="noopener" target="_blank">OpenSSL 3</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) 1998-2025 The OpenSSL Project Authors</td><td>TLS/HTTPS untuk Python</td></tr>
+<tr><td><a href="https://zlib.net/" rel="noopener" target="_blank">zlib</a></td><td><a href="licenses/texts/Zlib.txt" rel="noopener" target="_blank">Zlib</a></td><td>Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler</td><td>Kompresi</td></tr>
+<tr><td><a href="https://sourceware.org/bzip2/" rel="noopener" target="_blank">bzip2</a></td><td><a href="licenses/texts/bzip2-1.0.6.txt" rel="noopener" target="_blank">bzip2-1.0.6</a></td><td>Copyright (C) 1996-2019 Julian R Seward</td><td>Kompresi</td></tr>
+<tr><td><a href="https://tukaani.org/xz/" rel="noopener" target="_blank">XZ Utils (liblzma)</a></td><td><a href="licenses/texts/0BSD.txt" rel="noopener" target="_blank">0BSD</a></td><td>Copyright (C) The XZ Utils authors and contributors</td><td>Kompresi</td></tr>
+<tr><td><a href="https://libexpat.github.io/" rel="noopener" target="_blank">Expat</a></td><td><a href="licenses/texts/MIT.txt" rel="noopener" target="_blank">MIT</a></td><td>Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper; Copyright (c) 2001-2025 Expat maintainers</td><td>Parser XML</td></tr>
+<tr><td><a href="https://sourceware.org/libffi/" rel="noopener" target="_blank">libffi</a></td><td><a href="licenses/texts/MIT.txt" rel="noopener" target="_blank">MIT</a></td><td>Copyright (c) 1996-2024 Anthony Green, Red Hat, Inc and others</td><td>ctypes</td></tr>
+<tr><td><a href="https://www.pycryptodome.org/" rel="noopener" target="_blank">PyCryptodome (Cryptodome)</a></td><td><a href="licenses/texts/BSD-2-Clause.txt" rel="noopener" target="_blank">BSD-2-Clause</a></td><td>Copyright (c) 2014, Legrandin; sebagian kode berstatus public domain</td><td>Dekripsi AES untuk stream HLS</td></tr>
+<tr><td><a href="https://github.com/quodlibet/mutagen" rel="noopener" target="_blank">Mutagen</a></td><td><a href="licenses/texts/GPL-2.0-only.txt" rel="noopener" target="_blank">GPL-2.0-or-later</a></td><td>Copyright (c) 2005-2024 Joe Wreschnig, Michael Urman, Christoph Reiter &amp; kontributor</td><td>Metadata audio</td></tr>
+<tr><td><a href="https://github.com/termux/termux-packages" rel="noopener" target="_blank">Termux packages</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) Termux developers</td><td>Resep build runtime Python untuk Android</td></tr>
+<tr><td><a href="https://developer.android.com/jetpack/androidx" rel="noopener" target="_blank">AndroidX (Core, Activity, Lifecycle, WorkManager, SplashScreen)</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) The Android Open Source Project</td><td></td></tr>
+<tr><td><a href="https://developer.android.com/jetpack/compose" rel="noopener" target="_blank">Jetpack Compose &amp; Material 3</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) The Android Open Source Project</td><td>Antarmuka aplikasi</td></tr>
+<tr><td><a href="https://github.com/androidx/media" rel="noopener" target="_blank">AndroidX Media3 (ExoPlayer)</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) The Android Open Source Project</td><td>Pratinjau video</td></tr>
+<tr><td><a href="https://kotlinlang.org/" rel="noopener" target="_blank">Kotlin &amp; kotlinx.coroutines</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) JetBrains s.r.o. and Kotlin Programming Language contributors</td><td></td></tr>
+<tr><td><a href="https://github.com/coil-kt/coil" rel="noopener" target="_blank">Coil</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) 2025 Coil Contributors</td><td>Memuat gambar/thumbnail</td></tr>
+<tr><td><a href="https://square.github.io/okhttp/" rel="noopener" target="_blank">OkHttp &amp; Okio</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) Square, Inc.</td><td></td></tr>
+<tr><td><a href="https://github.com/FasterXML/jackson" rel="noopener" target="_blank">Jackson</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) 2007- Tatu Saloranta &amp; FasterXML</td><td>Dipakai youtubedl-android</td></tr>
+<tr><td><a href="https://commons.apache.org/" rel="noopener" target="_blank">Apache Commons IO &amp; Compress</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) The Apache Software Foundation</td><td>Dipakai youtubedl-android</td></tr>
+</tbody></table></div>
+
+<h2>Web (dlaja.xyverse.my.id)</h2>
+
+<div class="table-wrap"><table><thead><tr><th>Komponen</th><th>Lisensi</th><th>Hak cipta</th><th>Keterangan</th></tr></thead><tbody>
+<tr><td><a href="https://github.com/yt-dlp/yt-dlp" rel="noopener" target="_blank">yt-dlp</a></td><td><a href="licenses/texts/Unlicense.txt" rel="noopener" target="_blank">Unlicense</a></td><td>yt-dlp contributors (public domain)</td><td>Extractor di server</td></tr>
+<tr><td><a href="https://www.python.org/" rel="noopener" target="_blank">Python</a></td><td><a href="licenses/texts/PSF-2.0.txt" rel="noopener" target="_blank">PSF-2.0</a></td><td>Copyright (c) 2001-2025 Python Software Foundation</td><td>Runtime server</td></tr>
+<tr><td><a href="https://github.com/ffmpegwasm/ffmpeg.wasm" rel="noopener" target="_blank">ffmpeg.wasm core (FFmpeg)</a></td><td><a href="licenses/texts/GPL-2.0-only.txt" rel="noopener" target="_blank">GPL-2.0-or-later</a></td><td>Copyright (c) the FFmpeg developers &amp; ffmpeg.wasm contributors</td><td>Merge, remux HLS &amp; ugoira di browser (dimuat dari CDN)</td></tr>
+<tr><td><a href="https://github.com/ffmpegwasm/ffmpeg.wasm" rel="noopener" target="_blank">@ffmpeg/ffmpeg &amp; @ffmpeg/util</a></td><td><a href="licenses/texts/MIT.txt" rel="noopener" target="_blank">MIT</a></td><td>Copyright (c) 2019 Jerome Wu</td><td></td></tr>
+<tr><td><a href="https://github.com/zhuker/lamejs" rel="noopener" target="_blank">lamejs</a></td><td><a href="licenses/texts/LGPL-3.0-only.txt" rel="noopener" target="_blank">LGPL-3.0</a></td><td>Copyright (c) 2015 Alex Zhukov</td><td>Encoder MP3 di browser</td></tr>
+<tr><td><a href="https://github.com/video-dev/hls.js" rel="noopener" target="_blank">hls.js</a></td><td><a href="licenses/texts/Apache-2.0.txt" rel="noopener" target="_blank">Apache-2.0</a></td><td>Copyright (c) 2017 Dailymotion; hls.js contributors</td><td>Pratinjau stream HLS (dimuat dari CDN saat dibutuhkan)</td></tr>
+<tr><td><a href="https://github.com/lipis/flag-icons" rel="noopener" target="_blank">flag-icons</a></td><td><a href="licenses/texts/MIT.txt" rel="noopener" target="_blank">MIT</a></td><td>Copyright (c) 2013 Panayiotis Lipiridis</td><td>Bendera negara</td></tr>
+<tr><td><a href="https://lucide.dev/" rel="noopener" target="_blank">Lucide (gaya ikon)</a></td><td><a href="licenses/texts/ISC.txt" rel="noopener" target="_blank">ISC</a></td><td>Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.</td><td>Ikon garis</td></tr>
+</tbody></table></div>
+
+<h2>Kode sumber komponen (L)GPL</h2>
+
+<p>- FFmpeg &amp; LAME dibangun ulang dari sumber resmi dengan skrip <a href="android/ffmpeg/build.sh" rel="noopener" target="_blank"><code>android/ffmpeg/build.sh</code></a> (versi, checksum, dan daftar komponen tercantum di sana).</p>
+<p>- Runtime Python/yt-dlp berasal dari <a href="https://github.com/JunkFood02/youtubedl-android" rel="noopener" target="_blank">youtubedl-android</a> (GPL-3.0); versi ramping dibuat dengan <a href="android/tools/prepare_native.py" rel="noopener" target="_blank"><code>android/tools/prepare_native.py</code></a>.</p>
+<p>- Seluruh kode DownloadAja tersedia di repositori ini.</p>
+
+<h2>Merek dagang</h2>
+
+<p>Logo dan nama platform (TikTok, Douyin, Instagram, YouTube, dll) adalah merek dagang milik pemiliknya masing-masing, hanya dipakai untuk menunjukkan kompatibilitas. DownloadAja tidak berafiliasi dengan platform mana pun.</p>
+    <p class="muted small" style="margin-top:32px">Halaman ini digenerate 2026-09-26. Sumber: <a href="https://github.com/xykal/XyDownloader/blob/main/THIRD_PARTY_NOTICES.md" rel="noopener" target="_blank">THIRD_PARTY_NOTICES.md</a> · <a href="https://dlaja.xyverse.my.id/">dlaja.xyverse.my.id</a></p>
+    <p class="built-line"><span>Built in </span><b>XyVerse</b></p>
+  </main>
+</body>
+</html>
