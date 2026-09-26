@@ -48,20 +48,52 @@ async function hmacVerify(keyRaw, msg, sigBytes) {
   return crypto.subtle.verify('HMAC', key, sigBytes, enc.encode(msg));
 }
 
-async function pbkdf2Verify(password, stored) {
-  // pbkdf2$iter$salt$b64hash
-  const parts = String(stored || '').split('$');
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
-  const iter = parseInt(parts[1], 10);
-  const salt = b64urlToBytes(parts[2]);
-  const want = b64urlToBytes(parts[3]);
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, key, want.length * 8);
-  const got = new Uint8Array(bits);
-  if (got.length !== want.length) return false;
+function timingSafeEqualHex(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
   let diff = 0;
-  for (let i = 0; i < got.length; i++) diff |= got[i] ^ want[i];
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+async function hmacHex(keyRaw, msg) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(keyRaw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(msg)));
+  return [...sig].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(password, stored, env) {
+  const s = String(stored || '');
+  // Preferred: hmac-sha256$hex  (pepper = PASS_PEPPER)
+  if (s.startsWith('hmac-sha256$')) {
+    const want = s.slice('hmac-sha256$'.length);
+    const pepper = env.PASS_PEPPER || env.SESSION_SECRET || '';
+    if (!pepper) return false;
+    const got = await hmacHex(pepper, password);
+    return timingSafeEqualHex(got, want);
+  }
+  // Legacy pbkdf2$iter$salt$b64hash
+  const parts = s.split('$');
+  if (parts.length === 4 && parts[0] === 'pbkdf2') {
+    try {
+      const iter = parseInt(parts[1], 10);
+      const salt = b64urlToBytes(parts[2]);
+      const want = b64urlToBytes(parts[3]);
+      const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: Math.min(iter, 100000) },
+        key,
+        want.length * 8,
+      );
+      const got = new Uint8Array(bits);
+      if (got.length !== want.length) return false;
+      let diff = 0;
+      for (let i = 0; i < got.length; i++) diff |= got[i] ^ want[i];
+      return diff === 0;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 function parseCookies(req) {
@@ -193,6 +225,7 @@ function rewriteGatePath(url, env) {
 
 export default {
   async fetch(request, env, ctx) {
+  try {
     const url = new URL(request.url);
 
     // robots
@@ -250,28 +283,38 @@ export default {
       }
 
       if (url.pathname === '/api/login' && request.method === 'POST') {
-        let body;
         try {
-          body = await request.json();
-        } catch {
-          return json({ ok: false, error: 'invalid_json' }, 400);
+          let body;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ ok: false, error: 'invalid_json' }, 400);
+          }
+          const ip = request.headers.get('CF-Connecting-IP') || '';
+          const ts = await verifyTurnstile(env, body.turnstile_token, ip);
+          if (!ts.ok) return json({ ok: false, error: 'turnstile_failed', detail: ts.error }, 403);
+
+          const user = String(body.username || '');
+          const pass = String(body.password || '');
+          if (!env.ADMIN_USER || !env.ADMIN_PASS_HASH) {
+            return json({ ok: false, error: 'server_misconfigured', detail: 'admin secrets missing' }, 500);
+          }
+          if (user !== env.ADMIN_USER) return json({ ok: false, error: 'invalid_credentials' }, 401);
+          const ok = await verifyPassword(pass, env.ADMIN_PASS_HASH, env);
+          if (!ok) return json({ ok: false, error: 'invalid_credentials' }, 401);
+          if (!env.SESSION_SECRET) {
+            return json({ ok: false, error: 'server_misconfigured', detail: 'SESSION_SECRET missing' }, 500);
+          }
+
+          const sess = await makeSession(env, user);
+          return json(
+            { ok: true, user },
+            200,
+            { 'set-cookie': sessionCookie(sess, SESSION_TTL) },
+          );
+        } catch (e) {
+          return json({ ok: false, error: 'login_exception', detail: String(e && e.message || e) }, 500);
         }
-        const ip = request.headers.get('CF-Connecting-IP') || '';
-        const ts = await verifyTurnstile(env, body.turnstile_token, ip);
-        if (!ts.ok) return json({ ok: false, error: 'turnstile_failed', detail: ts.error }, 403);
-
-        const user = String(body.username || '');
-        const pass = String(body.password || '');
-        if (user !== env.ADMIN_USER) return json({ ok: false, error: 'invalid_credentials' }, 401);
-        const ok = await pbkdf2Verify(pass, env.ADMIN_PASS_HASH);
-        if (!ok) return json({ ok: false, error: 'invalid_credentials' }, 401);
-
-        const sess = await makeSession(env, user);
-        return json(
-          { ok: true, user },
-          200,
-          { 'set-cookie': sessionCookie(sess, SESSION_TTL) },
-        );
       }
 
       if (url.pathname === '/api/logout' && request.method === 'POST') {
@@ -360,5 +403,8 @@ export default {
     }
 
     return new Response('Not Found', { status: 404, headers: { 'x-robots-tag': 'noindex' } });
+  } catch (e) {
+    return json({ ok: false, error: 'worker_exception', detail: String(e && e.message || e) }, 500);
+  }
   },
 };
