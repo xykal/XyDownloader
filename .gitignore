@@ -36,3 +36,6 @@ captures/
 # --- hasil build FFmpeg minimal (lihat android/ffmpeg/build.sh) ---
 android/ffmpeg/out/
 .ffmpeg-work/
+
+# local admin secrets (never commit)
+**/dash-admin.json

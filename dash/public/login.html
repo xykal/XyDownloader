@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Login — DownloadAja Admin</title>
+  <link rel="icon" href="https://dlaja.xyverse.my.id/logo.svg" type="image/svg+xml">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <style>
+    :root {
+      --bg: #0b0b10; --card: #14141c; --text: #f4f4f5; --muted: #a1a1aa;
+      --accent: #7c5cff; --border: #27272a; --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100dvh; display: grid; place-items: center;
+      font: 15px/1.45 system-ui, sans-serif; color: var(--text);
+      background: radial-gradient(1200px 600px at 20% -10%, #2a1a5e 0%, transparent 55%),
+                  radial-gradient(900px 500px at 100% 0%, #1a1040 0%, transparent 50%), var(--bg);
+    }
+    .card {
+      width: min(400px, 92vw); padding: 28px 24px 24px; border-radius: 18px;
+      background: color-mix(in srgb, var(--card) 92%, transparent);
+      border: 1px solid var(--border); backdrop-filter: blur(12px);
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .brand img { width: 32px; height: 32px; border-radius: 8px; }
+    h1 { font-size: 1.2rem; margin: 0; }
+    p.sub { margin: 0 0 20px; color: var(--muted); font-size: .9rem; }
+    label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin: 12px 0 6px; }
+    input {
+      width: 100%; height: 42px; border-radius: 10px; border: 1px solid var(--border);
+      background: #0c0c12; color: var(--text); padding: 0 12px; font: inherit;
+    }
+    input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); border-color: var(--accent); }
+    .cf { margin: 16px 0 8px; min-height: 65px; }
+    button {
+      width: 100%; height: 44px; margin-top: 12px; border: 0; border-radius: 11px;
+      background: var(--accent); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    .err { color: var(--danger); font-size: .85rem; min-height: 1.2em; margin-top: 10px; }
+    .foot { margin-top: 16px; text-align: center; color: var(--muted); font-size: .75rem; }
+  </style>
+</head>
+<body>
+  <form class="card" id="form" autocomplete="on">
+    <div class="brand">
+      <img src="https://dlaja.xyverse.my.id/icon-192.png" alt="">
+      <div>
+        <h1>DownloadAja Admin</h1>
+      </div>
+    </div>
+    <p class="sub">Masuk untuk remote config &amp; ringkasan. Built in XyVerse.</p>
+    <label for="user">Username</label>
+    <input id="user" name="username" autocomplete="username" required>
+    <label for="pass">Password</label>
+    <input id="pass" name="password" type="password" autocomplete="current-password" required>
+    <div class="cf">
+      <div class="cf-turnstile" data-sitekey="0x4AAAAAAFD_XYBwsyLUiWkO" data-theme="dark"></div>
+    </div>
+    <button type="submit" id="go">Masuk</button>
+    <div class="err" id="err"></div>
+    <p class="foot">Akses terbatas · noindex</p>
+  </form>
+  <script>
+    const GATE = (location.pathname.match(/\/g\/([^/]+)/) || [])[1] || '';
+    const form = document.getElementById('form');
+    const err = document.getElementById('err');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.textContent = '';
+      const btn = document.getElementById('go');
+      btn.disabled = true;
+      try {
+        const token = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            username: document.getElementById('user').value.trim(),
+            password: document.getElementById('pass').value,
+            turnstile_token: token,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'gagal');
+        location.href = GATE ? `/g/${GATE}/app` : '/app.html';
+      } catch (ex) {
+        err.textContent = 'Login gagal: ' + (ex.message || ex);
+        if (window.turnstile) turnstile.reset();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

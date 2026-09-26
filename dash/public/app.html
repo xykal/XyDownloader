@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Dashboard — DownloadAja Admin</title>
+  <link rel="icon" href="https://dlaja.xyverse.my.id/logo.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0b0b10; --card: #14141c; --text: #f4f4f5; --muted: #a1a1aa;
+      --accent: #7c5cff; --border: #27272a; --ok: #34d399; --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.45 system-ui, sans-serif; color: var(--text); background: var(--bg); }
+    header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0;
+      background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); z-index: 5;
+    }
+    header .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    header img { width: 28px; height: 28px; border-radius: 7px; }
+    header button {
+      height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--text); cursor: pointer; font: inherit;
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 20px 16px 64px; display: grid; gap: 16px; }
+    .card {
+      border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 14px; background: var(--card);
+    }
+    h2 { margin: 0 0 6px; font-size: 1rem; }
+    .muted { color: var(--muted); font-size: .85rem; }
+    .grid { display: grid; gap: 10px; }
+    @media (min-width: 720px) { .grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+    label { display: grid; gap: 4px; font-size: .8rem; font-weight: 600; color: var(--muted); }
+    label span.hint { font-weight: 400; }
+    input[type=text], input[type=number], select, textarea {
+      height: 38px; border-radius: 9px; border: 1px solid var(--border);
+      background: #0c0c12; color: var(--text); padding: 0 10px; font: inherit; width: 100%;
+    }
+    textarea { height: auto; min-height: 72px; padding: 8px 10px; resize: vertical; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .row:last-child { border-bottom: 0; }
+    .row b { color: var(--text); font-size: .9rem; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .btn {
+      height: 38px; padding: 0 14px; border-radius: 9px; border: 0; font: inherit; font-weight: 700; cursor: pointer;
+      background: var(--accent); color: #fff;
+    }
+    .btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #1c1c24; font-size: .78rem; }
+    .pill.ok { color: var(--ok); }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #18181b; border: 1px solid var(--border);
+      padding: 10px 14px; border-radius: 10px; opacity: 0; pointer-events: none; transition: .2s;
+    }
+    .toast.show { opacity: 1; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img src="https://dlaja.xyverse.my.id/icon-192.png" alt="">
+      <span>DownloadAja Admin</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="pill" id="user-pill">…</span>
+      <button type="button" id="logout">Keluar</button>
+    </div>
+  </header>
+  <main>
+    <section class="card" id="overview">
+      <h2>Ringkasan</h2>
+      <p class="muted">Remote config aktif. Metrik unique user (beacon) menyusul.</p>
+      <div class="grid cols-2" id="ov-grid"></div>
+    </section>
+
+    <section class="card">
+      <h2>Remote config</h2>
+      <p class="muted">Mengatur web + app tanpa redeploy. Publik di <code>/api/public/config</code>.</p>
+      <div class="grid" style="margin-top:12px">
+        <div class="row">
+          <div><b>Maintenance mode</b><div class="muted">Tampilkan pesan pemeliharaan</div></div>
+          <input type="checkbox" id="maintenance_mode">
+        </div>
+        <label>Pesan maintenance <textarea id="maintenance_message" rows="2"></textarea></label>
+        <div class="grid cols-2">
+          <label>YouTube di web
+            <select id="youtube_web_policy">
+              <option value="warn">Peringatkan → Android</option>
+              <option value="hide">Sembunyikan opsi</option>
+              <option value="allow">Izinkan (mungkin gagal)</option>
+            </select>
+          </label>
+          <label>Min versi Android (force update)
+            <input type="text" id="min_android_version" placeholder="1.3.1">
+          </label>
+        </div>
+        <div class="grid cols-2">
+          <label>Default kualitas video
+            <select id="default_video_tier">
+              <option value="hemat">Hemat</option>
+              <option value="normal">Normal</option>
+              <option value="tinggi">Tinggi</option>
+              <option value="maksimal">Maksimal</option>
+              <option value="auto">Auto</option>
+            </select>
+          </label>
+          <label>Default MP3 kbps
+            <select id="default_audio_kbps">
+              <option value="128">128</option>
+              <option value="192">192</option>
+              <option value="320">320</option>
+              <option value="0">Asli</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <div><b>Default autoplay</b><div class="muted">Saran default untuk klien baru</div></div>
+          <input type="checkbox" id="default_autoplay">
+        </div>
+        <label>Filename template
+          <select id="default_filename_template">
+            <option value="brand-title-id">DownloadAja-judul-id</option>
+            <option value="brand-id">DownloadAja-id</option>
+            <option value="title-only">Judul saja</option>
+          </select>
+        </label>
+        <label>URL APK rekomendasi <input type="text" id="recommend_apk_url" placeholder="https://github.com/..."></label>
+        <label>Platform dinonaktifkan (comma-separated id)
+          <input type="text" id="disabled_platforms" placeholder="youtube, bilibili">
+        </label>
+        <div class="actions">
+          <button type="button" class="btn" id="save">Simpan config</button>
+          <button type="button" class="btn secondary" id="reload">Muat ulang</button>
+          <a class="btn secondary" style="display:inline-flex;align-items:center;text-decoration:none" href="https://dlaja.xyverse.my.id/" target="_blank" rel="noopener">Buka produk</a>
+        </div>
+        <p class="muted" id="cfg-meta"></p>
+      </div>
+    </section>
+  </main>
+  <div class="toast" id="toast"></div>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const toast = (m) => {
+      const t = $('#toast'); t.textContent = m; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2400);
+    };
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', ...(opts.headers || {}) },
+        ...opts,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        const g = (location.pathname.match(/\/g\/([^/]+)/) || [])[1];
+        location.href = g ? `/g/${g}/login` : '/login.html';
+        throw new Error('unauthorized');
+      }
+      if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+      return data;
+    }
+
+    function fillConfig(c) {
+      $('#maintenance_mode').checked = !!c.maintenance_mode;
+      $('#maintenance_message').value = c.maintenance_message || '';
+      $('#youtube_web_policy').value = c.youtube_web_policy || 'warn';
+      $('#min_android_version').value = c.min_android_version || '';
+      $('#default_video_tier').value = c.default_video_tier || 'normal';
+      $('#default_audio_kbps').value = String(c.default_audio_kbps ?? 192);
+      $('#default_autoplay').checked = c.default_autoplay !== false;
+      $('#default_filename_template').value = c.default_filename_template || 'brand-title-id';
+      $('#recommend_apk_url').value = c.recommend_apk_url || '';
+      $('#disabled_platforms').value = (c.disabled_platforms || []).join(', ');
+      $('#cfg-meta').textContent = c.updated_at
+        ? `Terakhir diubah ${c.updated_at} oleh ${c.updated_by || '—'}`
+        : 'Belum pernah disimpan';
+    }
+
+    function readConfig() {
+      const disabled = $('#disabled_platforms').value.split(',').map((s) => s.trim()).filter(Boolean);
+      return {
+        maintenance_mode: $('#maintenance_mode').checked,
+        maintenance_message: $('#maintenance_message').value,
+        youtube_web_policy: $('#youtube_web_policy').value,
+        min_android_version: $('#min_android_version').value.trim(),
+        default_video_tier: $('#default_video_tier').value,
+        default_audio_kbps: parseInt($('#default_audio_kbps').value, 10) || 0,
+        default_autoplay: $('#default_autoplay').checked,
+        default_filename_template: $('#default_filename_template').value,
+        recommend_apk_url: $('#recommend_apk_url').value.trim(),
+        disabled_platforms: disabled,
+      };
+    }
+
+    async function load() {
+      const me = await api('/api/me');
+      $('#user-pill').textContent = me.user;
+      const ov = await api('/api/overview');
+      const o = ov.overview || {};
+      $('#ov-grid').innerHTML = [
+        ['Produk', `<a href="${o.product}" target="_blank" rel="noopener">${o.product}</a>`],
+        ['Maintenance', o.maintenance_mode ? 'ON' : 'OFF'],
+        ['YouTube web', o.youtube_web_policy],
+        ['Default video', o.default_video_tier],
+        ['Config update', o.updated_at || '—'],
+        ['API health', `<a href="${o.api_health}" target="_blank" rel="noopener">/api/health</a>`],
+      ].map(([k, v]) => `<div class="pill"><span class="muted">${k}</span>&nbsp; ${v}</div>`).join('');
+      const cfg = await api('/api/config');
+      fillConfig(cfg.config || {});
+    }
+
+    $('#save').onclick = async () => {
+      try {
+        const cfg = await api('/api/config', { method: 'PUT', body: JSON.stringify(readConfig()) });
+        fillConfig(cfg.config);
+        toast('Config disimpan');
+      } catch (e) { toast('Gagal: ' + e.message); }
+    };
+    $('#reload').onclick = () => load().then(() => toast('Dimuat ulang')).catch((e) => toast(e.message));
+    $('#logout').onclick = async () => {
+      await api('/api/logout', { method: 'POST', body: '{}' });
+      const g = (location.pathname.match(/\/g\/([^/]+)/) || [])[1];
+      location.href = g ? `/g/${g}/login` : '/login.html';
+    };
+    load().catch((e) => toast(e.message));
+  </script>
+</body>
+</html>

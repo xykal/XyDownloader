@@ -1,0 +1,21 @@
+# DownloadAja Admin Dashboard — Cloudflare Worker
+# Domain: dash.dlaja.xyverse.my.id
+name = "dlaja-dash"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+preview_urls = false
+
+[[kv_namespaces]]
+binding = "CONFIG"
+id = "c788bea227e74b90b32289d67fad4655"
+
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/login", "/g/*"]
+
+[observability]
+enabled = true

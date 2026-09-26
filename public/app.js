@@ -1675,7 +1675,9 @@ loadPlatforms().then(() => {
 });
 
 // Link APK terbaru langsung dari GitHub Releases
-fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest')
+fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest', {
+  headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'DownloadAja-Web' },
+})
   .then((r) => (r.ok ? r.json() : null))
   .then((rel) => {
     if (!rel || !rel.assets) return;
@@ -1914,4 +1916,27 @@ function whatsNewPopup() {
 $('#btn-settings')?.addEventListener('click', () => openSettings());
 $('#open-updates')?.addEventListener('click', (e) => { e.preventDefault(); openUpdates(); });
 $('#open-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLicenses(); });
+
+// Remote config (admin dash) — non-blocking
+fetch('https://dlaja-dash.akuntiktok76y.workers.dev/api/public/config')
+  .then((r) => r.ok ? r.json() : null)
+  .then((cfg) => {
+    if (!cfg) return;
+    window.__dlajaRemote = cfg;
+    if (cfg.maintenance_mode) {
+      toast(cfg.maintenance_message || 'Sedang maintenance. Coba lagi nanti.', 6000);
+    }
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) {
+        const patch = {};
+        if (cfg.default_video_tier) patch.defaultVideoTier = cfg.default_video_tier;
+        if (cfg.default_audio_kbps != null) patch.defaultAudioKbps = cfg.default_audio_kbps;
+        if (typeof cfg.default_autoplay === 'boolean') patch.autoplayVideo = cfg.default_autoplay;
+        if (Object.keys(patch).length) settings = saveSettings(patch);
+      }
+    } catch { /* */ }
+  })
+  .catch(() => {});
+
 if (!shared) setTimeout(whatsNewPopup, 900);
