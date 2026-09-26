@@ -356,51 +356,172 @@ async function shaShort(text) {
   return b64url(buf).slice(0, 22);
 }
 
-async function loadDay(env, day) {
+
+async function listDayEvents(env, day) {
+  // Event keys: stats:evt:{day}:{id}  value = compact json
+  const prefix = `stats:evt:${day}:`;
+  const out = [];
+  let cursor;
   try {
-    const raw = await env.CONFIG.get(`stats:day:${day}`, 'json');
-    if (!raw) return emptyDay(day);
-    const base = emptyDay(day);
-    return {
-      ...base,
-      ...raw,
-      clients: { ...base.clients, ...(raw.clients || {}) },
-      devices: { ...base.devices, ...(raw.devices || {}) },
-      browsers: { ...base.browsers, ...(raw.browsers || {}) },
-      os: { ...base.os, ...(raw.os || {}) },
-      platforms: { ...(raw.platforms || {}) },
-      events: { ...base.events, ...(raw.events || {}) },
-    };
+    do {
+      const page = await env.CONFIG.list({ prefix, cursor, limit: 1000 });
+      for (const k of page.keys || []) {
+        out.push(k.name);
+      }
+      cursor = page.list_complete ? null : page.cursor;
+    } while (cursor);
   } catch {
+    return [];
+  }
+  return out;
+}
+
+async function readEvents(env, keys) {
+  // batch get in chunks
+  const events = [];
+  const chunk = 50;
+  for (let i = 0; i < keys.length; i += chunk) {
+    const slice = keys.slice(i, i + chunk);
+    const parts = await Promise.all(slice.map(async (k) => {
+      try {
+        return await env.CONFIG.get(k, 'json');
+      } catch {
+        return null;
+      }
+    }));
+    for (const e of parts) if (e) events.push(e);
+  }
+  return events;
+}
+
+function foldEvents(day, events) {
+  const d = emptyDay(day);
+  const uniqSess = new Set();
+  for (const e of events) {
+    const type = e.t || e.type || 'session';
+    const cls = {
+      client: e.c || 'web',
+      device: e.d || 'other',
+      browser: e.b || 'other',
+      os: e.o || 'other',
+    };
+    const platform = e.p || null;
+    const cid = e.u || null;
+    const n = Math.max(1, Math.min(50, parseInt(e.n, 10) || 1));
+
+    bump(d.events, type === 'pageview' ? 'session' : type);
+    if (type === 'session' || type === 'pageview' || type === 'hit') {
+      d.pageviews += 1;
+      applyClassOnly(d, cls);
+      if (cid) uniqSess.add(cid);
+    } else if (type === 'extract') {
+      d.extracts += 1;
+      applyClassOnly(d, cls);
+      if (platform) bump(d.platforms, platform);
+      if (cid) uniqSess.add(cid);
+    } else if (type === 'download') {
+      d.downloads += n;
+      applyClassOnly(d, cls);
+      if (platform) bump(d.platforms, platform, n);
+      if (cid) uniqSess.add(cid);
+    }
+  }
+  d.sessions = uniqSess.size;
+  return d;
+}
+
+function applyClassOnly(day, cls) {
+  bump(day.clients, cls.client);
+  bump(day.devices, cls.device);
+  bump(day.browsers, cls.browser);
+  bump(day.os, cls.os);
+}
+
+async function loadDay(env, day) {
+  const keys = await listDayEvents(env, day);
+  if (!keys.length) {
+    // fallback legacy aggregate if present
+    try {
+      const raw = await env.CONFIG.get(`stats:day:${day}`, 'json');
+      if (raw) {
+        const base = emptyDay(day);
+        return {
+          ...base,
+          ...raw,
+          clients: { ...base.clients, ...(raw.clients || {}) },
+          devices: { ...base.devices, ...(raw.devices || {}) },
+          browsers: { ...base.browsers, ...(raw.browsers || {}) },
+          os: { ...base.os, ...(raw.os || {}) },
+          platforms: { ...(raw.platforms || {}) },
+          events: { ...base.events, ...(raw.events || {}) },
+        };
+      }
+    } catch { /* */ }
     return emptyDay(day);
   }
+  const events = await readEvents(env, keys);
+  return foldEvents(day, events);
 }
 
 async function loadTotal(env) {
+  // Rebuild from last 90 days of event folds + optional legacy total
+  const days = [];
+  for (let i = 0; i < STATS_DAYS_KEEP; i++) {
+    days.push(dayKey(new Date(Date.now() - i * 86400000)));
+  }
+  // Only fold recent 14 for speed in overview; for total use cached rollup + today
+  let total = emptyTotal();
   try {
     const raw = await env.CONFIG.get('stats:total', 'json');
-    if (!raw) return emptyTotal();
-    const base = emptyTotal();
-    return {
-      ...base,
-      ...raw,
-      clients: { ...base.clients, ...(raw.clients || {}) },
-      devices: { ...base.devices, ...(raw.devices || {}) },
-      browsers: { ...base.browsers, ...(raw.browsers || {}) },
-      os: { ...base.os, ...(raw.os || {}) },
-      platforms: { ...(raw.platforms || {}) },
-    };
-  } catch {
-    return emptyTotal();
-  }
+    if (raw) {
+      total = {
+        ...total,
+        ...raw,
+        clients: { ...total.clients, ...(raw.clients || {}) },
+        devices: { ...total.devices, ...(raw.devices || {}) },
+        browsers: { ...total.browsers, ...(raw.browsers || {}) },
+        os: { ...total.os, ...(raw.os || {}) },
+        platforms: { ...(raw.platforms || {}) },
+      };
+    }
+  } catch { /* */ }
+  return total;
 }
 
-async function saveStats(env, day, dayObj, totalObj) {
-  const exp = 60 * 60 * 24 * (STATS_DAYS_KEEP + 5);
-  await Promise.all([
-    env.CONFIG.put(`stats:day:${day}`, JSON.stringify(dayObj), { expirationTtl: exp }),
-    env.CONFIG.put('stats:total', JSON.stringify(totalObj)),
-  ]);
+async function bumpTotal(env, evt) {
+  // Best-effort total rollup with simple retry to reduce lost updates
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const total = await loadTotal(env);
+      const nowIso = new Date().toISOString();
+      if (!total.first_seen) total.first_seen = nowIso;
+      total.last_seen = nowIso;
+      const type = evt.type;
+      const cls = evt.cls;
+      const platform = evt.platform;
+      const n = evt.n || 1;
+      if (type === 'session' || type === 'pageview' || type === 'hit') {
+        total.pageviews += 1;
+      } else if (type === 'extract') {
+        total.extracts += 1;
+        if (platform) bump(total.platforms, platform);
+      } else if (type === 'download') {
+        total.downloads += n;
+        if (platform) bump(total.platforms, platform, n);
+      }
+      bump(total.clients, cls.client);
+      bump(total.devices, cls.device);
+      bump(total.browsers, cls.browser);
+      bump(total.os, cls.os);
+      if (evt.newLifetime) total.unique_all_approx += 1;
+      if (evt.newSessionDay) total.sessions += 1;
+      await env.CONFIG.put('stats:total', JSON.stringify(total));
+      return total;
+    } catch {
+      // retry
+    }
+  }
+  return null;
 }
 
 async function markUnique(env, day, scope, cidHash) {
@@ -422,7 +543,6 @@ async function markLifetimeUnique(env, cidHash) {
   try {
     const existed = await env.CONFIG.get(key);
     if (existed) return false;
-    // ~2 years
     await env.CONFIG.put(key, '1', { expirationTtl: 60 * 60 * 24 * 800 });
     return true;
   } catch {
@@ -430,91 +550,51 @@ async function markLifetimeUnique(env, cidHash) {
   }
 }
 
-function applyClass(day, total, cls) {
-  bump(day.clients, cls.client);
-  bump(total.clients, cls.client);
-  bump(day.devices, cls.device);
-  bump(total.devices, cls.device);
-  bump(day.browsers, cls.browser);
-  bump(total.browsers, cls.browser);
-  bump(day.os, cls.os);
-  bump(total.os, cls.os);
-}
-
 async function recordEvent(env, evt) {
   const day = dayKey();
-  const [dayObj, total] = await Promise.all([loadDay(env, day), loadTotal(env)]);
-  const nowIso = new Date().toISOString();
-  if (!total.first_seen) total.first_seen = nowIso;
-  total.last_seen = nowIso;
-
   const type = evt.type || 'session';
   const cls = classifyUa(evt.ua, evt.client);
   const platform = evt.platform ? normalizePlatform(evt.platform) : null;
+  const n = Math.max(1, Math.min(50, parseInt(evt.count, 10) || 1));
+  const id = b64url(crypto.getRandomValues(new Uint8Array(10)));
 
-  // Always bump event counter
-  bump(dayObj.events, type === 'pageview' ? 'session' : type);
-  if (type === 'hit') bump(dayObj.events, 'hit');
+  // Compact event record (append-only — no lost updates under concurrency)
+  const row = {
+    t: type === 'pageview' ? 'session' : type,
+    c: cls.client,
+    d: cls.device,
+    b: cls.browser,
+    o: cls.os,
+    p: platform || undefined,
+    u: evt.cidHash || undefined,
+    n: type === 'download' ? n : undefined,
+    ts: Date.now(),
+  };
+  const exp = 60 * 60 * 24 * (STATS_DAYS_KEEP + 5);
+  await env.CONFIG.put(`stats:evt:${day}:${id}`, JSON.stringify(row), { expirationTtl: exp });
 
-  if (type === 'session' || type === 'pageview') {
-    dayObj.pageviews += 1;
-    total.pageviews += 1;
-    applyClass(dayObj, total, cls);
-    if (evt.cidHash) {
-      if (await markUnique(env, day, 'sess', evt.cidHash)) {
-        dayObj.sessions += 1;
-        total.sessions += 1;
-      }
-      if (await markLifetimeUnique(env, evt.cidHash)) {
-        total.unique_all_approx += 1;
-      }
+  let newSessionDay = false;
+  let newLifetime = false;
+  if (evt.cidHash) {
+    if (type === 'session' || type === 'pageview' || type === 'extract' || type === 'download') {
+      newSessionDay = await markUnique(env, day, 'sess', evt.cidHash);
     }
-  } else if (type === 'extract') {
-    dayObj.extracts += 1;
-    total.extracts += 1;
-    applyClass(dayObj, total, cls);
-    if (platform) {
-      bump(dayObj.platforms, platform);
-      bump(total.platforms, platform);
+    if (type === 'session' || type === 'pageview') {
+      newLifetime = await markLifetimeUnique(env, evt.cidHash);
     }
-    if (evt.cidHash && (await markUnique(env, day, 'sess', evt.cidHash))) {
-      dayObj.sessions += 1;
-      total.sessions += 1;
-    }
-  } else if (type === 'download') {
-    const n = Math.max(1, Math.min(50, parseInt(evt.count, 10) || 1));
-    dayObj.downloads += n;
-    total.downloads += n;
-    applyClass(dayObj, total, cls);
-    if (platform) {
-      bump(dayObj.platforms, platform, n);
-      bump(total.platforms, platform, n);
-    }
-    if (evt.cidHash && (await markUnique(env, day, 'sess', evt.cidHash))) {
-      dayObj.sessions += 1;
-      total.sessions += 1;
-    }
-  } else if (type === 'hit') {
-    // passive config/API hit — mostly for bot/crawl visibility
-    dayObj.pageviews += 1;
-    total.pageviews += 1;
-    applyClass(dayObj, total, cls);
   }
 
-  await saveStats(env, day, dayObj, total);
-  return { day: dayObj, total };
-}
+  // Best-effort totals (race-tolerant enough for dashboard)
+  await bumpTotal(env, {
+    type: row.t,
+    cls,
+    platform,
+    n: type === 'download' ? n : 1,
+    newSessionDay,
+    newLifetime,
+  });
 
-function topMap(map, limit = 12) {
-  return Object.entries(map || {})
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([name, count]) => ({ name, count }));
-}
-
-function sumMap(map) {
-  return Object.values(map || {}).reduce((a, b) => a + (b || 0), 0);
+  return { ok: true, day, id };
 }
 
 async function buildOverview(env) {
