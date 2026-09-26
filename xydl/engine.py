@@ -563,7 +563,6 @@ def _preview_payload(ctx, info, formats, best_audio, base_name):
 
 def _gallery_item(ctx, e, idx, base_name, total):
     fmts = [f for f in (e.get('formats') or []) if f.get('url')]
-    num = f' ({idx})' if total > 1 else ''
     thumb_url = e.get('thumbnail') or next((t.get('url') for t in reversed(e.get('thumbnails') or [])
                                             if t.get('url')), None)
     item = {'index': idx, 'id': e.get('id'), 'title': e.get('title'), 'thumb': None,
