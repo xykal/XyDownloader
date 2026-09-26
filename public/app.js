@@ -1917,26 +1917,35 @@ $('#btn-settings')?.addEventListener('click', () => openSettings());
 $('#open-updates')?.addEventListener('click', (e) => { e.preventDefault(); openUpdates(); });
 $('#open-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLicenses(); });
 
+
 // Remote config (admin dash) — non-blocking
-fetch('https://dlaja-dash.akuntiktok76y.workers.dev/api/public/config')
-  .then((r) => r.ok ? r.json() : null)
-  .then((cfg) => {
-    if (!cfg) return;
-    window.__dlajaRemote = cfg;
-    if (cfg.maintenance_mode) {
-      toast(cfg.maintenance_message || 'Sedang maintenance. Coba lagi nanti.', 6000);
-    }
+(async () => {
+  const endpoints = [
+    'https://dash.dlaja.xyverse.my.id/api/public/config',
+    'https://dlaja-dash.akuntiktok76y.workers.dev/api/public/config',
+  ];
+  let cfg = null;
+  for (const u of endpoints) {
     try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      if (!raw) {
-        const patch = {};
-        if (cfg.default_video_tier) patch.defaultVideoTier = cfg.default_video_tier;
-        if (cfg.default_audio_kbps != null) patch.defaultAudioKbps = cfg.default_audio_kbps;
-        if (typeof cfg.default_autoplay === 'boolean') patch.autoplayVideo = cfg.default_autoplay;
-        if (Object.keys(patch).length) settings = saveSettings(patch);
-      }
-    } catch { /* */ }
-  })
-  .catch(() => {});
+      const r = await fetch(u);
+      if (r.ok) { cfg = await r.json(); break; }
+    } catch { /* try next */ }
+  }
+  if (!cfg) return;
+  window.__dlajaRemote = cfg;
+  if (cfg.maintenance_mode) {
+    toast(cfg.maintenance_message || 'Sedang maintenance. Coba lagi nanti.', 6000);
+  }
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) {
+      const patch = {};
+      if (cfg.default_video_tier) patch.defaultVideoTier = cfg.default_video_tier;
+      if (cfg.default_audio_kbps != null) patch.defaultAudioKbps = cfg.default_audio_kbps;
+      if (typeof cfg.default_autoplay === 'boolean') patch.autoplayVideo = cfg.default_autoplay;
+      if (Object.keys(patch).length) settings = saveSettings(patch);
+    }
+  } catch { /* */ }
+})();
 
 if (!shared) setTimeout(whatsNewPopup, 900);
