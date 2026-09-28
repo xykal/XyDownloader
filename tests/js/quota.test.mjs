@@ -133,3 +133,70 @@ test('secondsUntilDayEnd: tengah malam UTC', () => {
   assert.equal(secondsUntilDayEnd(Date.parse('2026-09-28T23:59:59Z')), 1);
   assert.equal(FLUSH_STEP, 5 * MB);
 });
+
+// ---- kuota hybrid: per-cid (identitas utama) + plafon per-IP (jaring CGNAT)
+
+import {
+  clientCid,
+  checkAll,
+  quotaFor,
+  DEFAULT_IP_QUOTA_MB,
+} from '../../worker/src/quota.js';
+
+function fakeRequest(headers) {
+  return { headers: { get: (n) => headers[n.toLowerCase()] || null } };
+}
+
+test('hybrid: cid yang habis memblokir; plafon IP tetap terpisah', async () => {
+  const kv = fakeKv();
+  const t0 = Date.parse('2026-09-28T10:00:00Z');
+  const q = {
+    cid: createQuota({ QUOTA: kv, XYDL_QUOTA_MB: 500 }, { now: () => t0 }),
+    ip: createQuota({ QUOTA: kv, XYDL_QUOTA_IP_MB: 2000 }, { now: () => t0 }),
+  };
+  await q.cid.add('user-a', 600 * MB);   // user-a meledak
+  await q.cid.add('user-b', 100 * MB);   // user-b santai
+  const a = await checkAll(q, 'ip-1', 'user-a');
+  assert.equal(a.ok, false);
+  assert.equal(a.blocked, 'cid');
+  const b = await checkAll(q, 'ip-1', 'user-b');
+  assert.equal(b.ok, true, 'user-b di IP yang sama nggak kena getah user-a');
+  const noCid = await checkAll(q, 'ip-1', '');
+  assert.equal(noCid.ok, true, 'tanpa cid cuma dicek plafon IP');
+
+  await q.ip.add('ip-1', 2100 * MB);
+  const ipBlock = await checkAll(q, 'ip-1', 'user-b');
+  assert.equal(ipBlock.ok, false);
+  assert.equal(ipBlock.blocked, 'ip', 'plafon IP nahan siapa pun, cid atau bukan');
+});
+
+test('capMb override + kill switch per ember', async () => {
+  const kv = fakeKv();
+  const q = createQuota({ QUOTA: kv }, { capMb: 300, now: () => Date.parse('2026-09-28T10:00:00Z') });
+  assert.equal((await q.check('x')).cap, 300 * MB);
+  await q.add('x', 350 * MB);
+  assert.equal((await q.check('x')).ok, false);
+
+  const off = createQuota({ QUOTA: kv, XYDL_QUOTA_MB: 0 }, { capMb: 0 });
+  assert.equal(off.unlimited, true);
+});
+
+test('clientCid: format dijaga, sampah dibuang', () => {
+  assert.equal(clientCid(fakeRequest({ 'x-xy-cid': 'w_abc123_9x8y7z' })).length > 0, true);
+  assert.equal(clientCid(fakeRequest({ 'x-xy-cid': 'ab' })), '');            // kependekan
+  assert.equal(clientCid(fakeRequest({ 'x-xy-cid': 'x'.repeat(60) })), '');  // kepanjangan
+  assert.equal(clientCid(fakeRequest({ 'x-xy-cid': 'a b;drop' })), '');     // karakter aneh
+  assert.equal(clientCid(fakeRequest({})), '');
+});
+
+test('quotaFor: dua ember dari satu env, kill switch env berlaku per ember', async () => {
+  const kv = fakeKv();
+  const env = { QUOTA: kv, XYDL_QUOTA_MB: 0, XYDL_QUOTA_IP_MB: 2000 };
+  const q = quotaFor(env);
+  assert.strictEqual(quotaFor(env), q, 'satu instance per isolate');
+  await q.cid.add('u1', 10_000 * MB);
+  assert.equal((await q.cid.check('u1')).ok, true, 'ember cid mati (0) = tanpa batas');
+  await q.ip.add('ip1', 2100 * MB);
+  assert.equal((await q.ip.check('ip1')).ok, false, 'ember IP tetap nahan');
+  assert.equal(DEFAULT_IP_QUOTA_MB, 2000);
+});
