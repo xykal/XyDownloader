@@ -39,7 +39,7 @@ from yt_dlp.networking import Request as YRequest  # noqa: E402
 from . import signer  # noqa: E402
 from .platforms import detect_platform  # noqa: E402
 
-VERSION = '1.3.3'
+VERSION = '1.3.4'
 URL_RE = re.compile(r'https?://[^\s<>"\'\u3000-\u303f\uff00-\uffef]+', re.I)
 IP_BOUND_HOSTS = ('googlevideo.com',)  # URL format YouTube terikat IP server yang meng-extract
 MAX_ENTRIES = 12

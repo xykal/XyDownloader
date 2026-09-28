@@ -8,13 +8,13 @@ export const PNG_1X1 = Buffer.from(
 );
 
 export const REL = {
-  tag_name: 'v1.3.3',
-  html_url: 'https://github.com/xykal/XyDownloader/releases/tag/v1.3.3',
+  tag_name: 'v1.3.4',
+  html_url: 'https://github.com/xykal/XyDownloader/releases/tag/v1.3.4',
   assets: [{
-    name: 'DownloadAja-1.3.3-arm64-v8a.apk',
-    size: 19551469,
+    name: 'DownloadAja-1.3.4-arm64-v8a.apk',
+    size: 19600000,
     browser_download_url:
-      'https://github.com/xykal/XyDownloader/releases/download/v1.3.3/DownloadAja-1.3.3-arm64-v8a.apk',
+      'https://github.com/xykal/XyDownloader/releases/download/v1.3.4/DownloadAja-1.3.4-arm64-v8a.apk',
   }],
 };
 
@@ -92,7 +92,7 @@ export async function mockFileCdn(page, rekam) {
 export function seedTidakPopup(page) {
   // Popup "Yang baru" cukup diuji tersendiri; di skenario lain jangan ganggu.
   return page.addInitScript(() => {
-    try { localStorage.setItem('xy-seen-version', '1.3.3'); } catch { /* mode privat */ }
+    try { localStorage.setItem('xy-seen-version', '1.3.4'); } catch { /* mode privat */ }
   });
 }
 

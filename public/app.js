@@ -1918,9 +1918,12 @@ fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest', {
   .catch(() => {});
 
 // ------------------------------------------------------------------ modal (pembaruan, lisensi) & popup "yang baru"
-const WEB_VERSION = '1.3.3';
+const WEB_VERSION = '1.3.4';
 const RELEASES = 'https://github.com/xykal/XyDownloader/releases';
 const CHANGES = [
+  ['Antrean unduhan di APK', 'Maksimal 2 unduhan berjalan bareng, urutan rapi, yang belum giliran benar-benar menunggu — batal saat antre langsung berhenti.'],
+  ['Izin notifikasi tidak mengganggu', 'APK tidak lagi meminta izin notifikasi saat pertama dibuka — diminta tepat setelah unduhan pertama selesai, sekali saja.'],
+  ['Kuota lebih adil', 'Batas harian kini per pengguna (500 MB), bukan per IP — pengguna jaringan seluler tidak lagi kebagian rame-rame satu tower.'],
   ['Riwayat unduhan', 'Daftar file yang baru kamu unduh, lengkap tombol "Unduh lagi". Tersimpan di perangkat ini saja.'],
   ['Unduh semua untuk playlist', 'Satu tombol untuk mengunduh semua entri playlist dengan antrean rapi — 2 file berjalan, bisa dibatalkan kapan saja.'],
   ['Kuota unduh 500 MB/hari', 'Batas wajar harian supaya layanan tetap bisa dipakai semua orang; lewat batas ada pemberitahuan yang jelas.'],
