@@ -11,6 +11,7 @@ on:
       - 'plugins/**'
       - 'public/**'
       - 'worker/**'
+      - 'dash/**'
       - 'vercel.json'
       - 'requirements.txt'
       - '.python-version'
@@ -43,6 +44,25 @@ jobs:
         run: npx -y wrangler@4 deploy
       - name: Smoke test
         run: curl -fsS https://xydl-proxy.akuntiktok76y.workers.dev/ | grep -q '"ok":true'
+
+  dash:
+    name: Cloudflare Worker (dash)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Deploy dash
+        working-directory: dash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx -y wrangler@4 deploy
+      - name: Smoke test dash
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://dash.dlaja.xyverse.my.id/api/stats/rebuild)
+          test "$code" = "401"   # route ada, terkunci tanpa sesi admin
 
   vercel:
     name: Vercel (web + API Python)
