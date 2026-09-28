@@ -10,6 +10,10 @@ const dec = new TextDecoder();
 const COOKIE = 'dlaja_admin_sess';
 const SESSION_TTL = 60 * 60 * 12; // 12h
 const STATS_DAYS_KEEP = 90;
+// Kunci 'lifetime unique' dulu umur 800 hari per client-id: ruang kuncinya dikontrol orang luar (cid
+// itu input klien), jadi KV bisa digembungkan seenak hati. 90 hari cukup buat angka
+// 'pengguna unik' di dashboard dan kuncinya kedaluwarsa sendiri.
+const LIFETIME_UNIQ_TTL_DAYS = 90;
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -609,66 +613,169 @@ async function loadDay(env, day) {
   return foldEvents(day, events);
 }
 
-async function loadTotal(env) {
-  // Rebuild from last 90 days of event folds + optional legacy total
-  const days = [];
-  for (let i = 0; i < STATS_DAYS_KEEP; i++) {
-    days.push(dayKey(new Date(Date.now() - i * 86400000)));
+
+/* ---------------- rollup total: akumulasi per isolate, bukan rebutan satu kunci ----
+   Dulu tiap event manggil bumpTotal(): baca stats:total, tambahin, tulis balik, retry 3x.
+   KV tidak punya atomic add dan konsistensinya eventual, jadi dua isolate yang nulis
+   barengan saling nimpa -> angka "all-time" bocor ke bawah dan makin lama makin
+   ngelenceng dari log event. Sekarang tiap isolate nyimpen rollupnya sendiri di
+   stats:tot:<hari>:<id-isolate> (satu penulis per kunci = tidak ada yang ke-nimpa),
+   ditulis sekaligus beberapa event, dan total dibaca dengan ngejumlahin shard.
+   stats:evt:* tetap satu-satunya sumber kebenaran; kalau ada ekor yang ikut mati bareng
+   isolate, /api/stats/rebuild nyusun ulang dari event. */
+
+const ISOLATE_ID = b64url(crypto.getRandomValues(new Uint8Array(6)));
+const TOTAL_FLUSH_EVENTS = 8;
+const TOTAL_FLUSH_MS = 10_000;
+let pendingTotal = null;
+
+function addMapNums(dst, src) {
+  for (const [k, v] of Object.entries(src || {})) dst[k] = (dst[k] || 0) + v;
+}
+
+/** Tambahin satu event ke struktur rollup. Murni, bisa dites tanpa KV. */
+function addTotalEvent(total, evt) {
+  const type = evt.type;
+  const n = Math.max(1, evt.n || 1);
+  if (type === 'session' || type === 'pageview' || type === 'hit') total.pageviews += 1;
+  else if (type === 'extract') { total.extracts += 1; if (evt.platform) bump(total.platforms, evt.platform); }
+  else if (type === 'download') { total.downloads += n; if (evt.platform) bump(total.platforms, evt.platform, n); }
+  const cls = evt.cls || {};
+  // nama bucket di total != nama field di hasil classifyUa (clients <- cls.client, dst)
+  for (const [field, key] of [['clients', 'client'], ['devices', 'device'], ['browsers', 'browser'], ['os', 'os']]) {
+    if (cls[key]) bump(total[field], cls[key]);
   }
-  // Only fold recent 14 for speed in overview; for total use cached rollup + today
-  let total = emptyTotal();
+  if (evt.newLifetime) total.unique_all_approx += 1;
+  if (evt.newSessionDay) total.sessions += 1;
+  const now = new Date().toISOString();
+  if (!total.first_seen) total.first_seen = now;
+  total.last_seen = now;
+  return total;
+}
+
+/** Gabung dua rollup (dipakai buat njumlahin shard). Murni. */
+function mergeTotals(a, b) {
+  const out = { ...emptyTotal(), ...(a || {}) };
+  out.clients = { ...(a && a.clients) || {} };
+  out.devices = { ...(a && a.devices) || {} };
+  out.browsers = { ...(a && a.browsers) || {} };
+  out.os = { ...(a && a.os) || {} };
+  out.platforms = { ...(a && a.platforms) || {} };
+  const src = b || {};
+  for (const k of ['pageviews', 'sessions', 'extracts', 'downloads', 'unique_all_approx']) {
+    out[k] = (out[k] || 0) + (src[k] || 0);
+  }
+  for (const field of ['clients', 'devices', 'browsers', 'os', 'platforms']) addMapNums(out[field], src[field]);
+  if (src.first_seen && (!out.first_seen || src.first_seen < out.first_seen)) out.first_seen = src.first_seen;
+  if (src.last_seen && (!out.last_seen || src.last_seen > out.last_seen)) out.last_seen = src.last_seen;
+  return out;
+}
+
+async function accumulateTotal(env, evt) {
+  const now = Date.now();
+  const windowHidup = pendingTotal && pendingTotal.day === dayKey()
+    && pendingTotal.events < TOTAL_FLUSH_EVENTS && now - pendingTotal.started < TOTAL_FLUSH_MS;
+  if (pendingTotal && !windowHidup) {
+    await flushTotal(env, true);  // window lama (penuh / beda hari / kedaluwarsa) ditulis dulu,
+                                  // jangan dibuang: dulu inikehilangan ekor angka tiap ganti window
+  }
+  if (!pendingTotal) pendingTotal = { day: dayKey(), started: Date.now(), events: 0, total: emptyTotal() };
+  addTotalEvent(pendingTotal.total, evt);
+  pendingTotal.events += 1;
+  if (pendingTotal.events >= TOTAL_FLUSH_EVENTS || Date.now() - pendingTotal.started >= TOTAL_FLUSH_MS) {
+    await flushTotal(env, true);
+  }
+}
+
+/** Tulis (dan kosongin) window yang lagi jalan. force=true dipakai pas admin baca. */
+async function flushTotal(env, force = false) {
+  const win = pendingTotal;
+  if (!win) return null;
+  if (!force && win.events < TOTAL_FLUSH_EVENTS && Date.now() - win.started < TOTAL_FLUSH_MS) return null;
+  pendingTotal = null;
+  const key = `stats:tot:${win.day}:${ISOLATE_ID}`;
+  let prev = null;
+  try { prev = await env.CONFIG.get(key, 'json'); } catch { prev = null; }
+  const merged = mergeTotals(prev, win.total);
+  merged.shard_events = (prev && prev.shard_events || 0) + win.events;
   try {
-    const raw = await env.CONFIG.get('stats:total', 'json');
-    if (raw) {
-      total = {
-        ...total,
-        ...raw,
-        clients: { ...total.clients, ...(raw.clients || {}) },
-        devices: { ...total.devices, ...(raw.devices || {}) },
-        browsers: { ...total.browsers, ...(raw.browsers || {}) },
-        os: { ...total.os, ...(raw.os || {}) },
-        platforms: { ...(raw.platforms || {}) },
-      };
+    await env.CONFIG.put(key, JSON.stringify(merged), { expirationTtl: 60 * 60 * 24 * (STATS_DAYS_KEEP + 30) });
+  } catch { pendingTotal = win; }  // tulis gagal -> jangan buang angkanya, tunggu window berikutnya
+  return merged;
+}
+
+const TOTAL_SHARD_LIMIT = 500;
+
+async function listTotalShards(env) {
+  const keys = [];
+  let cursor;
+  try {
+    do {
+      const page = await env.CONFIG.list({ prefix: 'stats:tot:', cursor, limit: 1000 });
+      for (const k of page.keys || []) keys.push(k.name);
+      cursor = page.list_complete ? null : page.cursor;
+    } while (cursor && keys.length < TOTAL_SHARD_LIMIT);
+  } catch { return []; }
+  return keys.slice(0, TOTAL_SHARD_LIMIT);
+}
+
+async function sumTotalShards(env) {
+  const keys = await listTotalShards(env);
+  let out = emptyTotal();
+  if (keys.length) {
+    for (let i = 0; i < keys.length; i += 50) {
+      const chunk = keys.slice(i, i + 50);
+      const parts = await Promise.all(chunk.map(async (k) => {
+        try { return await env.CONFIG.get(k, 'json'); } catch { return null; }
+      }));
+      for (const p of parts) if (p && typeof p === 'object') out = mergeTotals(out, p);
     }
+  }
+  return out;
+}
+
+async function loadTotal(env) {
+  // Sengaja TIDAK di-cache per isolate: UI admin auto-refresh tiap 60 detik, jadi cache
+  // 45 detik tidak pernah ketemu request berikutnya (cuma bikin angka tab kedua basi).
+  await flushTotal(env, true);            // ekor window isolate ini ikut kehitung
+  let total = await sumTotalShards(env);
+  try {
+    const legacy = await env.CONFIG.get('stats:total', 'json');  // data sebelum skema shard
+    // first_seen/last_seen dari rollup lama ikut dibawa: itu jangkar sejarah angka
+    // sebelum ada shard, kalau dibuang 'sejak' di API jadi meleset ke hari ini.
+    if (legacy && typeof legacy === 'object') total = mergeTotals(total, legacy);
   } catch { /* */ }
   return total;
 }
 
-async function bumpTotal(env, evt) {
-  // Best-effort total rollup with simple retry to reduce lost updates
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const total = await loadTotal(env);
-      const nowIso = new Date().toISOString();
-      if (!total.first_seen) total.first_seen = nowIso;
-      total.last_seen = nowIso;
-      const type = evt.type;
-      const cls = evt.cls;
-      const platform = evt.platform;
-      const n = evt.n || 1;
-      if (type === 'session' || type === 'pageview' || type === 'hit') {
-        total.pageviews += 1;
-      } else if (type === 'extract') {
-        total.extracts += 1;
-        if (platform) bump(total.platforms, platform);
-      } else if (type === 'download') {
-        total.downloads += n;
-        if (platform) bump(total.platforms, platform, n);
-      }
-      bump(total.clients, cls.client);
-      bump(total.devices, cls.device);
-      bump(total.browsers, cls.browser);
-      bump(total.os, cls.os);
-      if (evt.newLifetime) total.unique_all_approx += 1;
-      if (evt.newSessionDay) total.sessions += 1;
-      await env.CONFIG.put('stats:total', JSON.stringify(total));
-      return total;
-    } catch {
-      // retry
-    }
+/** Susun ulang rollup hari ini (atau N hari) dari log event. Penyelamat kalau angka
+ *  pernah bocor / isolate mati bawa window yang belum di-flush. */
+async function rebuildTotals(env, days = 1) {
+  const rebuilt = [];
+  for (let i = 0; i < Math.max(1, Math.min(Number(days) || 1, STATS_DAYS_KEEP)); i++) {
+    const day = dayKey(new Date(Date.now() - i * 86400000));
+    const keys = await listDayEvents(env, day);
+    const events = await readEvents(env, keys);
+    const total = emptyTotal();
+    const uniqSess = new Set();
+    events.forEach((e, i) => {
+      addTotalEvent(total, {
+        type: e.t || 'session',
+        n: e.n || 1,
+        platform: e.p || null,
+        cls: { client: e.c, device: e.d, browser: e.b, os: e.o },
+      });
+      if ((e.t || 'session') === 'session') uniqSess.add(e.u || `noname:${i}`);
+    });
+    total.sessions = uniqSess.size;
+    total.pageviews = Math.max(total.pageviews, uniqSess.size);
+    const key = `stats:tot:${day}:rebuild`;
+    await env.CONFIG.put(key, JSON.stringify(total), { expirationTtl: 60 * 60 * 24 * (STATS_DAYS_KEEP + 30) });
+    rebuilt.push({ day, events: keys.length, downloads: total.downloads, sessions: total.sessions });
   }
-  return null;
+  return rebuilt;
 }
+
 
 async function markUnique(env, day, scope, cidHash) {
   if (!cidHash) return false;
@@ -689,7 +796,7 @@ async function markLifetimeUnique(env, cidHash) {
   try {
     const existed = await env.CONFIG.get(key);
     if (existed) return false;
-    await env.CONFIG.put(key, '1', { expirationTtl: 60 * 60 * 24 * 800 });
+    await env.CONFIG.put(key, '1', { expirationTtl: 60 * 60 * 24 * LIFETIME_UNIQ_TTL_DAYS });
     return true;
   } catch {
     return false;
@@ -754,7 +861,7 @@ async function recordEvent(env, evt) {
     newLifetime = await markLifetimeUnique(env, evt.cidHash);
   }
 
-  await bumpTotal(env, {
+  await accumulateTotal(env, {
     type: row.t,
     cls,
     platform,
@@ -1262,6 +1369,18 @@ export default {
           }
           const cfg = await putConfig(env, { ...(await getConfig(env)), ...patch }, sess.u);
           return json({ ok: true, config: cfg });
+        }
+
+        if (url.pathname === '/api/stats/rebuild' && request.method === 'POST') {
+          // Nyusun ulang rollup dari log event (stats:evt:*). Dipakai kalau angka "all-time"
+          // pernah bocor, atau sesudah pindah skema shard.
+          let days = 1;
+          try {
+            const body = await request.json();
+            days = parseInt((body && body.days), 10) || 1;
+          } catch { /* tanpa body: 1 hari */ }
+          const rows = await rebuildTotals(env, days);
+          return json({ ok: true, rows, by: sess.u });
         }
 
         if ((url.pathname === '/api/overview' || url.pathname === '/api/stats') && request.method === 'GET') {
