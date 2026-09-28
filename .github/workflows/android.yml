@@ -165,7 +165,7 @@ jobs:
               print('notifikasi:', out.get('id') or out.get('errors'))
           except Exception as e:
               print('notifikasi gagal (rilis tetap jalan):', e)
-          PY"
+          PY
 
   smoke:
     name: Smoke test (emulator)
