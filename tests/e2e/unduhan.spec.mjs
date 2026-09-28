@@ -5,66 +5,9 @@
 // dari CI. Yang diuji di sini: kontrak UI + kontrak klien kuota (X-XY-Cid);
 // logika server sudah di-cover 83 pytest.
 import { test, expect } from '@playwright/test';
-
-const PNG_1X1 = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  'base64',
-);
-
-const REL = {
-  tag_name: 'v1.3.3',
-  html_url: 'https://github.com/xykal/XyDownloader/releases/tag/v1.3.3',
-  assets: [{
-    name: 'DownloadAja-1.3.3-arm64-v8a.apk',
-    size: 19551469,
-    browser_download_url:
-      'https://github.com/xykal/XyDownloader/releases/download/v1.3.3/DownloadAja-1.3.3-arm64-v8a.apk',
-  }],
-};
-
-const EXTRACT_OK = {
-  ok: true,
-  platform: { id: 'youtube', name: 'YouTube' },
-  count: 1,
-  total: 1,
-  entries: [{
-    title: 'Video Keren',
-    uploader: 'Kanal Contoh',
-    duration: 212,
-    media_kind: 'video',
-    gallery: [],
-    video: [{
-      id: 'v360',
-      label: '360p',
-      ext: 'mp4',
-      codec: 'h264',
-      quality: 360,
-      tier: 'hemat',
-      size: 16,
-      filename: 'DownloadAja-Video Keren-360p.mp4',
-      mode: 'fetch',
-      sources: [{ via: 'server', url: 'https://cdn.test/f1.mp4', size: 16, ext: 'mp4' }],
-    }],
-    audio: [],
-  }],
-};
-
-// Mock standar: request eksternal terkunci, sisanya (statis + /api lokal) lewat.
-async function mockEksternal(page, { extract } = {}) {
-  await page.route('https://api.github.com/**', (r) => r.fulfill({ json: REL }));
-  await page.route('**/api/public/beacon', (r) => r.fulfill({ status: 204 }));
-  await page.route('**/api/history*', (r) => r.fulfill({ json: { ok: true, items: [] } }));
-  if (extract) {
-    await page.route('**/api/extract', (r) => r.fulfill(extract));
-  }
-}
-
-function seedTidakPopup(page) {
-  // Popup "Yang baru" cukup diuji di tes terpisah; di skenario lain jangan ganggu.
-  return page.addInitScript(() => {
-    try { localStorage.setItem('xy-seen-version', '1.3.3'); } catch { /* mode privat */ }
-  });
-}
+import {
+  REL, EXTRACT_1, PNG_1X1, mockEksternal, mockFileCdn, seedTidakPopup,
+} from './_bantu.mjs';
 
 test('halaman utama: versi web & link APK konsisten dengan rilis terbaru', async ({ page }) => {
   await mockEksternal(page);
@@ -76,27 +19,14 @@ test('halaman utama: versi web & link APK konsisten dengan rilis terbaru', async
   // Link APK diisi dari GitHub Releases (di-mock) — guard drift versi di DOM.
   const apkLink = page.locator('#apk-link');
   await expect(apkLink).toHaveAttribute('href', REL.assets[0].browser_download_url);
-  await expect(apkLink.locator('span')).toContainText('Download APK v1.3.3');
+  await expect(apkLink.locator('span')).toContainText(`Download APK ${REL.tag_name}`);
 });
 
 test('alur unduhan: hasil muncul, Download jalan, X-XY-Cid terkirim', async ({ page }) => {
   await seedTidakPopup(page);
-  const fileRequests = [];
-  await mockEksternal(page, {
-    extract: { json: EXTRACT_OK, status: 200 },
-  });
-  await page.route('https://cdn.test/**', async (route) => {
-    fileRequests.push(route.request().headers());
-    await route.fulfill({
-      status: 206,
-      contentType: 'video/mp4',
-      headers: {
-        'accept-ranges': 'bytes',
-        'content-range': 'bytes 0-15/16',
-      },
-      body: Buffer.alloc(16, 7),
-    });
-  });
+  const rekam = [];
+  await mockEksternal(page, { extract: { json: EXTRACT_1, status: 200 } });
+  await mockFileCdn(page, rekam);
 
   await page.goto('/');
   await page.locator('#url').fill('https://youtu.be/contoh-1');
@@ -116,8 +46,8 @@ test('alur unduhan: hasil muncul, Download jalan, X-XY-Cid terkirim', async ({ p
 
   // Kontrak klien kuota: minimal satu request file membawa X-XY-Cid,
   // nilainya sama dengan yang disimpan di localStorage.
-  expect(fileRequests.length).toBeGreaterThan(0);
-  const cidKirim = fileRequests.map((h) => h['x-xy-cid']).find(Boolean);
+  expect(rekam.length).toBeGreaterThan(0);
+  const cidKirim = rekam.map((r) => r.headers['x-xy-cid']).find(Boolean);
   expect(cidKirim, 'X-XY-Cid harus terkirim di request file').toBeTruthy();
   const cidSimpan = await page.evaluate(() => {
     try { return localStorage.getItem('dlaja_cid_v1'); } catch { return null; }
@@ -172,7 +102,7 @@ test('popup "Yang baru" muncul sekali untuk pengunjung baru', async ({ page }) =
 
   // Kontrak "sekali": begitu versi tercatat, reload tidak menampilkan lagi.
   await page.evaluate(() => {
-    try { localStorage.setItem('xy-seen-version', '1.3.3'); } catch { /* mode privat */ }
+    try { localStorage.setItem('xy-seen-version', '1.3.4'); } catch { /* mode privat */ }
   });
   await page.reload();
   await expect(popup).toHaveCount(0);

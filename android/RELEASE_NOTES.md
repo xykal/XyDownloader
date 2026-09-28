@@ -2,6 +2,12 @@
 
 Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, Xiaohongshu, X, Facebook, Threads, pixiv, Vidio & 1.700+ situs lainnya — langsung dari HP.
 
+### Yang baru di versi 1.3.4
+- **Antrean unduhan** — maksimal 2 unduhan berjalan bareng dengan urutan yang rapi. Yang belum giliran benar-benar menunggu (bukan sekadar tampilan), dan menekan Batal saat masih antre langsung mengeluarkannya dari antrean.
+- **Izin notifikasi tidak kepagian** — aplikasi tidak lagi meminta izin notifikasi saat pertama dibuka. Sekarang diminta tepat setelah unduhan pertama selesai — saat notifikasi "Download selesai" benar-benar ada gunanya. Diminta sekali saja; kalau ditolak, tidak diganggu lagi.
+- **Kuota harian lebih adil (web)** — batas 500 MB/hari kini dihitung per pengguna, bukan per IP. Dulu satu IP jaringan seluler dipakai ratusan orang dan kebagian rame-rame; sekarang plafon per IP tetap ada (2 GB/hari) sebagai pengaman.
+- Antrean yang terputus (aplikasi ditutup paksa) tidak lagi menggantung — yang belum berjalan dikembalikan ke antrean, yang gagal ditandai jelas.
+
 ### Yang baru di versi 1.3.3
 - **Notifikasi pengumuman** — kabar rilis & info penting sekarang bisa dikirim langsung ke HP (izin notifikasi sekali saat pertama dibuka).
 - **Web: riwayat unduhan** — daftar file yang baru diunduh, bisa "Unduh lagi" dalam satu ketukan; tersimpan di perangkat masing-masing.

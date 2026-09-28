@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kenapa pakai APK DownloadAja? — Web vs Aplikasi</title>
+<meta name="description" content="Perbandingan singkat dan jujur: DownloadAja versi web vs APK Android. Share sheet langsung, antrean unduhan, notifikasi selesai.">
+<style>
+  :root {
+    --bg: #0b0d12; --card: #12151d; --line: #232838; --text: #e8ebf2;
+    --muted: #9aa3b5; --accent: #4f8cff; --accent2: #7c5cff; --good: #2fbf71;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 64px; }
+  header h1 {
+    font-size: clamp(26px, 5vw, 40px); line-height: 1.2; margin: 24px 0 10px;
+    letter-spacing: -0.02em;
+  }
+  header h1 .grad {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lead { color: var(--muted); font-size: 18px; max-width: 640px; margin: 0 0 8px; }
+  .badge {
+    display: inline-block; padding: 6px 12px; border: 1px solid var(--line);
+    border-radius: 999px; color: var(--muted); font-size: 13px;
+  }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin: 28px 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .card .ic {
+    width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, rgba(79,140,255,.18), rgba(124,92,255,.18));
+    border: 1px solid var(--line); margin-bottom: 12px; font-size: 18px;
+  }
+  h2 { font-size: 22px; margin: 40px 0 14px; letter-spacing: -0.01em; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; background: #0f1219; }
+  tr:last-child td { border-bottom: 0; }
+  td.ya { color: #7ee2a8; }
+  td.tidak { color: var(--muted); }
+  td b { color: var(--text); }
+  .jujur {
+    margin: 26px 0; padding: 16px 18px; border-left: 3px solid var(--accent);
+    background: rgba(79,140,255,.08); border-radius: 0 12px 12px 0; color: var(--muted);
+  }
+  .jujur b { color: var(--text); }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin: 30px 0 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 12px;
+    text-decoration: none; font-weight: 600; font-size: 15px;
+  }
+  .btn-primary { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; }
+  .btn-ghost { border: 1px solid var(--line); color: var(--text); }
+  .small { color: var(--muted); font-size: 13px; }
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">DownloadAja · web vs APK</span>
+    <h1>Kenapa pasang <span class="grad">APK DownloadAja</span>?</h1>
+    <p class="lead">Web-nya tetap jalan penuh dan gratis. APK hadir buat satu alasan sederhana: kalau ritme unduhmu tiap hari, ada lima hal yang cuma bisa dilakukan aplikasi.</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="ic" aria-hidden="true">↗</div>
+      <h3>Share sheet langsung</h3>
+      <p>Di TikTok, Instagram, YouTube — tekan <b>Bagikan</b>, pilih <b>DownloadAja</b>. Tanpa salin-tempel link, tanpa pindah aplikasi.</p>
+    </div>
+    <div class="card">
+      <div class="ic" aria-hidden="true">≡</div>
+      <h3>Antrean unduhan rapi</h3>
+      <p>Maksimal 2 unduhan berjalan bareng, sisanya menunggu giliran dengan urutan jelas — dan bisa dibatalkan saat masih antre.</p>
+    </div>
+    <div class="card">
+      <div class="ic" aria-hidden="true">✓</div>
+      <h3>Notifikasi "selesai"</h3>
+      <p>Unduhan besar jalan di latar; begitu selesai, HP memberi tahu. Tidak perlu mantengin layar.</p>
+    </div>
+    <div class="card">
+      <div class="ic" aria-hidden="true">⤓</div>
+      <h3>Proses di HP kamu</h3>
+      <p>Mencari link & mengunduh dikerjakan langsung di perangkat — tanpa antre server, file langsung rapi di <b>Download/DownloadAja</b>.</p>
+    </div>
+    <div class="card">
+      <div class="ic" aria-hidden="true">◇</div>
+      <h3>Ringan & tanpa iklan</h3>
+      <p>APK dikecilkan dengan R8, FFmpeg dibangun khusus kebutuhan aplikasi. Gratis, tanpa iklan, kode terbuka GPL-3.0.</p>
+    </div>
+    <div class="card">
+      <div class="ic" aria-hidden="true">⟳</div>
+      <h3>Perbarui satu ketukan</h3>
+      <p>Ada rilis baru? Popup + tombol <b>Perbarui</b> yang mengunduh dan memasang sendiri versi terbarunya.</p>
+    </div>
+  </div>
+
+  <h2>Perbandingan jujur</h2>
+  <table>
+    <thead>
+      <tr><th>Aspek</th><th>Web (browser)</th><th>APK Android</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>Waktu mulai</b></td><td class="ya">Langsung, tanpa install</td><td>Sekali pasang (~19 MB)</td></tr>
+      <tr><td><b>Cara pakai</b></td><td>Tempel link di halaman</td><td class="ya">Bagikan dari aplikasi mana pun</td></tr>
+      <tr><td><b>Proses mencari link</b></td><td>Di server (tergantung jaringan)</td><td class="ya">Di HP, engine tetap hangat</td></tr>
+      <tr><td><b>Antrean unduhan</b></td><td>"Unduh semua" 2 file berjalan</td><td class="ya">Antrean penuh: status, urutan, batal saat antre</td></tr>
+      <tr><td><b>Notifikasi selesai</b></td><td class="tidak">—</td><td class="ya">✓</td></tr>
+      <tr><td><b>Share sheet Android</b></td><td class="tidak">—</td><td class="ya">✓</td></tr>
+      <tr><td><b>Update</b></td><td class="ya">Otomatis tiap buka</td><td>Popup + tombol Perbarui</td></tr>
+      <tr><td><b>Iklan / akun</b></td><td class="ya">Tidak ada</td><td class="ya">Tidak ada</td></tr>
+    </tbody>
+  </table>
+
+  <div class="jujur">
+    <b>Jujur saja:</b> kalau kamu cuma sesekali mengunduh, web sudah lebih dari cukup — buka, tempel link, selesai. APK dibuat buat yang tiap hari mengunduh dari HP dan capek bolak-balik salin link.
+  </div>
+
+  <div class="cta">
+    <a class="btn btn-primary" href="https://github.com/xykal/XyDownloader/releases/latest">Download APK (arm64) ›</a>
+    <a class="btn btn-ghost" href="https://github.com/xykal/XyDownloader/releases/latest">Lihat semua versi</a>
+    <a class="btn btn-ghost" href="./">Buka versi web</a>
+  </div>
+  <p class="small">arm64-v8a untuk kebanyakan HP (2017 ke atas) · armeabi-v7a untuk HP lama · x86_64 untuk emulator/Chromebook.</p>
+
+  <footer>
+    DownloadAja — built in XyVerse · GPL-3.0 · <a href="https://github.com/xykal/XyDownloader">sumber terbuka</a>
+  </footer>
+</div>
+</body>
+</html>
