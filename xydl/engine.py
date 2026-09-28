@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import urllib.request
 import zipfile
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -84,6 +85,57 @@ def is_public_url(url):
         if not ip.is_global:
             return False
     return True
+
+
+_BROWSER_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+               '(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36')
+GUARD_TIMEOUT = float(os.environ.get('XYDL_GUARD_TIMEOUT', '2.5'))
+MAX_GUARD_HOPS = 6
+
+
+class _HopRecorder(urllib.request.HTTPRedirectHandler):
+    """Catat tiap hop redirect. Standar library, bukan API internal yt-dlp, jadi tidak
+    bakal jebol waktu yt-dlp auto-update (yang memang sengaja tidak kita kunci versinya)."""
+
+    def __init__(self):
+        super().__init__()
+        self.hops = []
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        self.hops.append(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def guard_public_hops(url):
+    """is_public_url() butanya di satu hal: dia cuma lihat host AWAL.
+
+    yt-dlp ngikutin redirect (bawaannya sampai 30 hop), jadi https://blog-orang.com/x yang
+    isinya cuma `302 -> http://127.0.0.1:9090/` atau `http://169.254.169.254/...` lolos dari
+    penjaga itu dan request-nya jalan dari dalam function Vercel. Buat host yang ada di katalog
+    platform (tiktok.com, douyin.com, ...) ini dilewati: mereka CDN publik dan kita tahu pola
+    redirectnya, nambah 1 roundtrip ke mereka cuma bikin semua pengguna nunggu.
+    Fail-open kalau site-nya tidak mau diajak ngobrol (403/405/TLS) -> biar yt-dlp yang coba.
+    """
+    if not is_public_url(url):
+        raise XyError('invalid', 'Link tidak diizinkan.', status=400)
+    rec = _HopRecorder()
+    try:
+        opener = urllib.request.build_opener(rec)
+        req = urllib.request.Request(url, headers={'User-Agent': _BROWSER_UA, 'Accept': '*/*'})
+        resp = opener.open(req, timeout=GUARD_TIMEOUT)
+        try:
+            resp.close()
+        except Exception:
+            pass
+    except XyError:
+        raise
+    except Exception:
+        pass  # gagal koneksi / 403 / 405: biarkan yt-dlp yang coba, TAPI hop yang sudah
+               # kelihatan tetap diperiksa di bawah -- jangan dibuang cuma karena fetch-nya mati
+    for hop in rec.hops[:MAX_GUARD_HOPS]:
+        if not is_public_url(hop):
+            raise XyError('invalid', 'Link tidak diizinkan.', status=400)
+    return rec.hops
 
 
 def site_suffix(host):
@@ -808,6 +860,9 @@ def extract(text, proxy_base):
         return cached[1]
 
     platform = detect_platform(url)
+    if platform is None:
+        # link dari luar katalog: cek rantai redirect dulu (lihat guard_public_hops)
+        guard_public_hops(url)
     t0 = time.time()
     try:
         info, ydl = None, None
