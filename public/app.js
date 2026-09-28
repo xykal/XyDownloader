@@ -1,6 +1,8 @@
 // DownloadAja — web client (Built in XyVerse)
 // Proses berat (merge video+audio, remux HLS, ugoira, konversi MP3) berjalan di browser.
 
+import { createHistoryStore } from './history-store.js';
+
 const API = '/api';
 
 // ------------------------------------------------------------------ analytics beacon (dash)
@@ -756,11 +758,38 @@ async function toMp3(task, src, kbps, duration) {
   return ffMp3(task, src, kbps, duration);
 }
 
+// ------------------------------------------------------------------ riwayat unduhan (perangkat ini saja)
+const historyStore = createHistoryStore();
+
+// Cuma metadata: url halaman, judul, thumb, platform, tier, ukuran, tanggal.
+// Tidak pernah media_url/fid (lihat docs/PRD-v1.4.md G2) — "Unduh lagi" = extract ulang.
+function recordHistory(entry, opt, saved) {
+  try {
+    historyStore.add({
+      url: entry.webpage_url || '',
+      title: entry.title || '',
+      thumb: entry.thumbnail || '',
+      platform: (entry.platform && (entry.platform.id || entry.platform.name)) || entry.extractor || 'unknown',
+      label: opt.label || '',
+      tier: opt.tier || '',
+      size: (saved && saved.size) || 0,
+    });
+  } catch { /* riwayat kalah penting daripada unduhan */ }
+}
+
+function fmtSize(n) {
+  if (!n) return '—';
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+
 // ------------------------------------------------------------------ orkestrasi download
 async function startDownload(card, entry, opt) {
   if (card._task) { toast('Tunggu proses sebelumnya selesai dulu'); return; }
   const task = new Task(card, `Menyiapkan ${opt.label}…`);
   const duration = entry.duration;
+  let saved = null;
+  const keep = (blob, name) => { saved = { name, size: blob.size || 0 }; saveBlob(blob, name); };
   try {
     const srcs = opt.sources || [];
     if (opt.mode === 'direct') {
@@ -768,16 +797,18 @@ async function startDownload(card, entry, opt) {
       task.stage('Mengecek link…');
       if (await probeOk(src.url, task.signal)) {
         navDownload(`${src.url}&dl=1`);
+        saved = { name: opt.filename, size: (src.size || 0) };
+        recordHistory(entry, opt, saved);
         try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: 1 }); } catch {}
         task.done('Download dimulai', 'Cek notifikasi atau folder Download di perangkat kamu.');
         return;
       }
       if (!src.alt) throw new Error('Link download ditolak oleh platform. Coba proses ulang link-nya.');
       const got = await getSource({ ...src, via: 'server', url: src.alt }, task, 'Mengunduh (jalur server)', 0, 1);
-      saveBlob(got.blob, opt.filename);
+      keep(got.blob, opt.filename);
     } else if (opt.mode === 'fetch') {
       const got = await getSource(srcs[0], task, 'Mengunduh', 0, 1);
-      saveBlob(got.blob, opt.filename);
+      keep(got.blob, opt.filename);
     } else if (opt.mode === 'hls') {
       const got = await getSource(srcs[0], task, 'Mengunduh', 0, 0.9);
       let blob = got.blob;
@@ -793,24 +824,25 @@ async function startDownload(card, entry, opt) {
           toast('Gagal mengemas ulang, file disimpan dalam format asli');
         }
       }
-      saveBlob(blob, name);
+      keep(blob, name);
     } else if (opt.mode === 'merge') {
       const [vs, as] = srcs;
       if ((vs.size || 0) + (as.size || 0) > BROWSER_LIMIT) throw new Error('File terlalu besar untuk diproses di browser. Pakai aplikasi Android DownloadAja.');
       const v = await getSource(vs, task, 'Mengunduh video', 0, 0.82);
       const a = await getSource(as, task, 'Mengunduh audio', 0.82, 0.97);
-      saveBlob(await ffMerge(task, v, a, opt.ext, duration), opt.filename);
+      keep(await ffMerge(task, v, a, opt.ext, duration), opt.filename);
     } else if (opt.mode === 'mp3') {
       const src = await getSource(srcs[0], task, 'Mengunduh audio', 0, 1);
-      saveBlob(await toMp3(task, src, opt.bitrate || 192, duration), opt.filename);
+      keep(await toMp3(task, src, opt.bitrate || 192, duration), opt.filename);
     } else if (opt.mode === 'ugoira') {
       const frames = (entry.ugoira || {}).frames || [];
       if (!frames.length) throw new Error('Data frame ugoira tidak ada');
       const zip = await getSource(srcs[0], task, 'Mengunduh frame', 0, 1);
-      saveBlob(await ugoiraConvert(task, zip.blob, frames, opt.ext), opt.filename);
+      keep(await ugoiraConvert(task, zip.blob, frames, opt.ext), opt.filename);
     } else {
       throw new Error(`Mode tidak dikenal: ${opt.mode}`);
     }
+    recordHistory(entry, opt, saved);
     try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: 1 }); } catch {}
     task.done('Selesai', `${opt.filename} tersimpan di folder Download.`);
   } catch (e) {
@@ -866,6 +898,7 @@ async function downloadGallery(card, entry, files) {
         task.stage('Mengecek link…');
         if (await probeOk(f.url, task.signal)) {
           navDownload(`${f.url}&dl=1`);
+          recordHistory(entry, { label: 'Galeri 1 file' }, { name: f.filename, size: f.size || 0 });
           try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: files.length || 1 }); } catch {}
     task.done('Download dimulai', f.filename);
           return;
@@ -873,6 +906,7 @@ async function downloadGallery(card, entry, files) {
       }
       const got = await fetchFile(task, f, 'Mengunduh', 0, 1);
       saveBlob(got.blob, got.name);
+      recordHistory(entry, { label: 'Galeri 1 file' }, { name: got.name, size: got.blob.size || 0 });
       task.done('Selesai', `${got.name} tersimpan di folder Download.`);
       return;
     }
@@ -889,7 +923,9 @@ async function downloadGallery(card, entry, files) {
     }
     task.stage('Membuat ZIP…');
     const base = `DownloadAja-${safeName(entry.title)}`;
-    saveBlob(zipStore(out), `${base}.zip`);
+    const zipped = zipStore(out);
+    saveBlob(zipped, `${base}.zip`);
+    recordHistory(entry, { label: `Galeri ${out.length} file (ZIP)` }, { name: `${base}.zip`, size: zipped.size || 0 });
     task.done('Selesai', `${out.length} file tersimpan dalam ${base}.zip`);
   } catch (e) {
     console.error(e);
@@ -1985,7 +2021,60 @@ function whatsNewPopup() {
   probe.src = 'whats-new.webp';
 }
 
+function openHistory() {
+  let shut = null;
+  shut = openModal('Riwayat unduhan', (body) => {
+    const wrap = el('div', 'history-list');
+    body.append(wrap);
+    const rerender = async () => {
+      const items = await historyStore.list();
+      wrap.replaceChildren();
+      if (!items.length) {
+        wrap.append(el('p', 'muted', 'Belum ada riwayat. File yang kamu unduh akan muncul di sini.'));
+        return;
+      }
+      for (const rec of items) {
+        const row = el('div', 'history-row card');
+        row.style.cssText = 'display:flex;gap:10px;align-items:center;padding:10px 12px;margin:8px 0';
+        const img = el('img');
+        img.alt = '';
+        img.loading = 'lazy';
+        img.style.cssText = 'width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none;background:rgba(127,127,127,.15)';
+        if (rec.thumb) img.src = rec.thumb;
+        const mid = el('div');
+        mid.style.cssText = 'flex:1;min-width:0';
+        const t = el('div', '', rec.title);
+        t.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600';
+        const meta = el('div', 'muted small',
+          `${rec.platform} · ${new Date(rec.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmtSize(rec.size)}${rec.label ? ' · ' + rec.label : ''}`);
+        mid.append(t, meta);
+        const again = el('button', 'btn btn-secondary btn-sm', 'Unduh lagi');
+        again.type = 'button';
+        again.onclick = () => {
+          if (shut) shut();
+          input.value = rec.url;
+          processLink(rec.url);
+        };
+        const del = el('button', 'icon-btn');
+        del.type = 'button';
+        del.setAttribute('aria-label', 'Hapus dari riwayat');
+        del.append(icon('x'));
+        del.onclick = async () => { await historyStore.remove(rec.id); rerender(); };
+        row.append(img, mid, again, del);
+        wrap.append(row);
+      }
+    };
+    rerender();
+    const clearAll = el('button', 'btn btn-ghost btn-sm', 'Hapus semua riwayat');
+    clearAll.type = 'button';
+    clearAll.onclick = async () => { await historyStore.clear(); rerender(); };
+    body.append(clearAll);
+    body.append(el('p', 'muted small', `Sampai 100 entri, tersimpan di perangkat ini saja — tidak dikirim ke server, tidak sinkron antar-perangkat. Link unduhan tidak disimpan; "Unduh lagi" memproses ulang tautannya.`));
+  });
+}
+
 $('#btn-settings')?.addEventListener('click', () => openSettings());
+$('#btn-history')?.addEventListener('click', () => openHistory());
 $('#open-updates')?.addEventListener('click', (e) => { e.preventDefault(); openUpdates(); });
 $('#open-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLicenses(); });
 
