@@ -12,7 +12,7 @@
  */
 
 import { originAllowed } from './netpolicy.js';
-import { clientIp, countBody, MB, quotaFor } from './quota.js';
+import { checkAll, clientCid, clientIp, countBody, MB, quotaFor } from './quota.js';
 
 const VERSION = '1.0.0';
 const enc = new TextEncoder();
@@ -159,16 +159,19 @@ function json(status, data, request, env, extra = null) {
 async function handleFile(request, env, url) {
   const payload = await verifyToken(url.searchParams.get('t'), env);
   const ip = clientIp(request);
+  const cid = clientCid(request);
   const quota = quotaFor(env);
-  const gate = await quota.check(ip);
-  if (!gate.ok) {
+  const gateAll = await checkAll(quota, ip, cid);
+  if (!gateAll.ok) {
+    const g = gateAll.gates.find((x) => !x.gate.ok).gate;
     return json(429, {
       ok: false,
       error: 'kuota_harian_habis',
-      quota_mb: Math.round(gate.cap / MB),
-      reset_in_seconds: gate.retryAfter,
-      message: `Kuota unduh harian (${Math.round(gate.cap / MB)} MB) sudah habis. Coba lagi setelah tengah malam UTC.`,
-    }, request, env, { 'retry-after': String(gate.retryAfter), 'x-xy-quota': 'exceeded' });
+      yang_habis: gateAll.blocked === 'cid' ? 'per_pengguna' : 'per_ip',
+      quota_mb: Math.round(g.cap / MB),
+      reset_in_seconds: g.retryAfter,
+      message: `Kuota unduh harian (${Math.round(g.cap / MB)} MB) sudah habis. Coba lagi setelah tengah malam UTC.`,
+    }, request, env, { 'retry-after': String(g.retryAfter), 'x-xy-quota': 'exceeded' });
   }
   const target = resolveTarget(url, payload);
   const upstream = await fetch(target, {
@@ -192,10 +195,15 @@ async function handleFile(request, env, url) {
   headers.set('cache-control', payload.ct && payload.ct.startsWith('image/') ? 'public, max-age=86400' : 'no-store');
   headers.set('x-xydl-upstream-status', String(upstream.status));
   if (request.method === 'HEAD') return new Response(null, { status: upstream.status, headers });
-  if (gate.remaining !== undefined) {
-    headers.set('x-xy-quota-remaining-mb', String(Math.max(0, Math.floor(gate.remaining / MB))));
+  const utama = cid ? gateAll.gates.find((x) => x.kind === 'cid') : gateAll.gates[0];
+  if (utama && utama.gate.remaining !== undefined) {
+    headers.set('x-xy-quota-remaining-mb', String(Math.max(0, Math.floor(utama.gate.remaining / MB))));
+    headers.set('x-xy-quota-kind', cid ? 'per_pengguna' : 'per_ip');
   }
-  const body = countBody(upstream.body, (n) => { quota.add(ip, n); });
+  const body = countBody(upstream.body, (n) => {
+    quota.ip.add(ip, n);
+    if (cid) quota.cid.add(cid, n);
+  });
   return new Response(body, { status: upstream.status, headers });
 }
 

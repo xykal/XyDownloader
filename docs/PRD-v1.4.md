@@ -192,6 +192,11 @@ Jawaban atas §8, dipilih lead, bukan buat selama-lamanya — kalau ada yang sal
    infrastruktur kliennya sudah ada; APK nyusul pakai logika antrian yang sama.
 2. **500 MB/user/hari** untuk user gratis (≈ 6-10 video 720p). Guardrail kill-switch
    2.5x median di §7 tetap berlaku. Angka ini syarat G1 mulai dikerjakan.
+   *Revisi 2026-09-28 (malam)*: identitas kuota pindah dari per-IP ke **per-cid**
+   (`X-XY-Cid`, localStorage `dlaja_cid`) — per-IP di jaringan seluler = CGNAT,
+   500 MB kebagi satu tower. Plafon per-IP tetap ada (**2 GB/hari**) buat yang
+   tanpa cid dan buat nahan satu IP nge-pump. Kill switch per ember
+   (`XYDL_QUOTA_MB=0` / `XYDL_QUOTA_IP_MB=0`).
 3. **"Unduh semua" tetap simpan satu-satu ke Downloads**, ZIP opsional di belakang
    checkbox. ZIP = I/O 2x di HP dan nggak semua browser kuat merge blob gede di memori.
 4. **Riwayat perangkat saja (IndexedDB)**. "Sinkron tanpa akun" = storage server =

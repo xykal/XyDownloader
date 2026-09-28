@@ -459,7 +459,7 @@ async function fetchRanged(url, task, label, p0, p1, sizeHint) {
   let loadedAll = 0;
   while (total === null || start < total) {
     const end = total ? Math.min(start + RANGE_CHUNK, total) - 1 : start + RANGE_CHUNK - 1;
-    const res = await fetchRetry(url, { headers: xyApiHeaders({ Range: `bytes=${start}-${end}` }), signal: task.signal });
+    const res = await fetchRetry(url, { headers: xyApiHeaders({ Range: `bytes=${start}-${end}`, 'X-XY-Cid': dlajaCid() }), signal: task.signal });
     if (res.status === 200) {
       const t = +res.headers.get('content-length') || total || 0;
       return readWithProgress(res, (l) => task.progress(t ? p0 + (p1 - p0) * (l / t) : p0, `${label} · ${fmtBytes(l)}`), task.signal);

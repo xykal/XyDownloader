@@ -14,6 +14,7 @@
 export const MB = 1048576;
 export const FLUSH_STEP = 5 * MB;
 export const DEFAULT_QUOTA_MB = 500;
+export const DEFAULT_IP_QUOTA_MB = 2000;
 const KV_TTL_SECONDS = 2 * 24 * 3600;
 
 export function dayKey(ts = Date.now()) {
@@ -24,6 +25,13 @@ export function secondsUntilDayEnd(ts = Date.now()) {
   const d = new Date(ts);
   const end = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
   return Math.max(1, Math.ceil((end - ts) / 1000));
+}
+
+// Identitas lunak dari klien (localStorage dlaja_cid). Bisa diganti orang — jadi
+// ini yang paling adil, BUKAT yang paling kuat; plafon IP tetap jadi jaring pengaman.
+export function clientCid(request) {
+  const raw = (request.headers.get('x-xy-cid') || '').trim();
+  return /^[A-Za-z0-9._:-]{4,40}$/.test(raw) ? raw : '';
 }
 
 export function clientIp(request) {
@@ -37,7 +45,7 @@ export function clientIp(request) {
 export function createQuota(env = {}, opts = {}) {
   const now = opts.now || (() => Date.now());
   const kv = env.QUOTA || null;
-  const raw = Number(env.XYDL_QUOTA_MB);
+  const raw = opts.capMb !== undefined ? Number(opts.capMb) : Number(env.XYDL_QUOTA_MB);
   const capMb = Number.isFinite(raw) ? raw : DEFAULT_QUOTA_MB;
   const cap = capMb > 0 ? capMb * MB : 0; // 0 / negatif = tanpa batas
   const unlimited = !kv || cap === 0;
@@ -99,15 +107,32 @@ export function createQuota(env = {}, opts = {}) {
   };
 }
 
-// Satu instance per isolate (env object identity stabil di Workers).
+// Dua ember per isolate (env object identity stabil di Workers):
+//   .cid — kuota per pengguna (XYDL_QUOTA_MB, default 500 MB/hari) saat klien
+//          ngirim X-XY-Cid; identitas utama biar user seluler nggak kebagi
+//          500 MB satu tower gara-gara CGNAT.
+//   .ip  — plafon kasar per IP (XYDL_QUOTA_IP_MB, default 2 GB/hari) buat yang
+//          tanpa cid (tag <video>, navDownload) dan buat nahan satu IP nge-pump.
+// Kill switch: nilai 0 = ember-nya dimatiin.
 const shared = new WeakMap();
 export function quotaFor(env) {
   let q = shared.get(env);
   if (!q) {
-    q = createQuota(env);
+    q = {
+      cid: createQuota(env, { capMb: env.XYDL_QUOTA_MB !== undefined ? env.XYDL_QUOTA_MB : DEFAULT_QUOTA_MB }),
+      ip: createQuota(env, { capMb: env.XYDL_QUOTA_IP_MB !== undefined ? env.XYDL_QUOTA_IP_MB : DEFAULT_IP_QUOTA_MB }),
+    };
     shared.set(env, q);
   }
   return q;
+}
+
+// Gerbang gabungan: kedua ember harus lolos. Murni & bisa dites.
+export async function checkAll(quotas, ip, cid) {
+  const gates = [{ kind: 'ip', gate: await quotas.ip.check(ip) }];
+  if (cid) gates.push({ kind: 'cid', gate: await quotas.cid.check(cid) });
+  const blocked = gates.find((g) => !g.gate.ok);
+  return { ok: !blocked, blocked: blocked ? blocked.kind : null, gates };
 }
 
 // Hitung byte yang benar-benar keluar ke klien tanpa buffering body utuh.
