@@ -1,0 +1,14 @@
+{
+  "name": "xydownloader-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Tes E2E web DownloadAja (Playwright) — jalur unduhan inti, hermetic (API eksternal di-mock).",
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
