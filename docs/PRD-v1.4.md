@@ -160,7 +160,7 @@ retry, G1 naikin biaya — G1 nggak seharusnya hidup sebelum kuota harian di Clo
 - G2: % sesi dengan ≥1 download yang balik dalam 7 hari (bandingkan sebelum/sesudah)
 - G3: jumlah user di APK < 1.3.2 harus menuju nol; request/IP/hari di Cloudflare dashboard
 
-## 8. Pertanyaan buat lu (jawab dulu, baru ada yang ngetik kode)
+## 8. Pertanyaan yang sudah dijawab (lihat §10)
 
 1. G1 mau di-web dulu (jangkauan besar, tab bisa di-kill) atau di APK dulu (antrian tahan
    layar, jangkauan kecil)? Kalau APK dulu, `Downloads.kt` udah punya sebagian infra-nya.
@@ -171,3 +171,30 @@ retry, G1 naikin biaya — G1 nggak seharusnya hidup sebelum kuota harian di Clo
    "sinkron tanpa akun" (yang itu artinya storage server, dan `STORAGE_DIR=None` dilanggar)?
    Gua rekomendasikan: nggak.
 5. G3.nomer2 (protected branch + wajib CI) — gua aktifin via API, atau lu mau atur sendiri?
+
+
+## 9. Status implementasi (2026-09-28)
+
+- **G3** — beres: release `v1.3.2` + 3 APK + banner, `main` diproteksi (wajib PR + check
+  "Test engine & lint"), job `dash` masuk `deploy.yml` (diputuskan setelah bug 10021:
+  `crypto.getRandomValues` di global scope bikin `wrangler deploy` gagal dan nggak ada
+  CI yang nangkep).
+- **G2** — beres: `public/history-store.js` (whitelist field, cap FIFO 100, fallback
+  tanpa IndexedDB) + `tests/js/history_store.test.mjs` (7 tes) + tombol "Riwayat" di nav
+  dengan "Unduh lagi" = `processLink(url)` ulang. Nol event analytics baru.
+- **G1** — belum, sesuai urutan di §6. Mulai setelah kuota di §10.2 dipatok di edge.
+
+## 10. Keputusan (2026-09-28 — "gas, gue ikut lu aja")
+
+Jawaban atas §8, dipilih lead, bukan buat selama-lamanya — kalau ada yang salah, revisi di sini.
+
+1. **Web dulu** (bukan APK). Web tempat sakitnya (antrian, ZIP, hemat data) dan semua
+   infrastruktur kliennya sudah ada; APK nyusul pakai logika antrian yang sama.
+2. **500 MB/user/hari** untuk user gratis (≈ 6-10 video 720p). Guardrail kill-switch
+   2.5x median di §7 tetap berlaku. Angka ini syarat G1 mulai dikerjakan.
+3. **"Unduh semua" tetap simpan satu-satu ke Downloads**, ZIP opsional di belakang
+   checkbox. ZIP = I/O 2x di HP dan nggak semua browser kuat merge blob gede di memori.
+4. **Riwayat perangkat saja (IndexedDB)**. "Sinkron tanpa akun" = storage server =
+   `STORAGE_DIR=None` dilanggar = gue nolak. Sudah begitu implementasinya.
+5. **Protected branch aktifin lewat API** (sudah jalan). `enforce_admins: false` biar lu
+   tetap bisa nekan dari atas saat kepepet.
