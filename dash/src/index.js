@@ -624,7 +624,13 @@ async function loadDay(env, day) {
    stats:evt:* tetap satu-satunya sumber kebenaran; kalau ada ekor yang ikut mati bareng
    isolate, /api/stats/rebuild nyusun ulang dari event. */
 
-const ISOLATE_ID = b64url(crypto.getRandomValues(new Uint8Array(6)));
+// crypto.getRandomValues nggak boleh dipanggil di global scope (Cloudflare error 10021
+// waktu deploy), jadi id isolate dibikin malas — pas pertama dibutuhkan di dalam handler.
+let ISOLATE_ID = null;
+function isolateId() {
+  if (!ISOLATE_ID) ISOLATE_ID = b64url(crypto.getRandomValues(new Uint8Array(6)));
+  return ISOLATE_ID;
+}
 const TOTAL_FLUSH_EVENTS = 8;
 const TOTAL_FLUSH_MS = 10_000;
 let pendingTotal = null;
@@ -693,7 +699,7 @@ async function flushTotal(env, force = false) {
   if (!win) return null;
   if (!force && win.events < TOTAL_FLUSH_EVENTS && Date.now() - win.started < TOTAL_FLUSH_MS) return null;
   pendingTotal = null;
-  const key = `stats:tot:${win.day}:${ISOLATE_ID}`;
+  const key = `stats:tot:${win.day}:${isolateId()}`;
   let prev = null;
   try { prev = await env.CONFIG.get(key, 'json'); } catch { prev = null; }
   const merged = mergeTotals(prev, win.total);
