@@ -1918,9 +1918,12 @@ fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest', {
   .catch(() => {});
 
 // ------------------------------------------------------------------ modal (pembaruan, lisensi) & popup "yang baru"
-const WEB_VERSION = '1.3.2';
+const WEB_VERSION = '1.3.3';
 const RELEASES = 'https://github.com/xykal/XyDownloader/releases';
 const CHANGES = [
+  ['Riwayat unduhan', 'Daftar file yang baru kamu unduh, lengkap tombol "Unduh lagi". Tersimpan di perangkat ini saja.'],
+  ['Unduh semua untuk playlist', 'Satu tombol untuk mengunduh semua entri playlist dengan antrean rapi — 2 file berjalan, bisa dibatalkan kapan saja.'],
+  ['Kuota unduh 500 MB/hari', 'Batas wajar harian supaya layanan tetap bisa dipakai semua orang; lewat batas ada pemberitahuan yang jelas.'],
   ['Pratinjau HLS di semua browser', 'hls.js kini ikut dibundel di situs — di Chrome, Firefox, dan Edge pratinjau video HLS (mis. Vidio) tidak lagi gagal diam-diam.'],
   ['API & proxy lebih tertutup', 'Hanya domain resmi yang boleh membaca hasil proses, kuota unduh per IP dibatasi, dan link tidak bisa dipakai ke host asing.'],
   ['Pratinjau adaptif + pemutar musik', 'Video autoplay (bisa diatur), player musik untuk link audio, chip kualitas Normal/Hemat/Tinggi.'],
@@ -1932,6 +1935,7 @@ const CHANGES = [
   ['Lisensi lengkap', 'Daftar komponen open source beserta lisensinya kini tersedia di web dan aplikasi.'],
 ];
 const LICENSES = [
+  ['OneSignal (Android)', 'MIT', 'https://github.com/OneSignal/OneSignal-Android-SDK', 'Push pengumuman di aplikasi'],
   ['yt-dlp', 'Unlicense', 'https://github.com/yt-dlp/yt-dlp', 'Extractor di server (Python)'],
   ['Python', 'PSF-2.0', 'https://www.python.org/', 'Runtime server'],
   ['ffmpeg.wasm core (FFmpeg)', 'GPL-2.0-or-later', 'https://github.com/ffmpegwasm/ffmpeg.wasm', 'Merge, remux HLS & ugoira di browser — dimuat dari CDN'],

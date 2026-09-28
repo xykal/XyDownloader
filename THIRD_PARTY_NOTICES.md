@@ -28,6 +28,7 @@ DownloadAja (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan m
 | [AndroidX Media3 (ExoPlayer)](https://github.com/androidx/media) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) The Android Open Source Project | Pratinjau video |
 | [Kotlin & kotlinx.coroutines](https://kotlinlang.org/) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) JetBrains s.r.o. and Kotlin Programming Language contributors |  |
 | [Coil](https://github.com/coil-kt/coil) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 2025 Coil Contributors | Memuat gambar/thumbnail |
+| [OneSignal](https://github.com/OneSignal/OneSignal-Android-SDK) | [MIT](licenses/texts/MIT.txt) | Copyright (c) 2014-present OneSignal | Push pengumuman (rilis & kabar penting) |
 | [OkHttp & Okio](https://square.github.io/okhttp/) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) Square, Inc. |  |
 | [Jackson](https://github.com/FasterXML/jackson) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 2007- Tatu Saloranta & FasterXML | Dipakai youtubedl-android |
 | [Apache Commons IO & Compress](https://commons.apache.org/) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) The Apache Software Foundation | Dipakai youtubedl-android |

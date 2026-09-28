@@ -1,6 +1,7 @@
 package id.my.xyverse.xydownloader
 
 import android.app.Application
+import com.onesignal.OneSignal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,6 +14,9 @@ class XyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Push pengumuman (rilis & kabar penting). Izin notifikasi sudah diminta MainActivity;
+        // OneSignal subscribe otomatis begitu izin dikasih.
+        OneSignal.initWithContext(this, ONESIGNAL_APP_ID)
         Analytics.track(this, "session")
         Downloads.createChannels(this)
         Downloads.load(this)
@@ -36,6 +40,9 @@ class XyApp : Application() {
     }
 
     companion object {
+        // App ID OneSignal khusus DownloadAja (per-app — jangan ditukar sama app lain).
+        private const val ONESIGNAL_APP_ID = "8d66b3fd-06ea-4df6-aa39-0487d1cf85aa"
+
         val engineState = MutableStateFlow<EngineState>(EngineState.Loading)
         val engine: StateFlow<EngineState> get() = engineState
     }
