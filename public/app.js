@@ -1951,6 +1951,7 @@ function openModal(titleText, build) {
   const ov = el('div', 'modal');
   ov.setAttribute('role', 'dialog');
   ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', titleText);
   const box = el('div', 'modal-box card');
   const head = el('div', 'modal-head');
   head.append(el('h3', '', titleText));
