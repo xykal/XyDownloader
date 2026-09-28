@@ -7,6 +7,8 @@ Endpoint:
   GET  /api/stream?t=TOKEN      streaming untuk sumber yang terikat IP server (YouTube)
 """
 import asyncio
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
@@ -20,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from xydl import engine, signer  # noqa: E402
+from xydl import engine, netpolicy, signer  # noqa: E402
 from xydl.platforms import catalog  # noqa: E402
 
 PROXY_BASE = os.environ.get('XYDL_PROXY_BASE', 'http://127.0.0.1:8787')
@@ -28,14 +30,13 @@ STREAM_CHUNK = 8 * 1024 * 1024
 READ_SIZE = 256 * 1024
 RATE_LIMIT = int(os.environ.get('XYDL_RATE_LIMIT', '25'))  # request extract / menit / IP
 
-# Origin yang diizinkan (custom domain + preview Vercel). Bukan open CORS.
-ALLOWED_ORIGINS = {
-    'https://dlaja.xyverse.my.id',
-    'https://dlaja.projectkal.my.id',  # legacy redirect host
-    'https://xydl.vercel.app',  # fallback selama DNS apex belum aktif
-    'http://127.0.0.1:8000',
-    'http://localhost:8000',
-}
+# Budget lapor-probe per instance: tanpa ini, satu scripts flood UA terlarang bikin
+# kita yang nembak dash sendiri (write amplification ke KV lewat beacon).
+PROBE_BUDGET_PER_MIN = int(os.environ.get('XYDL_PROBE_BUDGET', '60'))
+# Total waktu yang boleh dipakai buat lapor probe. Dulu blocking di event loop
+# (2 endpoint x urlopen timeout 2.5s) -> satu instance bisa dikunci 5 detik per request.
+PROBE_BUDGET_SECONDS = float(os.environ.get('XYDL_PROBE_TIMEOUT', '0.6'))
+
 # User-Agent scrapers yang diblokir di /api/extract (bukan browser/app)
 _BLOCKED_UA = (
     'scrapy', 'httrack', 'wget/', 'curl/', 'python-requests', 'python-urllib',
@@ -52,10 +53,64 @@ DASH_BEACON = (
 )
 
 
-def _report_probe(ip: str | None, ua: str | None, reason: str, path: str = '/api/extract', cc: str | None = None):
-    """Best-effort: catat IP yang mencoba menembus API (scraper/bot/flood)."""
+def _probe_headers(ip):
+    """Tanda tangan laporan internal -> dash. Tanpa ini, dash tidak bisa bedakan
+    'IP yang dikirim API Vercel tentang pengguna' (valid) dengan 'IP yang dikarang
+    penyerang di body beacon' (log poisoning di tabel device/probe admin).
+    """
+    secret = os.environ.get('XYDL_PROBE_SECRET') or ''
+    if not secret:
+        return {}
+    ts = str(int(time.time()))
+    sig = hmac.new(secret.encode(), f'{ts}.{ip or ""}'.encode(), hashlib.sha256).hexdigest()
+    return {'X-Xydl-Probe-Ts': ts, 'X-Xydl-Probe-Sig': sig}
+
+
+def _post_probe(payload, deadline):
+    """Dipanggil di thread (bukan event loop). Total waktu dibatasi `deadline` detik."""
     import urllib.request
-    payload = json.dumps({
+    extra = _probe_headers(payload.get('ip'))
+    for url in DASH_BEACON:
+        left = deadline - time.monotonic()
+        if left <= 0.05:
+            return False
+        try:
+            req = urllib.request.Request(
+                url, data=json.dumps(payload).encode(), method='POST',
+                headers={'Content-Type': 'application/json', 'User-Agent': 'DownloadAja-API/1.0', **extra},
+            )
+            with urllib.request.urlopen(req, timeout=min(0.5, left)) as r:
+                r.read(64)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+_probe_times = deque(maxlen=PROBE_BUDGET_PER_MIN)
+
+
+def _probe_budget_ok():
+    """Batas lapor probe per instance per menit (anti amplification ke dash sendiri)."""
+    now = time.monotonic()
+    while _probe_times and now - _probe_times[0] > 60:
+        _probe_times.popleft()
+    if len(_probe_times) >= PROBE_BUDGET_PER_MIN:
+        return False
+    _probe_times.append(now)
+    return True
+
+
+async def report_probe(ip, ua, reason, path='/api/extract', cc=None):
+    """Catat IP yang mencoba menembus API (scraper/bot/flood).
+
+    Best-effort dan TIDAK pernah menunda respons lebih dari PROBE_BUDGET_SECONDS.
+    Kode lama manggil urlopen sinkron di dalam coroutine: event loop instance itu
+    berhenti buat SEMUA pengguna lain sampai 2 x 2.5 detik tiap request ber-UA dicurigai.
+    """
+    if not _probe_budget_ok():
+        return
+    payload = {
         'type': 'probe',
         'client': 'web',
         'ip': (ip or '')[:64],
@@ -63,27 +118,19 @@ def _report_probe(ip: str | None, ua: str | None, reason: str, path: str = '/api
         'ua': (ua or '')[:300],
         'reason': reason[:64],
         'path': path[:120],
-    }).encode()
-    for url in DASH_BEACON:
-        try:
-            req = urllib.request.Request(
-                url, data=payload, method='POST',
-                headers={'Content-Type': 'application/json', 'User-Agent': 'DownloadAja-API/1.0'},
-            )
-            with urllib.request.urlopen(req, timeout=2.5) as r:
-                r.read(64)
-            return
-        except Exception:
-            continue
+    }
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(_post_probe, payload, time.monotonic() + PROBE_BUDGET_SECONDS),
+            timeout=PROBE_BUDGET_SECONDS,
+        )
+    except Exception:
+        pass  # statistik tidak boleh menggagalkan request
 
 
 def _cors_for(origin: str | None):
-    """CORS ketat: hanya origin allowlist. Tanpa origin (same-origin / curl) = tanpa ACAO."""
-    o = (origin or '').strip()
-    allow = o if o in ALLOWED_ORIGINS else ''
-    # Preview deploy Vercel: *.vercel.app milik project
-    if not allow and o.endswith('.vercel.app') and 'xydl' in o or 'dlaja' in o:
-        allow = o
+    """CORS ketat: hanya origin allowlist EKSAK. Tanpa origin (same-origin / curl) = tanpa ACAO."""
+    allow = netpolicy.origin_allowed(origin)
     headers = [
         (b'access-control-allow-methods', b'GET, POST, HEAD, OPTIONS'),
         (b'access-control-allow-headers', b'Content-Type, Range'),
@@ -93,6 +140,7 @@ def _cors_for(origin: str | None):
     if allow:
         headers.insert(0, (b'access-control-allow-origin', allow.encode()))
     return headers
+
 
 
 def _ua_blocked(ua: str | None) -> bool:
@@ -105,9 +153,15 @@ def _ua_blocked(ua: str | None) -> bool:
     return any(b in u for b in _BLOCKED_UA)
 
 _hits = defaultdict(deque)
+_hits_seen = 0
 
 
 def _rate_limited(ip):
+    """Fixed window 60 detik per IP. Dulu `_hits.clear()` begitu tabel lewat 5000 IP:
+    penyerang yang sengaja nyebar 5000 IP palsu bikin semua counter orang lain ke-reset
+    (rate limit mati total). Sekarang entry kedaluwarsa dibuang satu-satu.
+    """
+    global _hits_seen
     now = time.time()
     q = _hits[ip]
     while q and now - q[0] > 60:
@@ -115,8 +169,10 @@ def _rate_limited(ip):
     if len(q) >= RATE_LIMIT:
         return True
     q.append(now)
-    if len(_hits) > 5000:
-        _hits.clear()
+    _hits_seen += 1
+    if len(_hits) > 5000 or _hits_seen % 512 == 0:
+        for key in [k for k, v in _hits.items() if not v or now - v[-1] > 120]:
+            del _hits[key]
     return False
 
 
@@ -262,8 +318,7 @@ async def app(scope, receive, send):
     path = scope.get('path', '/').rstrip('/') or '/'
     query = dict(urllib.parse.parse_qsl(scope.get('query_string', b'').decode('latin-1'), keep_blank_values=True))
     headers = {k.decode('latin-1').lower(): v.decode('latin-1') for k, v in scope.get('headers', [])}
-    ip = (headers.get('x-real-ip') or headers.get('x-forwarded-for', '').split(',')[0].strip()
-          or (scope.get('client') or ('?',))[0])
+    ip = netpolicy.client_ip(headers, (scope.get('client') or ('?',))[0])
     origin = headers.get('origin')
     ua = headers.get('user-agent')
 
@@ -289,19 +344,13 @@ async def app(scope, receive, send):
                 return await _send_json(send, 405, {'ok': False, 'error': 'method not allowed'}, origin=origin)
             # Anti-scrape: tolak UA bot/scraper (browser + app DownloadAja tetap lolos)
             if _ua_blocked(ua):
-                try:
-                    _report_probe(ip, ua, 'ua_blocked', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
-                except Exception:
-                    pass
+                await report_probe(ip, ua, 'ua_blocked', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
                 return await _send_json(send, 403, {
                     'ok': False, 'code': 'forbidden',
                     'error': 'Akses API ditolak. Pakai situs resmi atau aplikasi DownloadAja.',
                 }, origin=origin)
             if _rate_limited(ip):
-                try:
-                    _report_probe(ip, ua, 'rate_limit', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
-                except Exception:
-                    pass
+                await report_probe(ip, ua, 'rate_limit', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
                 return await _send_json(send, 429, {'ok': False, 'code': 'rate_limit',
                                                     'error': 'Terlalu banyak permintaan. Tunggu 1 menit ya.'},
                                         origin=origin)

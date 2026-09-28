@@ -11,23 +11,17 @@
  * ini tidak bisa dipakai sebagai open proxy. Worker tidak menyimpan apa pun.
  */
 
+import { originAllowed } from './netpolicy.js';
+
 const VERSION = '1.0.0';
 const enc = new TextEncoder();
 let cachedKey = null;
 let cachedKeySource = null;
 
-const ALLOWED_ORIGINS = new Set([
-  'https://dlaja.xyverse.my.id',
-  'https://dlaja.projectkal.my.id',
-  'https://xydl.vercel.app',
-  'http://127.0.0.1:8000',
-  'http://localhost:8000',
-]);
-
-function corsHeaders(request) {
-  const origin = request.headers.get('Origin') || '';
-  const allow = ALLOWED_ORIGINS.has(origin) || (origin.endsWith('.vercel.app') && origin.includes('xydl') || origin.includes('dlaja'))
-    ? origin : '';
+function corsHeaders(request, env) {
+  // Allowlist EKSAK (lihat netpolicy.js): versi lama pakai `origin.includes('dlaja')`,
+  // jadi halaman di https://dlaja.evil.com boleh baca stream lewat proxy ini.
+  const allow = originAllowed(request.headers.get('Origin') || '', env);
   const h = {
     'access-control-allow-methods': 'GET, HEAD, OPTIONS',
     'access-control-allow-headers': 'Range, Content-Type',
@@ -148,13 +142,13 @@ function contentDisposition(filename) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`;
 }
 
-function json(status, data, request) {
+function json(status, data, request, env) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
-      ...(request ? corsHeaders(request) : { 'x-robots-tag': 'noindex' }),
+      ...(request ? corsHeaders(request, env) : { 'x-robots-tag': 'noindex' }),
     },
   });
 }
@@ -169,7 +163,7 @@ async function handleFile(request, env, url) {
     redirect: 'follow',
   });
 
-  const headers = new Headers(corsHeaders(request));
+  const headers = new Headers(corsHeaders(request, env));
   for (const k of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
     const v = upstream.headers.get(k);
     if (v) headers.set(k, v);
@@ -195,9 +189,9 @@ async function handleM3u8(request, env, url) {
   const h = upstreamHeaders(payload, request);
   h.delete('range');
   const upstream = await fetch(target, { headers: h, redirect: 'follow' });
-  if (!upstream.ok) return json(upstream.status, { ok: false, error: `upstream HTTP ${upstream.status}` }, request);
+  if (!upstream.ok) return json(upstream.status, { ok: false, error: `upstream HTTP ${upstream.status}` }, request, env);
   const text = await upstream.text();
-  if (!text.trimStart().startsWith('#EXTM3U')) return json(502, { ok: false, error: 'bukan playlist HLS' }, request);
+  if (!text.trimStart().startsWith('#EXTM3U')) return json(502, { ok: false, error: 'bukan playlist HLS' }, request, env);
   const base = upstream.url || target;
   const origin = url.origin;
   const tokenCache = new Map();
@@ -237,7 +231,7 @@ async function handleM3u8(request, env, url) {
     nextIsPlaylist = false;
   }
   return new Response(out.join('\n'), {
-    headers: { 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'no-store', ...corsHeaders(request) },
+    headers: { 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'no-store', ...corsHeaders(request, env) },
   });
 }
 
@@ -245,23 +239,23 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: { ...corsHeaders(request), 'access-control-max-age': '86400' } });
+      return new Response(null, { status: 204, headers: { ...corsHeaders(request, env), 'access-control-max-age': '86400' } });
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return json(405, { ok: false, error: 'method not allowed' }, request);
+      return json(405, { ok: false, error: 'method not allowed' }, request, env);
     }
     try {
       if (url.pathname === '/' || url.pathname === '/health') {
         return json(200, {
           ok: true, service: 'DownloadAja Proxy', version: VERSION, by: 'XyVerse', key: Boolean(env.SIGNING_KEY),
-        }, request);
+        }, request, env);
       }
       if (url.pathname === '/f' || url.pathname.startsWith('/f/')) return await handleFile(request, env, url);
       if (url.pathname === '/m3u8') return await handleM3u8(request, env, url);
-      return json(404, { ok: false, error: 'not found' }, request);
+      return json(404, { ok: false, error: 'not found' }, request, env);
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 502;
-      return json(status, { ok: false, error: e.message || String(e) }, request);
+      return json(status, { ok: false, error: e.message || String(e) }, request, env);
     }
   },
 };
