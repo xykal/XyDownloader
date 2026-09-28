@@ -1,0 +1,102 @@
+# Monitor produksi — cek 3 endpoint tiap 30 menit.
+#
+# Merah -> buka GitHub issue ber-label 'monitoring' + run merah (GitHub ngirim
+# email notifikasi ke pemilik repo otomatis). Hijau -> issue 'monitoring' yang
+# terbuka ditutup sendiri ("pulih"). Sengaja TIDAK push ke user OneSignal —
+# mereka nggak salah apa-apa; yang harus tau adalah yang on-call (pemilik repo).
+#
+# Catatan AUP: 2x sejam = 48 run/hari, masing-masing <1 menit (curl doang) —
+# jauh di bawah batas wajar, tanpa dependency checkout/build.
+
+name: Monitor produksi
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'   # offset dari menit 0 biar nggak rebutan slot runner
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health:
+    name: Cek endpoint produksi
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cek web, proxy, dash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, time, urllib.request
+
+          def get(url, timeout=20):
+              req = urllib.request.Request(url, headers={'User-Agent': 'downloadaja-monitor'})
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      return r.status, r.read().decode('utf-8', 'replace')
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode('utf-8', 'replace')  # respons = hidup
+              except Exception as e:
+                  return 0, str(e)
+
+          cek = []
+          st, body = get('https://dlaja.xyverse.my.id/api/health')
+          cek.append(('web-api', st == 200 and '"ok"' in body and '"version"' in body,
+                      f'HTTP {st} {body[:80]}'))
+          st, body = get('https://xydl-proxy.akuntiktok76y.workers.dev/health')
+          cek.append(('proxy', st == 200 and '"ok":true' in body.replace(' ', ''),
+                      f'HTTP {st} {body[:80]}'))
+          st, body = get('https://dash.dlaja.xyverse.my.id/api/stats/rebuild')
+          # dash sengaja 401/404 tanpa sesi — yang penting Worker-nya menjawab
+          cek.append(('dash', st > 0, f'HTTP {st}'))
+
+          gagal = [f'{n} ({d})' for n, ok, d in cek if not ok]
+          for n, ok, d in cek:
+              print(('OK  ' if ok else 'GAGAL') , n, '-', d)
+
+          repo = os.environ['REPO']
+          tok = os.environ['GITHUB_TOKEN']
+          H = {'Authorization': 'Bearer ' + tok, 'Accept': 'application/vnd.github+json',
+               'User-Agent': 'downloadaja-monitor'}
+
+          def call(path, method='GET', body=None):
+              req = urllib.request.Request('https://api.github.com/repos/' + repo + path,
+                  method=method,
+                  data=json.dumps(body).encode() if body is not None else None,
+                  headers={**H, 'Content-Type': 'application/json'})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return json.loads(r.read() or b'{}')
+              except Exception as e:
+                  print('github api:', e)
+                  return {}
+
+          open_issues = call('/issues?labels=monitoring&state=open')
+          open_issues = [i for i in open_issues if 'pull_request' not in i]
+
+          if gagal:
+              desk = '\n'.join('- ' + g for g in gagal)
+              if not open_issues:
+                  call('/issues', 'POST', {
+                      'title': f'PRODUKSI MERAH — {time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}',
+                      'labels': ['monitoring'],
+                      'body': ('Monitor otomatis mendeteksi endpoint mati:\n\n' + desk +
+                               '\n\n---\n_Dibuka otomatis oleh workflow Monitor produksi. '
+                               'Ditutup sendiri begitu pulih._'),
+                  })
+                  print('issue dibuka')
+              else:
+                  call(f"/issues/{open_issues[0]['number']}/comments", 'POST',
+                       {'body': 'Masih merah: ' + desk})
+                  print('komentar di issue lama')
+              sys.exit(1)
+
+          for i in open_issues:
+              call(f"/issues/{i['number']}", 'PATCH', {'state': 'closed'})
+              call(f"/issues/{i['number']}/comments", 'POST', {'body': 'Pulih — semua endpoint menjawab normal.'})
+              print('issue', i['number'], 'ditutup (pulih)')
+          PY
