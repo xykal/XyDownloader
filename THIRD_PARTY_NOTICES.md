@@ -41,7 +41,7 @@ DownloadAja (Built in XyVerse) dirilis dengan lisensi **GPL-3.0-or-later** dan m
 | [ffmpeg.wasm core (FFmpeg)](https://github.com/ffmpegwasm/ffmpeg.wasm) | [GPL-2.0-or-later](licenses/texts/GPL-2.0-only.txt) | Copyright (c) the FFmpeg developers & ffmpeg.wasm contributors | Merge, remux HLS & ugoira di browser (dimuat dari CDN) |
 | [@ffmpeg/ffmpeg & @ffmpeg/util](https://github.com/ffmpegwasm/ffmpeg.wasm) | [MIT](licenses/texts/MIT.txt) | Copyright (c) 2019 Jerome Wu |  |
 | [lamejs](https://github.com/zhuker/lamejs) | [LGPL-3.0](licenses/texts/LGPL-3.0-only.txt) | Copyright (c) 2015 Alex Zhukov | Encoder MP3 di browser |
-| [hls.js](https://github.com/video-dev/hls.js) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 2017 Dailymotion; hls.js contributors | Pratinjau stream HLS (dimuat dari CDN saat dibutuhkan) |
+| [hls.js](https://github.com/video-dev/hls.js) | [Apache-2.0](licenses/texts/Apache-2.0.txt) | Copyright (c) 2017 Dailymotion; hls.js contributors | Pratinjau stream HLS — divendorkan di public/vendor/hls (bukan CDN, CSP menolak script luar) |
 | [flag-icons](https://github.com/lipis/flag-icons) | [MIT](licenses/texts/MIT.txt) | Copyright (c) 2013 Panayiotis Lipiridis | Bendera negara |
 | [Lucide (gaya ikon)](https://lucide.dev/) | [ISC](licenses/texts/ISC.txt) | Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022. | Ikon garis |
 

@@ -215,6 +215,8 @@ async def handle_extract(send, query, receive, method, origin=None):
     try:
         result = await asyncio.to_thread(engine.extract, text or '', PROXY_BASE)
         await _send_json(send, 200, result, origin=origin)
+    except signer.SigningKeyMissing as e:
+        await _send_json(send, 500, {'ok': False, 'code': 'config', 'error': str(e)}, origin=origin)
     except engine.XyError as e:
         await _send_json(
             send, e.status,
@@ -227,6 +229,8 @@ async def handle_stream(send, query, headers, method):
     origin = headers.get('origin')
     try:
         payload = signer.verify(query.get('t', ''))
+    except signer.SigningKeyMissing as e:
+        return await _send_json(send, 500, {'ok': False, 'code': 'config', 'error': str(e)}, origin=origin)
     except signer.TokenError as e:
         return await _send_json(send, 403, {'ok': False, 'code': 'token', 'error': str(e)}, origin=origin)
     filename = payload.get('f') or 'video.mp4'

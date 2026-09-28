@@ -905,7 +905,11 @@ function loadHlsJs() {
   if (!hlsJsPromise) {
     hlsJsPromise = new Promise((resolve, reject) => {
       const sc = document.createElement('script');
-      sc.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js';
+      // Vendor lokal, BUKAN CDN: CSP kami `script-src 'self' 'wasm-unsafe-eval' blob:`
+      // tidak mengizinkan jsdelivr, jadi <script src="https://cdn..."> diblokir browser
+      // dan pratinjau HLS mati diam-diam di Chrome/Firefox/Edge (Safari selamat karena
+      // bisa putar m3u8 native). Lihat public/vendor/hls/NOTICE.
+      sc.src = '/vendor/hls/hls.min.js';
       sc.onload = () => (window.Hls ? resolve(window.Hls) : reject(new Error('hls.js')));
       sc.onerror = () => { hlsJsPromise = null; reject(new Error('hls.js gagal dimuat')); };
       document.head.append(sc);
@@ -1780,7 +1784,7 @@ const LICENSES = [
   ['ffmpeg.wasm core (FFmpeg)', 'GPL-2.0-or-later', 'https://github.com/ffmpegwasm/ffmpeg.wasm', 'Merge, remux HLS & ugoira di browser — dimuat dari CDN'],
   ['@ffmpeg/ffmpeg & @ffmpeg/util', 'MIT', 'https://github.com/ffmpegwasm/ffmpeg.wasm', 'Pembungkus ffmpeg.wasm'],
   ['lamejs', 'LGPL-3.0', 'https://github.com/zhuker/lamejs', 'Encoder MP3 di browser'],
-  ['hls.js', 'Apache-2.0', 'https://github.com/video-dev/hls.js', 'Pratinjau stream HLS — dimuat dari CDN saat dibutuhkan'],
+  ['hls.js', 'Apache-2.0', 'https://github.com/video-dev/hls.js', 'Pratinjau stream HLS — vendored di /vendor/hls (CSP menolak script CDN)'],
   ['flag-icons', 'MIT', 'https://github.com/lipis/flag-icons', 'Bendera negara'],
   ['Ikon gaya Lucide', 'ISC', 'https://lucide.dev/', 'Ikon garis antarmuka'],
   ['DownloadAja', 'GPL-3.0', 'https://github.com/xykal/XyDownloader', 'Kode aplikasi, engine & plugin'],
