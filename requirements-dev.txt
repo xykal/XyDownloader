@@ -1,0 +1,4 @@
+# Dependensi tambahan untuk menjalankan dev_server lokal & tes E2E Playwright.
+# BUKAN untuk produksi Vercel (itu cukup requirements.txt).
+-r requirements.txt
+uvicorn>=0.34

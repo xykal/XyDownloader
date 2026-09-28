@@ -1,0 +1,67 @@
+# E2E web (Playwright) — jalur unduhan inti.
+# Hermetic: API eksternal (extract->YouTube, GitHub, beacon) di-mock di spec;
+# CI nggak butuh secret dan nggak nembak platform asli. Satu browser, bounded.
+name: E2E web
+
+on:
+  pull_request:
+    paths:
+      - 'public/**'
+      - 'api/**'
+      - 'dev_server.py'
+      - 'tests/e2e/**'
+      - 'playwright.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'api/**'
+      - 'dev_server.py'
+      - 'tests/e2e/**'
+      - 'playwright.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Dependensi server dev
+        run: pip install -r requirements-dev.txt
+
+      - name: Dependensi Playwright
+        run: npm ci
+
+      - name: Browser Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Jalankan tes E2E
+        run: npx playwright test
+
+      - name: Unggah laporan kalau gagal
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

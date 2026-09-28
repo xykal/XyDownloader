@@ -39,3 +39,7 @@ android/ffmpeg/out/
 
 # local admin secrets (never commit)
 **/dash-admin.json
+
+# --- Playwright ---
+playwright-report/
+test-results/
