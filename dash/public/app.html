@@ -396,6 +396,13 @@
         <p class="muted" id="cfg-meta"></p>
       </div>
     </section>
+    <section class="card" id="notify">
+      <h2>Kirim pengumuman push</h2>
+      <p class="muted">Ke semua subscriber DownloadAja (OneSignal). Sekali kirim, nggak bisa ditarik.</p>
+      <input id="notify-heading" placeholder="Judul (opsional)" maxlength="100" style="width:100%;margin:6px 0;padding:8px">
+      <textarea id="notify-message" placeholder="Isi pengumuman" maxlength="500" rows="3" style="width:100%;margin:6px 0;padding:8px"></textarea>
+      <button type="button" id="notify-send">Kirim pengumuman</button>
+    </section>
   </main>
   <div class="toast" id="toast"></div>
   <script>
@@ -644,6 +651,27 @@
     };
     $('#reload').onclick = () => load().then(() => toast('Dimuat ulang')).catch((e) => toast(e.message));
     $('#refresh-stats').onclick = () => loadStats().then(() => toast('Stats di-refresh')).catch((e) => toast(e.message));
+    $('#notify-send').onclick = async () => {
+      const heading = $('#notify-heading').value.trim();
+      const message = $('#notify-message').value.trim();
+      if (!message) { toast('Isi pesannya dulu'); return; }
+      if (!confirm('Kirim push ke SEMUA subscriber? Sekali kirim nggak bisa ditarik.')) return;
+      const btn = $('#notify-send');
+      btn.disabled = true; btn.textContent = 'Mengirim…';
+      try {
+        const d = await api('/api/notify', {
+          method: 'POST',
+          body: JSON.stringify({ heading, message }),
+        });
+        toast(d.recipients != null ? `Terkirim ke ${d.recipients} perangkat` : 'Terkirim');
+        $('#notify-message').value = '';
+      } catch (e) {
+        toast('Gagal: ' + (e && e.message || e));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Kirim pengumuman';
+      }
+    };
+
     $('#rebuild-stats').onclick = () => {
       if (!confirm('Hitung ulang rollup all-time dari log event 90 hari? Ini nulis ulang kunci stats:tot:*:rebuild.')) return;
       const btn = $('#rebuild-stats'); btn.disabled = true; btn.textContent = 'Menghitung…';

@@ -8,6 +8,10 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 const COOKIE = 'dlaja_admin_sess';
+// App ID OneSignal DownloadAja (bukan rahasia — ikut di APK).
+const ONESIGNAL_APP_ID = '8d66b3fd-06ea-4df6-aa39-0487d1cf85aa';
+// Jeda minimal antar kirim pengumuman per admin.
+const notifyLast = new Map();
 const SESSION_TTL = 60 * 60 * 12; // 12h
 const STATS_DAYS_KEEP = 90;
 // Kunci 'lifetime unique' dulu umur 800 hari per client-id: ruang kuncinya dikontrol orang luar (cid
@@ -1375,6 +1379,42 @@ export default {
           }
           const cfg = await putConfig(env, { ...(await getConfig(env)), ...patch }, sess.u);
           return json({ ok: true, config: cfg });
+        }
+
+        if (url.pathname === '/api/notify' && request.method === 'POST') {
+          // Kirim pengumuman push (OneSignal) ke semua subscriber. REST API key hidup
+          // di secret ONESIGNAL_REST_API_KEY — nggak pernah nyentuh repo.
+          let body = {};
+          try { body = (await request.json()) || {}; } catch { /* kosong */ }
+          const heading = String(body.heading || '').trim().slice(0, 100);
+          const message = String(body.message || '').trim().slice(0, 500);
+          const target = String(body.url || 'https://github.com/xykal/XyDownloader/releases/latest').slice(0, 500);
+          if (!message) return json({ ok: false, error: 'message_required' }, 400);
+          const key = env.ONESIGNAL_REST_API_KEY;
+          if (!key) {
+            return json({ ok: false, error: 'not_configured', detail: 'Secret ONESIGNAL_REST_API_KEY belum disetel' }, 503);
+          }
+          const now = Date.now();
+          const last = notifyLast.get(sess.u) || 0;
+          if (now - last < 60_000) return json({ ok: false, error: 'cooldown', detail: 'Tunggu 1 menit sebelum kirim berikutnya' }, 429);
+          notifyLast.set(sess.u, now);
+          const sent = await fetch('https://api.onesignal.com/notifications', {
+            method: 'POST',
+            headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              app_id: env.ONESIGNAL_APP_ID || ONESIGNAL_APP_ID,
+              headings: { en: heading || 'DownloadAja' },
+              contents: { en: message },
+              included_segments: ['Total Subscriptions'],
+              url: target,
+              large_icon: 'https://dlaja.xyverse.my.id/icon-192.png',
+            }),
+          });
+          const out = await sent.json().catch(() => ({}));
+          if (!sent.ok) {
+            return json({ ok: false, error: 'onesignal_failed', detail: out.errors || out || `HTTP ${sent.status}` }, 502);
+          }
+          return json({ ok: true, id: out.id || null, recipients: out.recipients ?? null, by: sess.u });
         }
 
         if (url.pathname === '/api/stats/rebuild' && request.method === 'POST') {
