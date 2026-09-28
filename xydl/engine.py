@@ -526,6 +526,13 @@ class _Ctx:
         return f'{self.proxy_base}/f/thumb.jpg?t={token}'
 
 
+def _playlist_totals(info, is_playlist, raw_all, entries):
+    """Jumlah entri sebenarnya vs yang dikirim. `playlistend: MAX_ENTRIES` bikin yt-dlp
+    cuma ngambil metadata 12 entri pertama, jadi N yang jujur ada di `playlist_count`."""
+    total = int(info.get('playlist_count') or len(raw_all)) if is_playlist else 1
+    return total, total > len(entries)
+
+
 def _entry_meta(ctx, info, title):
     return {
         'id': info.get('id'),
@@ -908,12 +915,15 @@ def extract(text, proxy_base):
         ext = (entries[0].get('extractor') or '').lower()
         platform = {'id': ext or 'web', 'name': entries[0].get('extractor') or 'Web', 'region': 'global',
                     'color': '#6366F1'}
+    total_items, truncated = _playlist_totals(info, is_playlist, raw_all, entries)
     result = {
         'ok': True,
         'url': url,
         'platform': {k: platform.get(k) for k in ('id', 'name', 'region', 'color', 'logo')} if platform else None,
         'title': title,
         'count': len(entries),
+        'total': total_items,
+        'truncated': truncated,
         'entries': entries,
         'took_ms': int((time.time() - t0) * 1000),
     }

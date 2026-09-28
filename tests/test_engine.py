@@ -230,3 +230,17 @@ def test_preview_prefers_light_muxed_format():
                         fmt('a', 'https://cdn.example.com/a.m4a', ext='m4a', vcodec='none', acodec='mp4a')]}
     e = engine.build_entry(ctx(dash), dash)
     assert e['preview']['type'] == 'pair' and e['preview']['audio']
+
+
+def test_playlist_totals_jujur_dengan_playlist_count():
+    # yt-dlp stop di 12 (playlistend), jadi N asli ada di playlist_count
+    info = {'playlist_count': 87}
+    total, truncated = engine._playlist_totals(info, True, [{}] * 12, [{}] * 12)
+    assert (total, truncated) == (87, True)
+
+    total, truncated = engine._playlist_totals({}, True, [{}] * 5, [{}] * 5)
+    assert (total, truncated) == (5, False)  # playlist kecil: sama aja
+
+    # video tunggal / galeri: bukan playlist, 1 = 1
+    total, truncated = engine._playlist_totals({}, False, [{}], [{}])
+    assert (total, truncated) == (1, False)

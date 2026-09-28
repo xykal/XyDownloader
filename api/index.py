@@ -185,7 +185,7 @@ def _stream_charge(ip, nbytes):
             del _stream_flow[key]
 
 
-def _rate_limited(ip):
+def _rate_limited(ip, batch=False):
     """Fixed window 60 detik per IP. Dulu `_hits.clear()` begitu tabel lewat 5000 IP:
     penyerang yang sengaja nyebar 5000 IP palsu bikin semua counter orang lain ke-reset
     (rate limit mati total). Sekarang entry kedaluwarsa dibuang satu-satu.
@@ -197,6 +197,11 @@ def _rate_limited(ip):
         q.popleft()
     if len(q) >= RATE_LIMIT:
         return True
+    if batch:
+        # Satu klik "Unduh semua" = banyak request yang sudah dijeda klien
+        # (2 paralel + 300 ms). Header bisa dipalsukan — ini rem, bukan kunci;
+        # yang nahan beneran tetap kuota 500 MB/hari di proxy.
+        return False
     q.append(now)
     _hits_seen += 1
     if len(_hits) > 5000 or _hits_seen % 512 == 0:
@@ -390,7 +395,7 @@ async def app(scope, receive, send):
                     'ok': False, 'code': 'forbidden',
                     'error': 'Akses API ditolak. Pakai situs resmi atau aplikasi DownloadAja.',
                 }, origin=origin)
-            if _rate_limited(ip):
+            if _rate_limited(ip, batch=(headers.get('x-xy-batch') == '1')):
                 await report_probe(ip, ua, 'rate_limit', path, headers.get('cf-ipcountry') or headers.get('x-vercel-ip-country'))
                 return await _send_json(send, 429, {'ok': False, 'code': 'rate_limit',
                                                     'error': 'Terlalu banyak permintaan. Tunggu 1 menit ya.'},
