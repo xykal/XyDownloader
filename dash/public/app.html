@@ -213,6 +213,7 @@
     </div>
     <div class="head-actions">
       <button type="button" id="refresh-stats">Refresh</button>
+      <button type="button" id="rebuild-stats" title="Hitung ulang rollup all-time dari log event (stats:evt:*)">Rebuild rollup</button>
       <span class="pill" id="user-pill">…</span>
       <button type="button" id="logout">Keluar</button>
     </div>
@@ -487,7 +488,7 @@
 
       $('#kpi').innerHTML = [
         kpiCard('Download total', tot.downloads, `7h ${fmt(w.downloads)} · hari ini ${fmt(t.downloads)}`, 'ok'),
-        kpiCard('Pengguna unik', tot.unique_users_approx, `hari ini ${fmt(t.unique_users)} · 7h ${fmt(w.unique_users)}`, 'accent'),
+        kpiCard('Pengguna unik', tot.unique_users_approx, `±90 hari · hari ini ${fmt(t.unique_users)} · 7h ${fmt(w.unique_users)}`, 'accent'),
         kpiCard('Proses link', tot.extracts, `hari ini ${fmt(t.extracts)} · 7h ${fmt(w.extracts)}`),
         kpiCard('Probe / tembus', probes.today_count || 0, `IP unik top ${ (probes.top_ips_today || []).length }`, 'danger'),
       ].join('');
@@ -643,6 +644,15 @@
     };
     $('#reload').onclick = () => load().then(() => toast('Dimuat ulang')).catch((e) => toast(e.message));
     $('#refresh-stats').onclick = () => loadStats().then(() => toast('Stats di-refresh')).catch((e) => toast(e.message));
+    $('#rebuild-stats').onclick = () => {
+      if (!confirm('Hitung ulang rollup all-time dari log event 90 hari? Ini nulis ulang kunci stats:tot:*:rebuild.')) return;
+      const btn = $('#rebuild-stats'); btn.disabled = true; btn.textContent = 'Menghitung…';
+      api('/api/stats/rebuild', { method: 'POST', body: JSON.stringify({ days: 90 }) })
+        .then((r) => loadStats())
+        .then(() => toast('Rollup dibangun ulang'))
+        .catch((e) => toast('Gagal: ' + e.message))
+        .finally(() => { btn.disabled = false; btn.textContent = 'Rebuild rollup'; });
+    };
     $('#logout').onclick = async () => {
       await api('/api/logout', { method: 'POST', body: '{}' });
       const g = (location.pathname.match(/\/g\/([^/]+)/) || [])[1];
