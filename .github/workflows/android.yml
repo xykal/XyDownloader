@@ -127,6 +127,37 @@ jobs:
             out/update-banner.webp
           body_path: android/RELEASE_NOTES.md
 
+      - name: Kirim notifikasi rilis (OneSignal)
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true   # push notif gagal jangan bikin rilis dianggap gagal
+        env:
+          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
+          ONESIGNAL_APP_ID: 8d66b3fd-06ea-4df6-aa39-0487d1cf85aa
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          body = {
+              'app_id': os.environ['ONESIGNAL_APP_ID'],
+              'headings': {'en': 'DownloadAja ' + os.environ['VERSION_NAME'] + ' sudah rilis'},
+              'contents': {'en': 'Ketuk untuk memperbarui \u2014 perbaikan dan fitur baru sudah menunggu.'},
+              'included_segments': ['Total Subscriptions'],
+              'url': 'https://github.com/xykal/XyDownloader/releases/latest',
+              'large_icon': 'https://dlaja.xyverse.my.id/icon-192.png',
+          }
+          req = urllib.request.Request(
+              'https://api.onesignal.com/notifications',
+              data=json.dumps(body, ensure_ascii=False).encode('utf-8'),
+              headers={'Authorization': 'Key ' + os.environ['ONESIGNAL_REST_API_KEY'],
+                       'Content-Type': 'application/json'},
+              method='POST')
+          try:
+              with urllib.request.urlopen(req) as r:
+                  out = json.loads(r.read() or b'{}')
+              print('notifikasi:', out.get('id') or out.get('errors'))
+          except Exception as e:
+              print('notifikasi gagal (rilis tetap jalan):', e)
+          PY"
+
   smoke:
     name: Smoke test (emulator)
     needs: build
