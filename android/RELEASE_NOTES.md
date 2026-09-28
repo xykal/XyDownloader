@@ -2,6 +2,12 @@
 
 Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, Xiaohongshu, X, Facebook, Threads, pixiv, Vidio & 1.700+ situs lainnya — langsung dari HP.
 
+### Yang baru di versi 1.3.3
+- **Notifikasi pengumuman** — kabar rilis & info penting sekarang bisa dikirim langsung ke HP (izin notifikasi sekali saat pertama dibuka).
+- **Web: riwayat unduhan** — daftar file yang baru diunduh, bisa "Unduh lagi" dalam satu ketukan; tersimpan di perangkat masing-masing.
+- **Web: "Unduh semua" untuk playlist** — antrean yang santun (2 file berjalan, jeda antar mulai, bisa dibatalkan) dan jujur soal jumlah entri.
+- **Kuota unduh wajar 500 MB/hari** — layanan tetap waras buat semua orang; lewat batas ada pemberitahuan yang jelas, bukan error aneh.
+
 ### Yang baru di versi 1.3.2
 - **Pratinjau HLS di web kembali jalan di semua browser** — hls.js sekarang ikut dibundel di situs; sebelumnya script-nya diblokir Content-Security-Policy jadi di Chrome/Firefox/Edge pratinjau video HLS (mis. Vidio, Dailymotion) gagal tanpa pesan.
 - **API & proxy lebih tertutup** — hasil proses cuma bisa dibaca dari domain resmi (sebelumnya domain palsu berakhiran/berawalan "dlaja" ikut diizinkan), link unduhan dijaga dari penyalahgunaan jadi open proxy, dan rantai redirect link diperiksa supaya tidak bisa nyasar ke jaringan internal.

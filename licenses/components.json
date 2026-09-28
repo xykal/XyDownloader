@@ -178,6 +178,14 @@
       "note": "Memuat gambar/thumbnail"
     },
     {
+      "name": "OneSignal",
+      "license": "MIT",
+      "file": "MIT.txt",
+      "url": "https://github.com/OneSignal/OneSignal-Android-SDK",
+      "copyright": "Copyright (c) 2014-present OneSignal",
+      "note": "Push pengumuman (rilis & kabar penting)"
+    },
+    {
       "name": "OkHttp & Okio",
       "license": "Apache-2.0",
       "file": "Apache-2.0.txt",

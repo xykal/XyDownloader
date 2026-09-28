@@ -9,7 +9,7 @@ plugins {
 }
 
 // Versi diisi dari CI (tag v1.2.3 -> 1.2.3). Build lokal pakai default.
-val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.3.1-dev"
+val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.3.3-dev"
 val appVersionCode: Int = (System.getenv("VERSION_CODE") ?: "1").toInt()
 
 // Signing release dari GitHub Secrets (KEYSTORE_BASE64 -> file, lihat workflow android.yml)
@@ -169,5 +169,7 @@ dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Push pengumuman (OneSignal) — app_id khusus DownloadAja, lihat XyApp.kt
+    implementation("com.onesignal:OneSignal:5.9.9")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }
