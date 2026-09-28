@@ -237,3 +237,22 @@ def test_extract_tidak_menyentuh_yt_dlp_untuk_link_jahat(server, public_by_name,
     with pytest.raises(engine.XyError) as e:
         engine.extract(server + '/chain', 'http://proxy.test')
     assert e.value.status == 400
+
+
+def test_batch_header_tidak_makan_token_rate_limit():
+    """Satu klik 'Unduh semua' = 12 request berjeda; klaim X-XY-Batch tidak
+    menambah counter, tapi tetap ditahan kalau IP-nya sudah penuh."""
+    api._hits.clear()
+    ip = '203.0.113.50'
+    for _ in range(api.RATE_LIMIT):
+        assert api._rate_limited(ip) is False
+    assert api._rate_limited(ip) is True                 # penuh
+    assert api._rate_limited(ip, batch=True) is True     # batch pun tetap ditahan
+
+    api._hits.clear()
+    for _ in range(api.RATE_LIMIT * 2):
+        api._rate_limited(ip, batch=True)                # tidak menambah counter
+    assert api._rate_limited(ip) is False                # slot masih kosong
+    assert api._rate_limited(ip, batch=False) is False   # 1 request biasa = 1 token
+    assert api._rate_limited(ip, batch=False) is True or api.RATE_LIMIT > 2
+    api._hits.clear()

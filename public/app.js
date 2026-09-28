@@ -2,6 +2,7 @@
 // Proses berat (merge video+audio, remux HLS, ugoira, konversi MP3) berjalan di browser.
 
 import { createHistoryStore } from './history-store.js';
+import { createBatchQueue } from './batch-queue.js';
 
 const API = '/api';
 
@@ -458,7 +459,7 @@ async function fetchRanged(url, task, label, p0, p1, sizeHint) {
   let loadedAll = 0;
   while (total === null || start < total) {
     const end = total ? Math.min(start + RANGE_CHUNK, total) - 1 : start + RANGE_CHUNK - 1;
-    const res = await fetchRetry(url, { headers: { Range: `bytes=${start}-${end}` }, signal: task.signal });
+    const res = await fetchRetry(url, { headers: xyApiHeaders({ Range: `bytes=${start}-${end}` }), signal: task.signal });
     if (res.status === 200) {
       const t = +res.headers.get('content-length') || total || 0;
       return readWithProgress(res, (l) => task.progress(t ? p0 + (p1 - p0) * (l / t) : p0, `${label} · ${fmtBytes(l)}`), task.signal);
@@ -783,6 +784,108 @@ function fmtSize(n) {
   return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
+// ------------------------------------------------------------------ antrian "Unduh semua" (G1)
+// Keputusan PRD §10.3: simpan satu-satu ke Downloads, maks 2 berjalan, jeda 300 ms,
+// batal = yang belum mulai dihentikan. Header X-XY-Batch: 1 biar 1 klik = 1 token
+// rate limit (api/index.py _rate_limited).
+let BATCH_MARK = false;
+function xyApiHeaders(extra = {}) {
+  return BATCH_MARK ? { ...extra, 'X-XY-Batch': '1' } : extra;
+}
+
+const BATCH_SNAP = 'xy-batch-v1';
+let batchQueue = null;
+const batchCards = [];
+
+function saveBatchSnap() {
+  try {
+    const s = batchQueue && batchQueue.snapshot();
+    const pending = s && s.items.filter((i) => i.status === 'queued' || i.status === 'running');
+    if (pending && pending.length) sessionStorage.setItem(BATCH_SNAP, JSON.stringify(s));
+    else sessionStorage.removeItem(BATCH_SNAP);
+  } catch { /* mode privat */ }
+}
+
+async function extractOne(url) {
+  const res = await fetch(`${API}/extract`, {
+    method: 'POST',
+    headers: xyApiHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ url }),
+  });
+  let data;
+  try { data = await res.json(); } catch { throw new Error(`Server sedang sibuk (HTTP ${res.status})`); }
+  if (!data.ok) throw new Error(data.error || 'Gagal memproses link');
+  return data;
+}
+
+async function runBatchItem(item) {
+  let entry = item._entry;
+  if (!entry) {
+    // dipulihkan setelah refresh: extract ulang dari url halaman — link unduhan selalu segar
+    const data = await extractOne(item.url);
+    entry = (data.entries && data.entries[0]) || null;
+  }
+  if (!entry) return false;
+  const opt = pickDefaultVideoOpt(entry.video) || (entry.audio && entry.audio[0]) || null;
+  if (!opt) return false;
+  const card = batchCards[item.id] || (() => {
+    const ghost = el('div', 'card');
+    ghost.style.display = 'none';
+    document.body.append(ghost);
+    return ghost;
+  })();
+  return await startDownload(card, entry, opt);
+}
+
+function attachBatch(mount, { entries, snap, note, floating }) {
+  const bar = el('div', 'card');
+  bar.style.cssText = floating
+    ? 'position:fixed;left:12px;right:12px;bottom:12px;z-index:60;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;max-width:640px;margin:0 auto'
+    : 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin:0 0 12px';
+  const btn = el('button', 'btn btn-primary btn-sm', snap ? `Lanjutkan antrian (${(snap.items || []).filter((i) => i.status === 'queued' || i.status === 'running').length})` : `Unduh semua (${entries.length})`);
+  btn.type = 'button';
+  const prog = el('span', 'muted small', note || (snap ? 'Antrian terputus waktu halaman di-refresh.' : ''));
+  const cancelBtn = el('button', 'btn btn-ghost btn-sm', 'Batal');
+  cancelBtn.type = 'button';
+  bar.append(btn, prog, cancelBtn);
+  mount.append(bar);
+
+  const start = () => {
+    btn.disabled = true;
+    batchQueue = createBatchQueue({
+      max: 2,
+      gapMs: 300,
+      run: runBatchItem,
+      onChange: () => {
+        saveBatchSnap();
+        const c = batchQueue.counts();
+        prog.textContent = `Antrian: ${c.done} selesai · ${c.running} berjalan · ${c.queued} antre${c.failed ? ` · ${c.failed} gagal` : ''}${c.cancelled ? ` · ${c.cancelled} batal` : ''}`;
+        if (batchQueue.finished) {
+          BATCH_MARK = false;
+          saveBatchSnap();
+          prog.textContent = `Selesai: ${c.done} berhasil${c.failed ? `, ${c.failed} gagal` : ''}.`;
+          cancelBtn.remove();
+          toast('Antrian unduhan selesai');
+        }
+      },
+    });
+    if (snap) batchQueue.restore(snap);
+    if (entries) {
+      batchQueue.add(entries.map((entry, i) => ({
+        id: String(i), url: entry.webpage_url, title: entry.title, _entry: entry,
+      })));
+    }
+    BATCH_MARK = true;
+    batchQueue.start();
+  };
+  btn.onclick = start;
+  cancelBtn.onclick = () => {
+    if (batchQueue) { batchQueue.cancel(); saveBatchSnap(); }
+    else { btn.disabled = false; bar.remove(); }
+  };
+  return bar;
+}
+
 // ------------------------------------------------------------------ orkestrasi download
 async function startDownload(card, entry, opt) {
   if (card._task) { toast('Tunggu proses sebelumnya selesai dulu'); return; }
@@ -801,7 +904,7 @@ async function startDownload(card, entry, opt) {
         recordHistory(entry, opt, saved);
         try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: 1 }); } catch {}
         task.done('Download dimulai', 'Cek notifikasi atau folder Download di perangkat kamu.');
-        return;
+        return true;
       }
       if (!src.alt) throw new Error('Link download ditolak oleh platform. Coba proses ulang link-nya.');
       const got = await getSource({ ...src, via: 'server', url: src.alt }, task, 'Mengunduh (jalur server)', 0, 1);
@@ -845,10 +948,12 @@ async function startDownload(card, entry, opt) {
     recordHistory(entry, opt, saved);
     try { track('download', { platform: (entry.platform && (entry.platform.id || entry.platform.name)) || 'unknown', count: 1 }); } catch {}
     task.done('Selesai', `${opt.filename} tersimpan di folder Download.`);
+    return true;
   } catch (e) {
     console.error(e);
     if (e.name === 'AbortError') task.fail('Dibatalkan');
     else task.fail('Gagal', e.message || String(e));
+    return false;
   }
 }
 
@@ -1525,10 +1630,20 @@ function renderResult(data) {
   clearInterval(renderSkeleton.timer);
   resultEl.innerHTML = '';
   resultEl.classList.remove('hidden');
+  if (data.entries.length > 1) {
+    attachBatch(resultEl, {
+      entries: data.entries,
+      note: data.total > data.count
+        ? `Menampilkan ${data.count} dari ${data.total} — sisanya kepotong batas server.`
+        : '',
+    });
+  }
   const tpl = $('#tpl-entry');
   const s = effectiveSettings();
   data.entries.forEach((entry, idx) => {
+    batchCards[idx] = null;
     const card = tpl.content.firstElementChild.cloneNode(true);
+    batchCards[idx] = card;
     const img = $('.thumb img', card);
     if (entry.thumbnail) {
       img.src = entry.thumbnail;
@@ -2072,6 +2187,17 @@ function openHistory() {
     body.append(el('p', 'muted small', `Sampai 100 entri, tersimpan di perangkat ini saja — tidak dikirim ke server, tidak sinkron antar-perangkat. Link unduhan tidak disimpan; "Unduh lagi" memproses ulang tautannya.`));
   });
 }
+
+(function offerResume() {
+  try {
+    const raw = sessionStorage.getItem(BATCH_SNAP);
+    if (!raw) return;
+    const snap = JSON.parse(raw);
+    const pending = (snap.items || []).filter((i) => i.status === 'queued' || i.status === 'running');
+    if (!pending.length) { sessionStorage.removeItem(BATCH_SNAP); return; }
+    attachBatch(document.body, { snap, floating: true });
+  } catch { sessionStorage.removeItem(BATCH_SNAP); }
+})();
 
 $('#btn-settings')?.addEventListener('click', () => openSettings());
 $('#btn-history')?.addEventListener('click', () => openHistory());
