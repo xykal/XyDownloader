@@ -19,7 +19,7 @@ jobs:
           python-version: '3.12'
           cache: pip
       - name: Install
-        run: pip install -r requirements.txt pytest pyflakes
+        run: pip install -r requirements.txt pytest pyflakes pyyaml
       - name: Lint (pyflakes)
         run: python -m pyflakes api xydl plugins tests scripts dev_server.py android/tools .github/scripts android/app/src/main/assets/py
       - name: Unit test (offline)

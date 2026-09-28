@@ -2,3 +2,4 @@
 # BUKAN untuk produksi Vercel (itu cukup requirements.txt).
 -r requirements.txt
 uvicorn>=0.34
+pyyaml>=6
