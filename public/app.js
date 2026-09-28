@@ -1767,9 +1767,11 @@ fetch('https://api.github.com/repos/xykal/XyDownloader/releases/latest', {
   .catch(() => {});
 
 // ------------------------------------------------------------------ modal (pembaruan, lisensi) & popup "yang baru"
-const WEB_VERSION = '1.3.1';
+const WEB_VERSION = '1.3.2';
 const RELEASES = 'https://github.com/xykal/XyDownloader/releases';
 const CHANGES = [
+  ['Pratinjau HLS di semua browser', 'hls.js kini ikut dibundel di situs — di Chrome, Firefox, dan Edge pratinjau video HLS (mis. Vidio) tidak lagi gagal diam-diam.'],
+  ['API & proxy lebih tertutup', 'Hanya domain resmi yang boleh membaca hasil proses, kuota unduh per IP dibatasi, dan link tidak bisa dipakai ke host asing.'],
   ['Pratinjau adaptif + pemutar musik', 'Video autoplay (bisa diatur), player musik untuk link audio, chip kualitas Normal/Hemat/Tinggi.'],
   ['Nama file DownloadAja-…', 'Setiap unduhan memakai nama branded yang unik dan rapi di folder Download.'],
   ['Pengaturan di web', 'Autoplay, ukuran preview, kualitas default, dan mode hemat data — tersimpan di perangkat.'],

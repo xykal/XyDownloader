@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BASE_VERSION: '1.2.0'
+  BASE_VERSION: '1.3.2'
   NDK_VERSION: '27.2.12479018'
 
 jobs:
@@ -50,14 +50,10 @@ jobs:
       - name: Versi
         id: ver
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            V="${GITHUB_REF_NAME#v}"
-          else
-            V="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}"
-          fi
-          echo "VERSION_NAME=$V" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/version.py "$GITHUB_REF" "$BASE_VERSION" "$GITHUB_RUN_NUMBER" > "$RUNNER_TEMP/version.env"
+          cat "$RUNNER_TEMP/version.env" >> "$GITHUB_ENV"
+          echo "version=$(sed -n 's/^VERSION_NAME=//p' "$RUNNER_TEMP/version.env")" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/version.env"
 
       # ---------------------------------------------------------------- FFmpeg minimal (di-cache)
       - name: Cache FFmpeg minimal
