@@ -12,6 +12,7 @@
  */
 
 import { originAllowed } from './netpolicy.js';
+import { clientIp, countBody, MB, quotaFor } from './quota.js';
 
 const VERSION = '1.0.0';
 const enc = new TextEncoder();
@@ -142,13 +143,14 @@ function contentDisposition(filename) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`;
 }
 
-function json(status, data, request, env) {
+function json(status, data, request, env, extra = null) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
       ...(request ? corsHeaders(request, env) : { 'x-robots-tag': 'noindex' }),
+      ...(extra || {}),
     },
   });
 }
@@ -156,6 +158,18 @@ function json(status, data, request, env) {
 // ---------------------------------------------------------------- handlers
 async function handleFile(request, env, url) {
   const payload = await verifyToken(url.searchParams.get('t'), env);
+  const ip = clientIp(request);
+  const quota = quotaFor(env);
+  const gate = await quota.check(ip);
+  if (!gate.ok) {
+    return json(429, {
+      ok: false,
+      error: 'kuota_harian_habis',
+      quota_mb: Math.round(gate.cap / MB),
+      reset_in_seconds: gate.retryAfter,
+      message: `Kuota unduh harian (${Math.round(gate.cap / MB)} MB) sudah habis. Coba lagi setelah tengah malam UTC.`,
+    }, request, env, { 'retry-after': String(gate.retryAfter), 'x-xy-quota': 'exceeded' });
+  }
   const target = resolveTarget(url, payload);
   const upstream = await fetch(target, {
     method: request.method === 'HEAD' ? 'HEAD' : 'GET',
@@ -177,7 +191,12 @@ async function handleFile(request, env, url) {
   }
   headers.set('cache-control', payload.ct && payload.ct.startsWith('image/') ? 'public, max-age=86400' : 'no-store');
   headers.set('x-xydl-upstream-status', String(upstream.status));
-  return new Response(request.method === 'HEAD' ? null : upstream.body, { status: upstream.status, headers });
+  if (request.method === 'HEAD') return new Response(null, { status: upstream.status, headers });
+  if (gate.remaining !== undefined) {
+    headers.set('x-xy-quota-remaining-mb', String(Math.max(0, Math.floor(gate.remaining / MB))));
+  }
+  const body = countBody(upstream.body, (n) => { quota.add(ip, n); });
+  return new Response(body, { status: upstream.status, headers });
 }
 
 const M3U8_RE = /\.m3u8?($|\?)/i;
