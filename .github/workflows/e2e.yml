@@ -47,7 +47,7 @@ jobs:
           python-version: '3.12'
 
       - name: Dependensi server dev
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Dependensi Playwright
         run: npm ci
