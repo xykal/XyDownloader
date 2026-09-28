@@ -11,9 +11,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import id.my.xyverse.xydownloader.ui.XyRoot
 import id.my.xyverse.xydownloader.ui.XyTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -26,6 +28,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) handleIntent(intent)
         requestNeededPermissions()
+        watchFirstDownload()
         setContent {
             XyTheme {
                 XyRoot(vm)
@@ -50,14 +53,39 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestNeededPermissions() {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else if (Build.VERSION.SDK_INT <= 28 &&
+        // POST_NOTIFICATIONS sengaja TIDAK diminta di awal — user baru diminta
+        // setelah unduhan pertamanya selesai (lihat watchFirstDownload).
+        if (Build.VERSION.SDK_INT <= 28 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         ) {
             askPermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
+    /**
+     * Izin notifikasi diminta tepat saat nilainya jelas: begitu unduhan pertama
+     * selesai (notifikasi "Download selesai" baru ada gunanya). Diminta sekali
+     * saja — kalau ditolak, tidak diganggu lagi.
+     */
+    private fun watchFirstDownload() {
+        if (Build.VERSION.SDK_INT < 33) return
+        Downloads.load(this)
+        lifecycleScope.launch {
+            var awal: Set<String>? = null   // baseline: riwayat lama bukan "unduhan pertama"
+            Downloads.records.collect { list ->
+                val selesai = list.filter { it.status == DlRecord.STATUS_DONE }.map { it.id }.toSet()
+                val baseline = awal
+                if (baseline == null) { awal = selesai; return@collect }
+                val baru = selesai - baseline
+                if (baru.isNotEmpty() && !AppSettings.notificationAsked(this@MainActivity)) {
+                    AppSettings.setNotificationAsked(this@MainActivity, true)
+                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
         }
     }
 }

@@ -66,26 +66,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         Downloads.load(ctx)
+        Downloads.ensureStarted(ctx)   // pulihkan antrean + tandai yang terputus
         // Sinkronkan status riwayat dengan WorkManager (mis. setelah aplikasi ditutup paksa)
         viewModelScope.launch {
             WorkManager.getInstance(ctx).getWorkInfosByTagFlow(Downloads.TAG).collect { infos ->
                 for (wi in infos) {
-                    val id = wi.id.toString()
+                    // taskId dari tag "task-<id>" (WorkInfo.inputData belum ada di versi WM ini)
+                    val id = wi.tags.firstOrNull { it.startsWith("task-") }?.substring(5)
+                        ?: wi.id.toString()
                     when (wi.state) {
-                        WorkInfo.State.SUCCEEDED -> Downloads.upsert(ctx, id) {
-                            if (it.status == DlRecord.STATUS_DONE) it else it.copy(
-                                status = DlRecord.STATUS_DONE, progress = 1f,
-                                uri = wi.outputData.getString(Downloads.K_URI) ?: it.uri,
-                                mime = wi.outputData.getString(Downloads.K_MIME) ?: it.mime,
-                                fileName = wi.outputData.getString(Downloads.K_NAME) ?: it.fileName,
-                            )
+                        WorkInfo.State.SUCCEEDED -> {
+                            Downloads.upsert(ctx, id) {
+                                if (it.status == DlRecord.STATUS_DONE) it else it.copy(
+                                    status = DlRecord.STATUS_DONE, progress = 1f,
+                                    uri = wi.outputData.getString(Downloads.K_URI) ?: it.uri,
+                                    mime = wi.outputData.getString(Downloads.K_MIME) ?: it.mime,
+                                    fileName = wi.outputData.getString(Downloads.K_NAME) ?: it.fileName,
+                                )
+                            }
+                            Downloads.releaseSlot(ctx, id)
                         }
-                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> Downloads.upsert(ctx, id) {
-                            if (it.status == DlRecord.STATUS_FAILED) it else it.copy(
-                                status = DlRecord.STATUS_FAILED,
-                                error = wi.outputData.getString(Downloads.K_ERROR)
-                                    ?: if (wi.state == WorkInfo.State.CANCELLED) "Dibatalkan" else "Gagal",
-                            )
+                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                            Downloads.upsert(ctx, id) {
+                                if (it.status == DlRecord.STATUS_FAILED) it else it.copy(
+                                    status = DlRecord.STATUS_FAILED,
+                                    error = wi.outputData.getString(Downloads.K_ERROR)
+                                        ?: if (wi.state == WorkInfo.State.CANCELLED) "Dibatalkan" else "Gagal",
+                                )
+                            }
+                            Downloads.releaseSlot(ctx, id)
                         }
                         else -> Unit
                     }

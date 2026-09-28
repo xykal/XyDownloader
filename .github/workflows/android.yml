@@ -4,6 +4,15 @@ name: Android APK
 # - push ke main  -> APK sebagai artifact + smoke test di emulator (screenshot sebagai artifact)
 # - push tag v*   -> GitHub Release berisi APK per arsitektur + gambar popup pembaruan
 on:
+  # Build + smoke di PR dulu — merge baru kalau hijau. Step Release & notifikasi
+  # tetap dijaga `if: tags v*`, jadi PR tidak pernah menyentuh rilis.
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'plugins/**'
+      - 'licenses/**'
+      - '.github/workflows/android.yml'
+      - '.github/scripts/**'
   push:
     branches: [main]
     tags: ['v*']

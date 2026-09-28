@@ -17,6 +17,8 @@ import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -48,12 +50,15 @@ data class DlRecord(
     val fileName: String? = null,
     val error: String? = null,
     val count: Int = 1,
+    /** Data input WorkManager — dipakai membangun ulang antrean setelah proses mati. */
+    val payload: JSONObject? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id); put("title", title); put("label", label); put("kind", kind)
         put("thumbnail", thumbnail ?: JSONObject.NULL); put("sourceUrl", sourceUrl); put("createdAt", createdAt)
         put("status", status); put("uri", uri ?: JSONObject.NULL); put("mime", mime ?: JSONObject.NULL)
         put("fileName", fileName ?: JSONObject.NULL); put("error", error ?: JSONObject.NULL); put("count", count)
+        put("payload", payload ?: JSONObject.NULL)
     }
 
     companion object {
@@ -69,7 +74,7 @@ data class DlRecord(
             kind = o.optString("kind"), thumbnail = o.s("thumbnail"), sourceUrl = o.optString("sourceUrl"),
             createdAt = o.optLong("createdAt"), status = o.optString("status", STATUS_QUEUED),
             uri = o.s("uri"), mime = o.s("mime"), fileName = o.s("fileName"), error = o.s("error"),
-            count = o.optInt("count", 1),
+            count = o.optInt("count", 1), payload = o.optJSONObject("payload"),
         )
     }
 }
@@ -90,6 +95,9 @@ object Downloads {
     const val K_MIME = "mime"
     const val K_NAME = "name"
     const val K_ERROR = "error"
+    const val K_TASK = "task"
+    /** Maksimum unduhan yang berjalan bareng (paritas web, PRD §10.3). */
+    const val MAX_PARALLEL = 2
     const val CH_PROGRESS = "progress"
     const val CH_DONE = "done"
     private const val PREFS = "downloads"
@@ -98,6 +106,10 @@ object Downloads {
     private val _records = MutableStateFlow<List<DlRecord>>(emptyList())
     val records: StateFlow<List<DlRecord>> = _records
     private var loaded = false
+
+    // ---- antrean: FIFO, maks 2 berjalan; yang belum giliran TIDAK diserahkan ke WorkManager ----
+    private val pending = ArrayDeque<String>()   // taskId menunggu giliran
+    private val handed = mutableSetOf<String>()  // taskId sudah di WorkManager & belum selesai
 
     fun load(ctx: Context) {
         if (loaded) return
@@ -148,22 +160,18 @@ object Downloads {
         infoPath: String? = info.infoPath,
     ) {
         load(ctx)
-        val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-            .setInputData(
-                workDataOf(
-                    K_URL to info.sourceUrl, K_TITLE to title, K_KIND to kind,
-                    K_HEIGHT to height, K_KBPS to kbps, K_ITEM to item, K_INFO to infoPath,
-                )
-            )
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .addTag(TAG)
-            .build()
+        val taskId = UUID.randomUUID().toString()
+        val payload = JSONObject().apply {
+            put(K_TASK, taskId); put(K_URL, info.sourceUrl); put(K_TITLE, title); put(K_KIND, kind)
+            put(K_HEIGHT, height); put(K_KBPS, kbps); put(K_ITEM, item)
+            if (infoPath != null) put(K_INFO, infoPath)
+        }
         addRecord(ctx, DlRecord(
-            id = request.id.toString(), title = title, label = label, kind = kind,
+            id = taskId, title = title, label = label, kind = kind,
             thumbnail = info.thumbnail, sourceUrl = info.sourceUrl, createdAt = System.currentTimeMillis(),
+            payload = payload,
         ))
-        WorkManager.getInstance(ctx).enqueue(request)
+        synchronized(this) { pending.addLast(taskId); pump(ctx) }
     }
 
     /** File langsung (foto, Live Photo, video carousel): diunduh via HTTP tanpa yt-dlp. */
@@ -180,18 +188,17 @@ object Downloads {
                 .put("headers", JSONObject(f.headers as Map<*, *>)))
         }
         jobFile.writeText(arr.toString())
-        val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-            .setInputData(workDataOf(K_URL to info.sourceUrl, K_TITLE to title, K_KIND to "files", K_FILES to jobFile.absolutePath))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .addTag(TAG)
-            .build()
+        val taskId = UUID.randomUUID().toString()
+        val payload = JSONObject().apply {
+            put(K_TASK, taskId); put(K_URL, info.sourceUrl); put(K_TITLE, title)
+            put(K_KIND, "files"); put(K_FILES, jobFile.absolutePath)
+        }
         addRecord(ctx, DlRecord(
-            id = request.id.toString(), title = title, label = label, kind = "files",
+            id = taskId, title = title, label = label, kind = "files",
             thumbnail = info.gallery.firstOrNull()?.thumb ?: info.thumbnail, sourceUrl = info.sourceUrl,
-            createdAt = System.currentTimeMillis(), count = files.size,
+            createdAt = System.currentTimeMillis(), count = files.size, payload = payload,
         ))
-        WorkManager.getInstance(ctx).enqueue(request)
+        synchronized(this) { pending.addLast(taskId); pump(ctx) }
     }
 
     private fun addRecord(ctx: Context, rec: DlRecord) {
@@ -202,9 +209,90 @@ object Downloads {
     }
 
     fun cancel(ctx: Context, id: String) {
-        WorkManager.getInstance(ctx).cancelWorkById(UUID.fromString(id))
+        val masihAntre = synchronized(this) { pending.remove(id) }
+        if (masihAntre) {
+            upsert(ctx, id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Dibatalkan") }
+            return
+        }
+        WorkManager.getInstance(ctx).cancelAllWorkByTag("task-$id")
+        runCatching { WorkManager.getInstance(ctx).cancelWorkById(UUID.fromString(id)) } // rekaman lama
         YoutubeDL.getInstance().destroyProcessById(id)
         upsert(ctx, id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Dibatalkan") }
+    }
+
+    private fun buildRequest(payload: JSONObject): OneTimeWorkRequest {
+        val pasangan = ArrayList<Pair<String, Any?>>()
+        for (k in payload.keys()) {
+            when (val v = payload.get(k)) {
+                JSONObject.NULL -> Unit
+                is String -> pasangan.add(k to v)
+                is Int -> pasangan.add(k to v)
+                is Long -> pasangan.add(k to v)
+                is Boolean -> pasangan.add(k to v)
+                is Double -> pasangan.add(k to v)
+            }
+        }
+        return OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setInputData(workDataOf(*pasangan.toTypedArray()))
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .addTag(TAG)
+            .addTag("task-" + payload.optString(K_TASK))
+            .build()
+    }
+
+    /** Serahkan antrean ke WorkManager selama slot kosong. Dipanggil dalam lock `this`. */
+    private fun pump(ctx: Context) {
+        load(ctx)
+        while (handed.size < MAX_PARALLEL && pending.isNotEmpty()) {
+            val taskId = pending.removeFirst()
+            val rec = _records.value.firstOrNull { it.id == taskId } ?: continue
+            if (rec.status != DlRecord.STATUS_QUEUED) continue
+            val payload = rec.payload ?: continue
+            WorkManager.getInstance(ctx).enqueueUniqueWork(
+                "xydl-$taskId", ExistingWorkPolicy.KEEP, buildRequest(payload),
+            )
+            handed.add(taskId)
+        }
+    }
+
+    /** Slot dibebaskan worker (finally) & pengamat WorkManager; idempoten. */
+    @Synchronized
+    fun releaseSlot(ctx: Context, taskId: String) {
+        if (handed.remove(taskId)) pump(ctx)
+    }
+
+    /**
+     * Rekonsiliasi setelah proses aplikasi mati: yang antre dikembalikan ke
+     * antrean, yang "running" tapi tidak punya kerja WorkManager ditandai gagal
+     * (janji di komentar load() — sekarang ditepati).
+     */
+    fun ensureStarted(ctx: Context) {
+        Thread {
+            synchronized(this) {
+                load(ctx)
+                for (rec in _records.value) {
+                    if (rec.status != DlRecord.STATUS_QUEUED && rec.status != DlRecord.STATUS_RUNNING) continue
+                    if (rec.payload == null) {
+                        if (rec.status == DlRecord.STATUS_RUNNING) {
+                            upsert(ctx, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
+                        }
+                        continue
+                    }
+                    val hidup = try {
+                        WorkManager.getInstance(ctx).getWorkInfosByTag("task-" + rec.id).get()
+                            .any { !it.state.isFinished }
+                    } catch (e: Exception) { false }
+                    when {
+                        hidup -> if (!handed.contains(rec.id)) handed.add(rec.id)
+                        rec.status == DlRecord.STATUS_RUNNING ->
+                            upsert(ctx, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
+                        !pending.contains(rec.id) -> pending.addLast(rec.id)
+                    }
+                }
+                pump(ctx)
+            }
+        }.start()
     }
 
     fun createChannels(ctx: Context) {
@@ -266,7 +354,15 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
-        val taskId = id.toString()
+        val taskId = inputData.getString(Downloads.K_TASK) ?: id.toString()
+        try {
+            return doWorkInner(ctx, taskId)
+        } finally {
+            Downloads.releaseSlot(ctx, taskId)
+        }
+    }
+
+    private suspend fun doWorkInner(ctx: Context, taskId: String): Result {
         val url = inputData.getString(Downloads.K_URL) ?: return Result.failure()
         val title = inputData.getString(Downloads.K_TITLE) ?: "Video"
         val kind = inputData.getString(Downloads.K_KIND) ?: "video"
