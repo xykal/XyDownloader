@@ -14,6 +14,10 @@ object AppSettings {
 
     private fun p(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** Izin notifikasi pernah diminta (sekali saja, tepat setelah unduhan pertama). */
+    fun notificationAsked(ctx: Context) = p(ctx).getBoolean("notificationAsked", false)
+    fun setNotificationAsked(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("notificationAsked", v).apply()
+
     fun autoplayVideo(ctx: Context) = p(ctx).getBoolean("autoplayVideo", true)
     fun setAutoplayVideo(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("autoplayVideo", v).apply()
 
