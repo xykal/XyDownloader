@@ -163,7 +163,8 @@ Yang dijaga aktif oleh CI (semuanya offline, tanpa akun & tanpa jaringan):
 | `POST /api/public/beacon` tidak percaya `body.ip` kecuali bawa HMAC `X-Xydl-Probe-Sig` | Endpoint itu publik. Tanpa tanda tangan, siapa pun bisa nulis IP karangan ke tabel device/probe admin (log poisoning) | `tests/js/dash_beacon.test.mjs` |
 | Tulis KV dari beacon dibudget (40 event + 12 probe per IP per menit, 600 tulis per menit per isolate) | Satu script iseng cukup buat ngabisin kuota tulis KV — yang kena limit account kita, bukan dia | `tests/js/dash_beacon.test.mjs` |
 | Proxy Worker cuma neruskan URL bertanda tangan HMAC + kadaluarsa, dan host tujuan dibatasi per token | Bukan open proxy: `/f/<nama>?u=...` harus ada di daftar host token itu | `test_tanpa_token_proxy_menolak_sebelum_menyentuh_CDN` |
-| SSRF: host link pengguna ditolak kalau resolve ke IP privat | `/api/extract` dijalankan di server, bukan di browser | `tests/test_engine.py` |
+| SSRF: host link ditolak kalau resolve ke IP privat, **dan tiap hop redirect ikut diperiksa** | yt-dlp ngikutin redirect sampai 30 hop, jadi `is_public_url` yang cuma lihat host awal bisa dilewati `302 -> http://127.0.0.1/`. Link dari host di katalog platform sengaja dilewati (mereka CDN publik; nambah roundtrip cuma bikin semua pengguna nunggu) | `tests/test_stream_and_ssrf.py` (server redirect lokal), `tests/test_engine.py` |
+| `/api/stream` ada anggaran per IP: 120 permintaan + 6 GB per menit | `/api/extract` udah dibatasi, `/api/stream` belum sama sekali — satu token berumur 6 jam boleh dipakai narik file berkali-kali dan yang habis waktu function + bandwidth Vercel | `test_handle_stream_pakai_anggaran_dan_ngecat_byte`, `test_handle_stream_ditolak_sebelum_ekstrak_ulang` |
 
 Yang **disengaja belum ditutup** (jujur di sini, bukan dikubur): cek `User-Agent` itu
 pagar rendah — siapa pun yang ngasih UA `Mozilla/5.0` lewat. Fungsinya cuma nyaring
@@ -194,6 +195,9 @@ Buat project Vercel dari repo ini (framework: *Other*), lalu set Environment Var
 | `XYDL_PROXY_DOMAINS` | *(opsional)* domain yang lewat proxy di atas (default: youtube, bilibili, douyin, reddit) |
 | `XYDL_PROBE_SECRET` | *(opsional)* HMAC sama dengan secret `PROBE_REPORT_SECRET` di Worker dash — biar IP penyerang yang ke-blokir nyampe ke admin sebagai IP asli, bukan IP function Vercel |
 | `XYDL_EXTRA_ORIGINS` | *(opsional)* origin CORS tambahan, dipisah koma (staging/preview) — tidak perlu ubah kode |
+| `XYDL_STREAM_RATE_LIMIT` | *(opsional)* permintaan `/api/stream` per menit per IP (default 120) |
+| `XYDL_STREAM_BYTE_BUDGET` | *(opsional)* byte per menit per IP di `/api/stream` (default 6442450944 = 6 GB) |
+| `XYDL_GUARD_TIMEOUT` | *(opsional)* detik batas probe redirect SSRF (default 2.5) |
 
 Region default `sin1` (Singapura, paling dekat ke Indonesia) — ubah di `vercel.json`.
 

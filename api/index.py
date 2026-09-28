@@ -155,6 +155,35 @@ def _ua_blocked(ua: str | None) -> bool:
 _hits = defaultdict(deque)
 _hits_seen = 0
 
+# /api/stream dulu TIDAK kena batas apa pun: satu token (umurnya 6 jam) boleh dipakai
+# narik file utuh berulang-ulang, dan tiap potongan 8 MB menghidupkan function lagi.
+# Yang habis itu waktu eksekusi function + bandwidth Vercel account lu.
+STREAM_RATE_LIMIT = int(os.environ.get('XYDL_STREAM_RATE_LIMIT', '120'))  # permintaan / menit / IP
+STREAM_BYTE_BUDGET = int(os.environ.get('XYDL_STREAM_BYTE_BUDGET', str(6 * 1024 ** 3)))  # byte / menit / IP
+_stream_flow = defaultdict(deque)  # ip -> deque[(ts, nbytes)]
+
+
+def _stream_allowed(ip):
+    now = time.time()
+    q = _stream_flow[ip]
+    while q and now - q[0][0] > 60:
+        q.popleft()
+    if len(q) >= STREAM_RATE_LIMIT:
+        return False
+    if sum(n for _, n in q) >= STREAM_BYTE_BUDGET:
+        return False
+    return True
+
+
+def _stream_charge(ip, nbytes):
+    q = _stream_flow[ip]
+    q.append((time.time(), max(0, int(nbytes))))
+    if len(q) > 4 * STREAM_RATE_LIMIT:
+        del q[:len(q) - STREAM_RATE_LIMIT]
+    if len(_stream_flow) > 5000:
+        for key in [k for k, v in _stream_flow.items() if not v]:
+            del _stream_flow[key]
+
 
 def _rate_limited(ip):
     """Fixed window 60 detik per IP. Dulu `_hits.clear()` begitu tabel lewat 5000 IP:
@@ -225,8 +254,13 @@ async def handle_extract(send, query, receive, method, origin=None):
         )
 
 
-async def handle_stream(send, query, headers, method):
+async def handle_stream(send, query, headers, method, ip=''):
     origin = headers.get('origin')
+    if not _stream_allowed(ip):
+        return await _send_json(send, 429, {
+            'ok': False, 'code': 'stream_limit',
+            'error': 'Terlalu banyak data yang ditarik dari IP ini dalam 1 menit. Tunggu sebentar ya.',
+        }, extra_headers=[(b'retry-after', b'60')], origin=origin)
     try:
         payload = signer.verify(query.get('t', ''))
     except signer.SigningKeyMissing as e:
@@ -254,11 +288,14 @@ async def handle_stream(send, query, headers, method):
         base_headers.append((b'content-disposition', _content_disposition(filename)))
 
     async def pipe(resp):
+        sent = 0
         while True:
             chunk = await asyncio.to_thread(resp.read, READ_SIZE)
             if not chunk:
                 break
+            sent += len(chunk)
             await send({'type': 'http.response.body', 'body': chunk, 'more_body': True})
+        _stream_charge(ip, sent)
 
     try:
         client_range = headers.get('range')
@@ -360,7 +397,7 @@ async def app(scope, receive, send):
                                         origin=origin)
             return await handle_extract(send, query, receive, method, origin=origin)
         if path == '/api/stream':
-            return await handle_stream(send, query, headers, method)
+            return await handle_stream(send, query, headers, method, ip)
         return await _send_json(send, 404, {'ok': False, 'error': 'not found'}, origin=origin)
     except Exception as e:  # jangan sampai function crash tanpa respon
         traceback.print_exc()
