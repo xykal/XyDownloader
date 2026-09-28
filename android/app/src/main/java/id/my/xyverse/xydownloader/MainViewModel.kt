@@ -71,7 +71,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             WorkManager.getInstance(ctx).getWorkInfosByTagFlow(Downloads.TAG).collect { infos ->
                 for (wi in infos) {
-                    val id = wi.inputData.getString(Downloads.K_TASK) ?: wi.id.toString()
+                    // taskId dari tag "task-<id>" (WorkInfo.inputData belum ada di versi WM ini)
+                    val id = wi.tags.firstOrNull { it.startsWith("task-") }?.substring(5)
+                        ?: wi.id.toString()
                     when (wi.state) {
                         WorkInfo.State.SUCCEEDED -> {
                             Downloads.upsert(ctx, id) {
