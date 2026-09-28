@@ -1,0 +1,10 @@
+hls.js d016c1230496ee59f3f5b01c16cce4cc01b5a1d3d357adec200c908b131ebe49
+Sumber : https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js
+Versi  : 1.5.20
+Lisensi: Apache-2.0 (lihat LICENSE di folder ini)
+Catatan:
+  Divendorkan (bukan dimuat dari CDN) karena CSP situs cuma mengizinkan script dari
+  origin sendiri: suntik <script src="https://cdn.jsdelivr.net/..."> diblokir browser,
+  jadi pratinjau HLS mati di Chrome/Firefox/Edge. Vendor lokal = tidak ada rantai pasok
+  CDN + bisa di-cache immutable. SHA-256 di atas dicek CI (tests/test_vendor_assets.py);
+  ganti file = ganti hash, tidak bisa diam-diam.

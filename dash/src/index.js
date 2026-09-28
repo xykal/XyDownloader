@@ -32,6 +32,71 @@ function corsPublic(extra = {}) {
   };
 }
 
+// ---------------------------------------------------------------- batas tulis KV
+// /api/public/beacon itu PUBLIK, tanpa auth. Satu POST yang lolos bisa jadi ±6 operasi KV:
+//   stats:evt (1 put) + recent:devices (get+put) + uniq:sess (get+put) +
+//   uniq:life (get+put) + stats:total (get+put, sampai 5x retry)
+// Di free plan Cloudflare kuota tulis KV itu terbatas dan yang kena limit adalah account
+// kita, bukan yang nge-script. /api/public/config juga nulis 1 event tiap GET.
+//
+// Remnya: budget per IP + budget global per isolate. Nol operasi tulis saat lewat batas,
+// klien tetap dibalas 200 supaya dia tidak retry-storm. Ini pembatas kerugian, bukan
+// filter presisi (limit per-isolate, Worker bisa punya banyak isolate) — gabungan sama
+// Cloudflare rate-limit rule di dashboard kalau nanti kena flood beneran.
+const WRITE_BUDGET = new Map();
+const BUDGET_EVENTS_PER_IP_MIN = 40;
+const BUDGET_PROBES_PER_IP_MIN = 12;
+const BUDGET_EVENTS_GLOBAL_MIN = 600;
+
+function budgetOk(key, limit, windowMs = 60_000) {
+  const now = Date.now();
+  if (WRITE_BUDGET.size > 20_000) {
+    for (const [k, v] of WRITE_BUDGET) if (now > v.reset) WRITE_BUDGET.delete(k);
+    if (WRITE_BUDGET.size > 20_000) WRITE_BUDGET.clear();
+  }
+  const cur = WRITE_BUDGET.get(key);
+  if (!cur || now > cur.reset) {
+    WRITE_BUDGET.set(key, { n: 1, reset: now + windowMs });
+    return true;
+  }
+  if (cur.n >= limit) return false;
+  cur.n += 1;
+  return true;
+}
+
+function writeAllowed(ip, kind) {
+  const who = `${kind}:${ip || '?'}`;
+  const limit = kind === 'probe' ? BUDGET_PROBES_PER_IP_MIN : BUDGET_EVENTS_PER_IP_MIN;
+  return budgetOk(who, limit) && budgetOk('evt:*', BUDGET_EVENTS_GLOBAL_MIN);
+}
+
+/**
+ * Siapa IP yang harus dicatat?
+ *   - Beacon dari browser/APK  -> IP asli dari header Cloudflare.
+ *   - Laporan probe dari API produk -> API-lah yang lihat IP pengguna (Worker lihat IP
+ *     function Vercel), jadi body.ip dipakai HANYA kalau bawa HMAC dari XYDL_PROBE_SECRET.
+ * Sebelumnya `body.ip || ip` bikin siapa pun bisa nulis IP karangan ke tabel device/probe
+ * admin (log poisoning: nimpun noise, nutupin jejak asli, atau naruh string aneh di UI).
+ */
+async function probeIdentity(env, request, bodyIp, bodyCc) {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const cc = request.headers.get('CF-IPCountry') || '';
+  const secret = env.PROBE_REPORT_SECRET;
+  const ts = request.headers.get('X-Xydl-Probe-Ts') || '';
+  const sig = request.headers.get('X-Xydl-Probe-Sig') || '';
+  const want = String(bodyIp || '').slice(0, 64);
+  if (secret && want && ts && sig && /^\d{10}$/.test(ts) && Math.abs(Math.floor(Date.now() / 1000) - Number(ts)) <= 300) {
+    try {
+      const got = await hmacHex(secret, `${ts}.${want}`);
+      if (timingSafeEqualHex(got, sig)) {
+        return { ip: want, cc: String(bodyCc || '').slice(0, 8).toUpperCase() || cc };
+      }
+    } catch { /* signature rusak -> pakai header */ }
+  }
+  return { ip, cc };
+}
+
+
 function b64url(buf) {
   const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
   let s = '';
@@ -679,15 +744,14 @@ async function recordEvent(env, evt) {
     } catch { /* */ }
   }
 
+  // Unique diambil dari event 'session' saja (web & APK kirim session tiap dibuka —
+  // lihat public/app.js dan XyApp.kt). Dulu extract/download ikut nendang markUnique:
+  // 2 operasi KV tambahan per file yang diunduh orang, tanpa menambah informasi.
   let newSessionDay = false;
   let newLifetime = false;
-  if (evt.cidHash) {
-    if (type === 'session' || type === 'pageview' || type === 'extract' || type === 'download') {
-      newSessionDay = await markUnique(env, day, 'sess', evt.cidHash);
-    }
-    if (type === 'session' || type === 'pageview') {
-      newLifetime = await markLifetimeUnique(env, evt.cidHash);
-    }
+  if (evt.cidHash && (type === 'session' || type === 'pageview')) {
+    newSessionDay = await markUnique(env, day, 'sess', evt.cidHash);
+    newLifetime = await markLifetimeUnique(env, evt.cidHash);
   }
 
   await bumpTotal(env, {
@@ -979,9 +1043,11 @@ export default {
         };
         // Soft passive hit (bot visibility) — don't block response
         const ua = request.headers.get('user-agent') || '';
-        ctx.waitUntil(
-          recordEvent(env, { type: 'hit', ua, client: 'web' }).catch(() => {}),
-        );
+        if (writeAllowed(request.headers.get('CF-Connecting-IP') || '', 'hit')) {
+          ctx.waitUntil(
+            recordEvent(env, { type: 'hit', ua, client: 'web' }).catch(() => {}),
+          );
+        }
         return json(publicCfg, 200, {
           ...corsPublic(),
           'cache-control': 'public, max-age=60, s-maxage=300',
@@ -990,23 +1056,35 @@ export default {
 
       // Public analytics beacon (+ probe reports from product API)
       if (url.pathname === '/api/public/beacon' && request.method === 'POST') {
+        // Body kecil doang (beacon). Tanpa batas, satu POST 10 MB cukup buat bikin
+        // JSON.parse + classify regex di isolate kita.
+        const len = Number(request.headers.get('content-length') || 0);
+        if (len > 16_384) return json({ ok: false, error: 'payload_too_large' }, 413, corsPublic());
         let body;
         try {
           body = await request.json();
         } catch {
           return json({ ok: false, error: 'invalid_json' }, 400, corsPublic());
         }
-        const ip = request.headers.get('CF-Connecting-IP') || body.ip || '';
-        const cc = request.headers.get('CF-IPCountry') || body.cc || body.country || '';
+        if (!body || typeof body !== 'object') {
+          // request.json() bisa sukses buat 'null' / '"string"' — jangan dihitung session
+          return json({ ok: false, error: 'invalid_json' }, 400, corsPublic());
+        }
+        // body.ip HANYA dipercaya kalau laporan itu ditandatangani API produk (HMAC),
+        // bukan kalau browser asing ngirim { ip: '8.8.8.8' } biar log admin kotor.
+        const ident = await probeIdentity(env, request, body.ip, body.cc || body.country);
+        const ip = ident.ip;
+        const cc = ident.cc;
         const type = String(body.type || body.event || 'session').toLowerCase();
         const ua = String(body.ua || request.headers.get('user-agent') || '').slice(0, 400);
         const client = String(body.client || '').toLowerCase() === 'apk' ? 'apk' : 'web';
 
         if (type === 'probe') {
+          if (!writeAllowed(ip, 'probe')) return json({ ok: true, limited: true }, 200, corsPublic());
           try {
             await recordProbe(env, {
-              ip: body.ip || ip,
-              cc: body.cc || cc,
+              ip,
+              cc,
               ua: body.ua || ua,
               reason: body.reason || 'probe',
               path: body.path || '',
@@ -1019,12 +1097,16 @@ export default {
         }
 
         if (!['session', 'pageview', 'extract', 'download'].includes(type)) {
-          ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bad_type', path: '/api/public/beacon', client }).catch(() => {}));
+          if (writeAllowed(ip, 'probe')) {
+            ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bad_type', path: '/api/public/beacon', client }).catch(() => {}));
+          }
           return json({ ok: false, error: 'bad_type' }, 400, corsPublic());
         }
         const cidRaw = String(body.cid || body.client_id || '').slice(0, 80);
         if (cidRaw && !/^[A-Za-z0-9._:-]{8,80}$/.test(cidRaw)) {
-          ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bad_cid', path: '/api/public/beacon', client }).catch(() => {}));
+          if (writeAllowed(ip, 'probe')) {
+            ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bad_cid', path: '/api/public/beacon', client }).catch(() => {}));
+          }
           return json({ ok: false, error: 'bad_cid' }, 400, corsPublic());
         }
         const cidHash = cidRaw ? await shaShort(cidRaw) : null;
@@ -1033,8 +1115,13 @@ export default {
 
         // Flag obvious bots hitting beacon as probe too (still count event)
         const cls = classifyUa(ua, client);
-        if (cls.device === 'bot') {
+        if (cls.device === 'bot' && writeAllowed(ip, 'probe')) {
           ctx.waitUntil(recordProbe(env, { ip, cc, ua, reason: 'bot_beacon', path: '/api/public/beacon', client }).catch(() => {}));
+        }
+
+        // Pintu masuk tulis KV: event ke-41 dari IP yang sama dalam 1 menit tidak ditulis.
+        if (!writeAllowed(ip, 'event')) {
+          return json({ ok: true, limited: true }, 200, corsPublic());
         }
 
         try {

@@ -39,8 +39,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Cek sintaks JS (web + worker)
+      - name: Cek sintaks JS (web + worker + dash)
         run: |
           node --check public/app.js
           node --check public/mp3-worker.js
           node --check worker/src/index.js
+          node --check worker/src/netpolicy.js
+          node --check dash/src/index.js
+      # node:test itu bawaan Node 20 -> nol dependency, nol langkah npm install.
+      # Node ga bisa pakai `npm test`/`tsx`/`ts-node` di sini; jangan ditambahin
+      # runner lain cuma buat muter tes yang udah jalan di `node` polos.
+      - name: Tes Worker & dash (node:test, offline)
+        run: node --test tests/js

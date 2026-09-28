@@ -95,6 +95,7 @@ Kenapa dibagi begini?
 api/index.py            Vercel Function (ASGI murni): /api/extract, /api/stream, /api/platforms, /api/health
 xydl/engine.py          Normalisasi hasil yt-dlp → opsi video/audio, pilih format terbaik, bungkus link
 xydl/signer.py          Token HMAC-SHA256 (dipakai juga oleh Worker)
+xydl/netpolicy.py       Allowlist origin CORS + IP klien (dicerminkan worker/src/netpolicy.js, diuji pakai fixture yang sama)
 xydl/platforms.py       Katalog platform per region
 plugins/yt_dlp_plugins/ Plugin extractor + postprocessor yt-dlp DownloadAja (dipakai web DAN Android)
 public/                 Web UI (HTML/CSS/JS murni) + logos/ (logo asli platform) + flags/ + vendor ffmpeg.wasm & lamejs
@@ -105,7 +106,7 @@ android/ffmpeg/         build.sh: FFmpeg 8 minimal (LGPL + LAME) untuk arm64/arm
 android/tools/          prepare_native.py: runtime Python ramping + pasang FFmpeg minimal ke APK
 android/app/src/main/assets/py/   Daemon Python (yt-dlp tetap hangat untuk "proses link")
 licenses/               Daftar komponen + teks lisensi lengkap (dipakai layar Lisensi & THIRD_PARTY_NOTICES.md)
-tests/                  Tes offline logika pemilihan format & token
+tests/                  Tes offline: pytest (engine, token, CORS/IP policy) + node:test (Worker & dash)
 .github/workflows/      CI (tes), deploy (Vercel + Cloudflare), build & release APK
 ```
 
@@ -150,6 +151,25 @@ Hasil build CI tercetak di langkah *Rapikan nama file & cek isi APK*.
 
 ---
 
+## Keamanan permukaan
+
+Yang dijaga aktif oleh CI (semuanya offline, tanpa akun & tanpa jaringan):
+
+| Aturan | Kenapa | dites di |
+|---|---|---|
+| `Access-Control-Allow-Origin` hanya buat host **eksak** + preview Vercel berprefix `xydl-`/`dlaja-` | Dulu ceknya pakai substring (`'dlaja' in origin`) — `https://dlaja.evil.com` lolos dan boleh baca `/api/extract` (JSON + link bertanda tangan) serta stream lewat proxy. Sekarang pencocokan host, bukan "ada di dalam string" | `tests/fixtures/origin_policy.json` diputar dua kali: `pytest tests/test_net_policy.py` (Python) dan `node --test tests/js` (JS) — fixture yang sama, jadi kedua runtime tidak bisa drift |
+| Kunci rate-limit = IP dari hop **terakhir** `X-Forwarded-For` (atau `x-real-ip`) | Nilai pertama XFF itu dikontrol klien; pakai itu buat kunci "25 request/menit" = penyerang pilih sendiri limitnya tiap request | `tests/test_net_policy.py::test_client_ip_pakai_hop_terakhir` |
+| Lapor probe ke dash itu fire-and-bounded (`asyncio.to_thread` + budget 0.6s + 60/menit/instance), bukan `urlopen` sinkron di coroutine | `urlopen` sinkron mengunci **event loop** function Vercel sampai 2 × 2,5 detik per request ber-UA mencurigakan — satu loop `curl` bisa bikin API nunggu buat semua orang. Dan tanpa budget, kita yang nembak dash sendiri | `test_lapor_probe_tidak_menahan_event_loop`, `test_budget_probe_membatasi_amplicification` |
+| `POST /api/public/beacon` tidak percaya `body.ip` kecuali bawa HMAC `X-Xydl-Probe-Sig` | Endpoint itu publik. Tanpa tanda tangan, siapa pun bisa nulis IP karangan ke tabel device/probe admin (log poisoning) | `tests/js/dash_beacon.test.mjs` |
+| Tulis KV dari beacon dibudget (40 event + 12 probe per IP per menit, 600 tulis per menit per isolate) | Satu script iseng cukup buat ngabisin kuota tulis KV — yang kena limit account kita, bukan dia | `tests/js/dash_beacon.test.mjs` |
+| Proxy Worker cuma neruskan URL bertanda tangan HMAC + kadaluarsa, dan host tujuan dibatasi per token | Bukan open proxy: `/f/<nama>?u=...` harus ada di daftar host token itu | `test_tanpa_token_proxy_menolak_sebelum_menyentuh_CDN` |
+| SSRF: host link pengguna ditolak kalau resolve ke IP privat | `/api/extract` dijalankan di server, bukan di browser | `tests/test_engine.py` |
+
+Yang **disengaja belum ditutup** (jujur di sini, bukan dikubur): cek `User-Agent` itu
+pagar rendah — siapa pun yang ngasih UA `Mozilla/5.0` lewat. Fungsinya cuma nyaring
+scraper malas; perlindungan nyata ada di allowlist origin + token HMAC + rate limit.
+Turnstile cuma dipasang di login admin, belum di `/api/extract`.
+
 ## Deploy sendiri
 
 ### 1. Cloudflare Worker (proxy)
@@ -158,6 +178,8 @@ Hasil build CI tercetak di langkah *Rapikan nama file & cek isi APK*.
 cd worker
 npx wrangler deploy
 openssl rand -base64 32 | npx wrangler secret put SIGNING_KEY   # simpan nilainya!
+# opsional, kalau staging/preview butuh origin tambahan (variabel, bukan secret):
+#   npx wrangler secret put XYDL_EXTRA_ORIGINS   -> "https://staging.dlaja.test"
 ```
 
 ### 2. Vercel (web + API)
@@ -170,6 +192,8 @@ Buat project Vercel dari repo ini (framework: *Other*), lalu set Environment Var
 | `XYDL_PROXY_BASE` | URL Worker, mis. `https://xydl-proxy.<akun>.workers.dev` |
 | `XYDL_EXTRACT_PROXY` | *(opsional)* proxy `http://`/`socks5://` (mis. residensial) untuk platform yang memblokir IP cloud |
 | `XYDL_PROXY_DOMAINS` | *(opsional)* domain yang lewat proxy di atas (default: youtube, bilibili, douyin, reddit) |
+| `XYDL_PROBE_SECRET` | *(opsional)* HMAC sama dengan secret `PROBE_REPORT_SECRET` di Worker dash — biar IP penyerang yang ke-blokir nyampe ke admin sebagai IP asli, bukan IP function Vercel |
+| `XYDL_EXTRA_ORIGINS` | *(opsional)* origin CORS tambahan, dipisah koma (staging/preview) — tidak perlu ubah kode |
 
 Region default `sin1` (Singapura, paling dekat ke Indonesia) — ubah di `vercel.json`.
 
@@ -191,10 +215,14 @@ Secrets repo yang dipakai workflow:
 ### Development lokal
 
 ```bash
-pip install -r requirements.txt uvicorn pytest
-pytest -q                                   # tes offline
+pip install -r requirements.txt uvicorn pytest pyflakes
+pytest -q                                   # tes engine + kebijakan origin/IP (offline)
+node --test tests/js                        # tes Worker + dash (butuh Node 20, tanpa npm install)
+python -m pyflakes api xydl plugins tests scripts dev_server.py  # lint
 XYDL_PROXY_BASE=https://<worker>.workers.dev XYDL_SIGNING_KEY=<key> uvicorn dev_server:app --port 8000
 # buka http://localhost:8000
+# cek CORS cepat dari terminal (harus TIDAK ada access-control-allow-origin):
+curl -sD- -o/dev/null http://127.0.0.1:8000/api/health -H 'Origin: https://dlaja.evil.com' | grep -i allow-origin
 ```
 
 Android: buka folder `android/` di Android Studio (JDK 17), atau `cd android && ./gradlew assembleDebug`.

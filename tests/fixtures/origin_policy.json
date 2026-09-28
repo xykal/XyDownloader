@@ -1,0 +1,146 @@
+[
+  {
+    "origin": "https://dlaja.xyverse.my.id",
+    "allow": true,
+    "why": "domain utama",
+    "expect": "https://dlaja.xyverse.my.id"
+  },
+  {
+    "origin": "https://dlaja.projectkal.my.id",
+    "allow": true,
+    "why": "domain legacy",
+    "expect": "https://dlaja.projectkal.my.id"
+  },
+  {
+    "origin": "https://xydl.vercel.app",
+    "allow": true,
+    "why": "fallback apex Vercel",
+    "expect": "https://xydl.vercel.app"
+  },
+  {
+    "origin": "http://127.0.0.1:8000",
+    "allow": true,
+    "why": "dev lokal",
+    "expect": "http://127.0.0.1:8000"
+  },
+  {
+    "origin": "http://localhost:8000",
+    "allow": true,
+    "why": "dev lokal",
+    "expect": "http://localhost:8000"
+  },
+  {
+    "origin": "https://xydl-git-main-xykal.vercel.app",
+    "allow": true,
+    "why": "preview Vercel, project prefix di label pertama",
+    "expect": "https://xydl-git-main-xykal.vercel.app"
+  },
+  {
+    "origin": "https://dlaja-abc123.vercel.app",
+    "allow": true,
+    "why": "preview Vercel tanpa segmen git",
+    "expect": "https://dlaja-abc123.vercel.app"
+  },
+  {
+    "origin": "https://xydl-evil.vercel.app",
+    "allow": true,
+    "why": "RISIKO KETAHAN: *.vercel.app dengan prefix project kita lolos; pin eksak via XYDL_EXTRA_ORIGINS kalau mau ketat",
+    "expect": "https://xydl-evil.vercel.app"
+  },
+  {
+    "origin": "HTTPS://DLAJA.XYVERSE.MY.ID",
+    "allow": true,
+    "expect": "https://dlaja.xyverse.my.id",
+    "why": "host & skema di-lowercase dulu (yang dikirim ke ACAO = versi normalisasi)"
+  },
+  {
+    "origin": "https://dlaja.evil.com",
+    "allow": false,
+    "why": "REGRESI: bug lama substring 'dlaja' bikin ini lolos di produksi",
+    "expect": ""
+  },
+  {
+    "origin": "https://evil-dlaja.com",
+    "allow": false,
+    "why": "substring tidak boleh nentu'n",
+    "expect": ""
+  },
+  {
+    "origin": "https://dlaja.xyverse.my.id.evil.com",
+    "allow": false,
+    "why": "suffix-hosting klasik",
+    "expect": ""
+  },
+  {
+    "origin": "https://attacker.tld/dlaja",
+    "allow": false,
+    "why": "path di Origin = bukan origin valid",
+    "expect": ""
+  },
+  {
+    "origin": "https://evil.com",
+    "allow": false,
+    "why": "origin asing",
+    "expect": ""
+  },
+  {
+    "origin": "http://dlaja.xyverse.my.id",
+    "allow": false,
+    "why": "skema salah (produksi https-only)",
+    "expect": ""
+  },
+  {
+    "origin": "https://127.0.0.1:8000",
+    "allow": false,
+    "why": "cuma http dev yang didaftarkan",
+    "expect": ""
+  },
+  {
+    "origin": "https://dlaja.xyverse.my.id.",
+    "allow": false,
+    "why": "trailing dot = host beda",
+    "expect": ""
+  },
+  {
+    "origin": "https://vercel.app",
+    "allow": false,
+    "why": "suffix publik tanpa label project",
+    "expect": ""
+  },
+  {
+    "origin": "https://evil.com:8080",
+    "allow": false,
+    "why": "port asing",
+    "expect": ""
+  },
+  {
+    "origin": "https://xydl.vercel.app.evil.com",
+    "allow": false,
+    "why": "host palsu berakhiran domain kita",
+    "expect": ""
+  },
+  {
+    "origin": "null",
+    "allow": false,
+    "why": "origin opaque (file://, sandboxed iframe)",
+    "expect": ""
+  },
+  {
+    "origin": "",
+    "allow": false,
+    "why": "tanpa origin = same-origin, tidak perlu ACAO",
+    "expect": ""
+  },
+  {
+    "origin": "//dlaja.xyverse.my.id",
+    "allow": false,
+    "why": "tanpa skema",
+    "expect": ""
+  },
+  {
+    "origin": "https://user:pass@dlaja.xyverse.my.id",
+    "allow": false,
+    "why": "userinfo di origin = mencurigakan",
+    "expect": ""
+  }
+]

@@ -25,12 +25,21 @@ def _b64d(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + '=' * (-len(data) % 4))
 
 
+class SigningKeyMissing(RuntimeError):
+    """Produksi jalan tanpa XYDL_SIGNING_KEY — lebih baik mati daripada token palsu diterima."""
+
+
 def get_key() -> bytes:
     key = os.environ.get('XYDL_SIGNING_KEY', '')
-    if not key:
-        # Mode dev lokal. Di produksi WAJIB di-set (Vercel env + Worker secret).
-        key = 'dev-insecure-key-change-me'
-    return key.encode()
+    if key:
+        return key.encode()
+    # Fallback dev lokal. Repo ini PUBLIC, jadi kunci fallback-nya juga diketahui semua
+    # orang: kalau environment variable lupa di-set di produksi, siapa pun bisa bikin token
+    # sendiri -> Worker kehilangan satu-satunya penjaga "bukan open proxy" (link bebas ke
+    # host mana pun, tanpa kadaluarsa). Fail-closed di Vercel/Cloudflare, longgar di laptop.
+    if os.environ.get('VERCEL') == '1' or os.environ.get('VERCEL_ENV') or os.environ.get('CLOUDFLARE_ENV'):
+        raise SigningKeyMissing('XYDL_SIGNING_KEY wajib di-set di produksi (Vercel env + Worker secret, nilainya sama)')
+    return b'dev-insecure-key-change-me'
 
 
 def sign(payload: dict, ttl: int = DEFAULT_TTL, key: bytes = None) -> str:
