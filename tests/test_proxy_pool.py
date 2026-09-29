@@ -1,7 +1,6 @@
 """Tes penjaga rotasi proxy — xydl/proxy_pool.py + integrasi engine."""
 
 import io
-import os
 
 import pytest
 
