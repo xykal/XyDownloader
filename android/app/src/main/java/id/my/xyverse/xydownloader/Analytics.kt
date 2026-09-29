@@ -15,7 +15,7 @@ object Analytics {
     private const val KEY_CID = "cid"
     private val ENDPOINTS = listOf(
         "https://dash.dlaja.xyverse.my.id/api/public/beacon",
-        "https://dlaja-dash.akuntiktok76y.workers.dev/api/public/beacon",
+        "https://dash.xyverse.my.id/api/public/beacon",
     )
 
     private fun cid(ctx: Context): String {

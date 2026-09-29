@@ -2,7 +2,7 @@
 
 Worker: `dlaja-dash`  
 Custom host: `https://dash.dlaja.xyverse.my.id`  
-Fallback: `https://dlaja-dash.akuntiktok76y.workers.dev`
+Fallback: `https://dash.xyverse.my.id` (hostname stabil, bukan `*.workers.dev` yang bisa ikut berubah saat subdomain akun diganti)
 
 ## Login URL
 
