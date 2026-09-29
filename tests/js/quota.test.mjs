@@ -64,7 +64,9 @@ test('nembus batas langsung di-flush ke KV biar isolate lain ikut nahan', async 
   assert.equal(flushed[0].value, String(520 * MB));
   assert.ok(flushed[0].opts.expirationTtl >= 3600, 'kunci dikasih TTL, nggak numpuk selamanya');
 
-  const q2 = createQuota({ QUOTA: kv }); // "isolate lain"
+  // isolate lain HARUS pakai jam yang sama — campur jam asli bikin tes ini
+  // jadi bom waktu: begitu tanggal UTC berganti, key harian beda hari.
+  const q2 = createQuota({ QUOTA: kv }, { now: () => Date.parse('2026-09-28T10:00:00Z') });
   assert.equal((await q2.check(IP)).ok, false);
 });
 
