@@ -1,7 +1,7 @@
 """Server lokal untuk development: web (public/) + API di satu port.
 
     pip install -r requirements.txt uvicorn
-    XYDL_PROXY_BASE=https://<worker-kamu>.workers.dev XYDL_SIGNING_KEY=<sama dgn worker> \\
+    XYDL_PROXY_BASE=https://proxy.xyverse.my.id XYDL_SIGNING_KEY=<sama dgn worker> \\
         uvicorn dev_server:app --port 8000
 """
 import mimetypes

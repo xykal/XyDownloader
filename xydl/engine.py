@@ -21,6 +21,8 @@ import urllib.parse
 import urllib.request
 import zipfile
 
+from . import proxy_pool
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_DIR = os.path.join(os.path.dirname(_HERE), 'plugins')
 if PLUGIN_DIR not in sys.path:
@@ -284,18 +286,48 @@ def ydl_opts(need_js=False):
     return opts
 
 
-def proxy_opts(url):
-    """Opsional: XYDL_EXTRACT_PROXY (http/socks5, mis. proxy residensial) untuk domain yang memblokir
-    IP cloud. XYDL_PROXY_DOMAINS = daftar domain dipisah koma (default: youtube, bilibili, douyin, reddit)."""
-    proxy = os.environ.get('XYDL_EXTRACT_PROXY')
-    if not proxy:
-        return {}
+def _domain_in_proxy_scope(url):
+    """Domain yang rawan blokir IP datacenter (XYDL_PROXY_DOMAINS, dipisah koma)."""
     domains = [d.strip().lower() for d in os.environ.get(
         'XYDL_PROXY_DOMAINS', 'youtube.com,youtu.be,bilibili.com,b23.tv,douyin.com,reddit.com,redd.it').split(',') if d.strip()]
     host = (urllib.parse.urlparse(url).hostname or '').lower()
-    if any(host == d or host.endswith('.' + d) for d in domains):
-        return {'proxy': proxy}
+    return any(host == d or host.endswith('.' + d) for d in domains)
+
+
+def proxy_opts(url):
+    """Opsional: XYDL_EXTRACT_PROXY (http/socks5, mis. proxy residensial) untuk domain yang memblokir
+    IP cloud. Dipakai untuk fetch sekunder (thumbnail/probe). Ekstraksi utama pakai _proxy_slots."""
+    proxy = os.environ.get('XYDL_EXTRACT_PROXY')
+    if not proxy:
+        return {}
+    if _domain_in_proxy_scope(url):
+        return {'proxy': proxy.strip().split(',')[0].strip()}
     return {}
+
+
+_RETRIABLE = ('blocked', 'timeout', 'error')  # kelas error yang layak dicoba via proxy lain
+
+
+def _proxy_slots(url):
+    """Urutan opsi proxy untuk ekstraksi: [langsung, eksplisit, pool…].
+    Jalur bersih selalu dicoba duluan (tercepat, tanpa pihak ketiga); pool
+    publik cuma turun tangan sebagai cadangan untuk domain yang rawan blokir."""
+    if not _domain_in_proxy_scope(url):
+        return [{}]
+    slots = [{}]
+    env = os.environ.get('XYDL_EXTRACT_PROXY', '')
+    slots += [{'proxy': p.strip()} for p in env.split(',') if p.strip()]
+    try:
+        if proxy_pool.pool_on():
+            slots += [{'proxy': p} for p in proxy_pool.get_pool().candidates()[:proxy_pool.max_tries()]]
+    except Exception:
+        pass
+    return slots
+
+
+def _compose_attempts(url):
+    """Gabung varian percobaan (mis. API twitter) dengan slot proxy; dibatasi 5."""
+    return [{**a, **p} for p in _proxy_slots(url) for a in _attempt_opts(url)][:5]
 
 
 def _attempt_opts(url):
@@ -873,15 +905,21 @@ def extract(text, proxy_base):
     t0 = time.time()
     try:
         info, ydl = None, None
-        attempts = _attempt_opts(url)
+        attempts = _compose_attempts(url)
         for i, extra in enumerate(attempts):
-            ydl = yt_dlp.YoutubeDL({**ydl_opts(need_js=_is_youtube(url)), **proxy_opts(url), **extra})
+            proxy = extra.get('proxy')
+            ydl = yt_dlp.YoutubeDL({**ydl_opts(need_js=_is_youtube(url)), **extra})
             try:
                 info = ydl.extract_info(url, download=False)
+                if proxy:
+                    proxy_pool.get_pool().report(proxy, True)
                 break
-            except Exception:
+            except Exception as e:
                 ydl.close()
-                if i == len(attempts) - 1:
+                if proxy:
+                    proxy_pool.get_pool().report(proxy, False)
+                code, _ = friendly_error(_clean_error(e))
+                if code not in _RETRIABLE or i == len(attempts) - 1:
                     raise
         with ydl:
             info = ydl.sanitize_info(info)

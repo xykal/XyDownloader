@@ -190,7 +190,7 @@ Buat project Vercel dari repo ini (framework: *Other*), lalu set Environment Var
 | Variabel | Isi |
 |---|---|
 | `XYDL_SIGNING_KEY` | **Sama persis** dengan `SIGNING_KEY` di Worker |
-| `XYDL_PROXY_BASE` | URL Worker, mis. `https://xydl-proxy.<akun>.workers.dev` |
+| `XYDL_PROXY_BASE` | URL proxy, mis. `https://proxy.xyverse.my.id` (pakai hostname sendiri — `*.workers.dev` bisa mati saat subdomain akun diganti) |
 | `XYDL_EXTRACT_PROXY` | *(opsional)* proxy `http://`/`socks5://` (mis. residensial) untuk platform yang memblokir IP cloud |
 | `XYDL_PROXY_DOMAINS` | *(opsional)* domain yang lewat proxy di atas (default: youtube, bilibili, douyin, reddit) |
 | `XYDL_PROBE_SECRET` | *(opsional)* HMAC sama dengan secret `PROBE_REPORT_SECRET` di Worker dash — biar IP penyerang yang ke-blokir nyampe ke admin sebagai IP asli, bukan IP function Vercel |
@@ -223,7 +223,7 @@ pip install -r requirements.txt uvicorn pytest pyflakes
 pytest -q                                   # tes engine + kebijakan origin/IP (offline)
 node --test tests/js                        # tes Worker + dash (butuh Node 20, tanpa npm install)
 python -m pyflakes api xydl plugins tests scripts dev_server.py  # lint
-XYDL_PROXY_BASE=https://<worker>.workers.dev XYDL_SIGNING_KEY=<key> uvicorn dev_server:app --port 8000
+XYDL_PROXY_BASE=https://proxy.xyverse.my.id XYDL_SIGNING_KEY=<key> uvicorn dev_server:app --port 8000
 # buka http://localhost:8000
 # cek CORS cepat dari terminal (harus TIDAK ada access-control-allow-origin):
 curl -sD- -o/dev/null http://127.0.0.1:8000/api/health -H 'Origin: https://dlaja.evil.com' | grep -i allow-origin
