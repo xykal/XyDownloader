@@ -43,7 +43,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx -y wrangler@4 deploy
       - name: Smoke test
-        run: curl -fsS https://xydl-proxy.akuntiktok76y.workers.dev/ | grep -q '"ok":true'
+        run: curl -fsS https://proxy.xyverse.my.id/ | grep -q '"ok":true'
 
   dash:
     name: Cloudflare Worker (dash)

@@ -47,7 +47,7 @@ jobs:
           st, body = get('https://dlaja.xyverse.my.id/api/health')
           cek.append(('web-api', st == 200 and '"ok"' in body and '"version"' in body,
                       f'HTTP {st} {body[:80]}'))
-          st, body = get('https://xydl-proxy.akuntiktok76y.workers.dev/health')
+          st, body = get('https://proxy.xyverse.my.id/health')
           cek.append(('proxy', st == 200 and '"ok":true' in body.replace(' ', ''),
                       f'HTTP {st} {body[:80]}'))
           st, body = get('https://dash.dlaja.xyverse.my.id/api/stats/rebuild')

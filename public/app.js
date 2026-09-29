@@ -9,7 +9,7 @@ const API = '/api';
 // ------------------------------------------------------------------ analytics beacon (dash)
 const DASH_BEACON = [
   'https://dash.dlaja.xyverse.my.id/api/public/beacon',
-  'https://dlaja-dash.akuntiktok76y.workers.dev/api/public/beacon',
+  'https://dlaja-dash.dikanjut.workers.dev/api/public/beacon',
 ];
 function dlajaCid() {
   try {
@@ -2219,7 +2219,7 @@ track('session');
 (async () => {
   const endpoints = [
     'https://dash.dlaja.xyverse.my.id/api/public/config',
-    'https://dlaja-dash.akuntiktok76y.workers.dev/api/public/config',
+    'https://dlaja-dash.dikanjut.workers.dev/api/public/config',
   ];
   let cfg = null;
   for (const u of endpoints) {
