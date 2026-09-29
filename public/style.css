@@ -118,7 +118,49 @@ img { display: block; }
 @media (max-width: 640px) { .nav nav > a:not(.btn) { display: none; } }
 
 /* ------------------------------------------------------------------ hero */
-.hero { text-align: center; padding-top: clamp(40px, 9vw, 88px); padding-bottom: 12px; }
+.hero { text-align: center; padding-top: clamp(40px, 9vw, 88px); padding-bottom: 12px; position: relative; }
+
+/* elemen melayang dekoratif di sekitar judul & input.
+   Sengaja pakai CSS background (bukan <img>) + pointer-events:none:
+   nggak bisa diklik-kanan/disimpan, dan yang dikirim cuma .webp (nggak ada PNG di repo). */
+.hero-art {
+  position: absolute; inset: -12px 0 0; overflow: hidden;
+  pointer-events: none; user-select: none; z-index: 0;
+}
+.hero > :not(.hero-art) { position: relative; z-index: 1; }
+.float-el {
+  position: absolute; display: block;
+  background: none center / contain no-repeat;
+  filter: drop-shadow(0 14px 26px rgba(34, 211, 238, 0.16));
+  animation: floaty var(--dur, 8s) ease-in-out var(--del, 0s) infinite;
+  will-change: transform;
+}
+.el-play {
+  background-image: url('hero/play.webp');
+  width: clamp(52px, 7.5vw, 100px); aspect-ratio: 380 / 480;
+  left: 1.5%; top: 14%; --r: -9deg; --dur: 9s; --del: 0.4s;
+}
+.el-cloud {
+  background-image: url('hero/cloud.webp');
+  width: clamp(60px, 8.5vw, 116px); aspect-ratio: 480 / 395;
+  right: 1%; top: 40%; --r: 7deg; --dur: 7.5s; --del: 1.1s;
+}
+.el-note {
+  background-image: url('hero/note.webp');
+  width: clamp(48px, 6.5vw, 88px); aspect-ratio: 396 / 480;
+  left: 5.5%; bottom: 4%; --r: -6deg; --dur: 10s; --del: 1.9s;
+}
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50%      { transform: translateY(-15px) rotate(calc(var(--r, 0deg) * -1)); }
+}
+@media (max-width: 640px) {
+  .float-el { opacity: 0.5; }
+  .el-cloud { right: -3%; top: 33%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .float-el { animation: none; }
+}
 .eyebrow {
   display: inline-block; margin: 0; padding: 5px 12px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--bg-subtle);
