@@ -14,7 +14,6 @@ object Analytics {
     private const val PREFS = "dlaja_analytics_v1"
     private const val KEY_CID = "cid"
     private val ENDPOINTS = listOf(
-        "https://dash.dlaja.projectkal.my.id/api/public/beacon",
         "https://dash.dlaja.xyverse.my.id/api/public/beacon",
         "https://dash.xyverse.my.id/api/public/beacon",
     )
