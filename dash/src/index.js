@@ -986,11 +986,12 @@ function sumMap(map) {
   return Object.values(map || {}).reduce((a, b) => a + (b || 0), 0);
 }
 
-async function buildOverview(env) {
+async function buildOverview(env, daysN = 14) {
   const cfg = await getConfig(env);
   const today = dayKey();
+  const n = Math.max(3, Math.min(30, Number(daysN) || 14));
   const days = [];
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < n; i++) {
     const d = new Date(Date.now() - i * 86400000);
     days.push(dayKey(d));
   }
@@ -1429,9 +1430,38 @@ export default {
           return json({ ok: true, rows, by: sess.u });
         }
 
+        if (url.pathname === '/api/health/live' && request.method === 'GET') {
+          const targets = [
+            { name: 'Web API', url: 'https://dlaja.xyverse.my.id/api/health' },
+            { name: 'Proxy worker', url: 'https://proxy.xyverse.my.id/health' },
+            { name: 'Dash', url: 'https://dash.dlaja.xyverse.my.id/api/ping' },
+            { name: 'Halaman APK', url: 'https://dlaja.xyverse.my.id/apk.html' },
+          ];
+          const services = await Promise.all(targets.map(async (t) => {
+            const t0 = Date.now();
+            try {
+              const r = await fetch(t.url, {
+                signal: AbortSignal.timeout(6000),
+                headers: { 'User-Agent': 'DownloadAja-Dash/1.0 (health)' },
+              });
+              const body = await r.text();
+              let info = '';
+              try {
+                const j = JSON.parse(body);
+                info = j.ok !== undefined ? (j.ok ? (j.service || j.version || 'ok') : 'ok:false') : '';
+              } catch { info = r.ok ? 'ok' : ''; }
+              return { name: t.name, url: t.url, ok: r.ok, ms: Date.now() - t0, status: r.status, info };
+            } catch (e) {
+              return { name: t.name, url: t.url, ok: false, ms: Date.now() - t0, status: 0,
+                       info: String((e && e.message) || e).slice(0, 120) };
+            }
+          }));
+          return json({ ok: true, checked_at: new Date().toISOString(), services });
+        }
+
         if ((url.pathname === '/api/overview' || url.pathname === '/api/stats') && request.method === 'GET') {
           try {
-            const overview = await buildOverview(env);
+            const overview = await buildOverview(env, url.searchParams.get('days'));
             return json({ ok: true, overview });
           } catch (e) {
             return json({ ok: false, error: 'overview_failed', detail: String(e && e.message || e) }, 500);
