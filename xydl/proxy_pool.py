@@ -140,7 +140,15 @@ def get_pool() -> ProxyPool:
 
 
 def pool_on() -> bool:
-    return os.environ.get('XYDL_PROXY_POOL', 'on').strip().lower() != 'off'
+    """Pool publik = OPT-IN (default: off).
+
+    Diputuskan 2026-09-29: proxy gratis terbukti tidak menembus Douyin/Bilibili
+    (mereka memblokir IP datacenter, proxy gratis juga IP datacenter) dan cuma
+    menambah ~2 menit tunggu sebelum gagal. Strategi resmi: gagal cepat +
+    arahkan pengguna ke aplikasi Android (IP HP = IP residensial). Nyalakan
+    dengan XYDL_PROXY_POOL=on kalau sewaktu-waktu mau dicoba lagi.
+    XYDL_EXTRACT_PROXY (proxy eksplisit) tetap berjalan tanpa tergantung ini."""
+    return os.environ.get('XYDL_PROXY_POOL', 'off').strip().lower() in ('on', 'true', '1')
 
 
 def max_tries() -> int:
