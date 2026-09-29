@@ -92,6 +92,7 @@ def test_slots_diluar_domain_tak_kena_pool(monkeypatch):
 
 
 def test_slots_urutan_bersih_dulu_lalu_eksplisit_lalu_pool(monkeypatch):
+    monkeypatch.setenv('XYDL_PROXY_POOL', 'on')
     monkeypatch.setenv('XYDL_EXTRACT_PROXY', 'http://proxy.bayar:8000')
     monkeypatch.setenv('XYDL_PROXY_TRIES', '2')
 
@@ -112,7 +113,19 @@ def test_pool_bisa_dimatikan(monkeypatch):
     assert slots == [{}, {'proxy': 'http://proxy.bayar:8000'}]
 
 
+def test_default_pool_mati_gagal_cepat(monkeypatch):
+    """Keputusan 2026-09-29: tanpa env, pool publik TIDAK aktif — blokir platform
+    harus gagal cepat dan mengarahkan ke APK, bukan 2 menit muter proxy percuma."""
+    monkeypatch.delenv('XYDL_PROXY_POOL', raising=False)
+    monkeypatch.delenv('XYDL_EXTRACT_PROXY', raising=False)
+    assert proxy_pool.pool_on() is False
+    slots = engine._proxy_slots('https://www.douyin.com/video/123')
+    assert slots == [{}], 'default: satu percobaan langsung, gagal cepat'
+    assert engine._compose_attempts('https://www.douyin.com/video/123') == [{}]
+
+
 def test_compose_attempts_dibatasi_lima(monkeypatch):
+    monkeypatch.setenv('XYDL_PROXY_POOL', 'on')
     monkeypatch.setenv('XYDL_PROXY_TRIES', '9')
     monkeypatch.setenv('XYDL_PROXY_DOMAINS', 'x.com')  # twitter: 2 varian dasar
     monkeypatch.delenv('XYDL_EXTRACT_PROXY', raising=False)

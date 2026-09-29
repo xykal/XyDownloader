@@ -191,6 +191,8 @@ Buat project Vercel dari repo ini (framework: *Other*), lalu set Environment Var
 |---|---|
 | `XYDL_SIGNING_KEY` | **Sama persis** dengan `SIGNING_KEY` di Worker |
 | `XYDL_PROXY_BASE` | URL proxy, mis. `https://proxy.xyverse.my.id` (pakai hostname sendiri — `*.workers.dev` bisa mati saat subdomain akun diganti) |
+| `XYDL_EXTRACT_PROXY` | Proxy http/socks5 eksplisit (boleh banyak, dipisah koma) untuk domain yang memblokir IP cloud |
+| `XYDL_PROXY_POOL` | `on` mengaktifkan pool proxy publik cadangan (default: **off** — proxy gratis tidak menembus blokir Douyin/Bilibili; strategi resmi: gagal cepat + arahkan ke APK) |
 | `XYDL_EXTRACT_PROXY` | *(opsional)* proxy `http://`/`socks5://` (mis. residensial) untuk platform yang memblokir IP cloud |
 | `XYDL_PROXY_DOMAINS` | *(opsional)* domain yang lewat proxy di atas (default: youtube, bilibili, douyin, reddit) |
 | `XYDL_PROBE_SECRET` | *(opsional)* HMAC sama dengan secret `PROBE_REPORT_SECRET` di Worker dash — biar IP penyerang yang ke-blokir nyampe ke admin sebagai IP asli, bukan IP function Vercel |
