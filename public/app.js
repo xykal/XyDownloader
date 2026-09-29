@@ -8,7 +8,6 @@ const API = '/api';
 
 // ------------------------------------------------------------------ analytics beacon (dash)
 const DASH_BEACON = [
-  'https://dash.dlaja.projectkal.my.id/api/public/beacon',
   'https://dash.dlaja.xyverse.my.id/api/public/beacon',
   'https://dash.xyverse.my.id/api/public/beacon',
 ];
@@ -2219,8 +2218,8 @@ track('session');
 // Remote config (admin dash) — non-blocking
 (async () => {
   const endpoints = [
-    'https://dash.dlaja.projectkal.my.id/api/public/config',
     'https://dash.dlaja.xyverse.my.id/api/public/config',
+    'https://dash.xyverse.my.id/api/public/config',
   ];
   let cfg = null;
   for (const u of endpoints) {

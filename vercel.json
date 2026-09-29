@@ -46,7 +46,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' https://proxy.xyverse.my.id https://dash.dlaja.projectkal.my.id https://dash.dlaja.xyverse.my.id https://dash.xyverse.my.id https://api.github.com https://cdn.jsdelivr.net https://unpkg.com; upgrade-insecure-requests"
+          "value": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' https://proxy.xyverse.my.id https://dash.dlaja.xyverse.my.id https://dash.xyverse.my.id https://api.github.com https://cdn.jsdelivr.net https://unpkg.com; upgrade-insecure-requests"
         },
         {
           "key": "Strict-Transport-Security",
