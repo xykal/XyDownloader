@@ -202,6 +202,111 @@
       display: grid; place-items: center; font-weight: 800; font-size: .85rem;
     }
     .head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* ---- fitur baru: rentang chart, status layanan, filter, ekspor, auto-refresh ---- */
+    .range-group { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: #0d0d14; }
+    .range-group button {
+      height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent;
+      color: var(--muted); cursor: pointer; font: inherit; font-size: .78rem; font-weight: 700;
+    }
+    .range-group button.on {
+      background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff;
+      box-shadow: 0 4px 14px var(--glow);
+    }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    .toolbar .find {
+      flex: 1 1 180px; min-width: 0; height: 34px; border-radius: 9px; border: 1px solid var(--border);
+      background: #0c0c12; color: var(--text); padding: 0 10px; font: inherit; font-size: .82rem;
+    }
+    .toolbar .btn { height: 34px; font-size: .82rem; }
+    .svc-list { display: grid; gap: 8px; margin-top: 12px; }
+    .svc {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: 12px; background: #0f0f16;
+    }
+    .svc .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+    .svc.ok .dot { background: var(--ok); box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 60%, transparent); }
+    .svc.bad .dot { background: var(--danger); box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 60%, transparent); }
+    .svc .nm { font-weight: 700; font-size: .88rem; }
+    .svc .info { color: var(--muted); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .svc .ms { margin-left: auto; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .counter { color: var(--muted); font-size: .72rem; margin-top: 4px; text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* saklar (checkbox) yang enak ditekan */
+    .switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+    .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+    .switch i {
+      position: absolute; inset: 0; border-radius: 999px; background: #26262f;
+      border: 1px solid var(--border); transition: .18s;
+    }
+    .switch i::after {
+      content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+      border-radius: 50%; background: #9b9ba8; transition: .18s;
+    }
+    .switch input:checked + i { background: linear-gradient(135deg, var(--accent), var(--accent2)); border-color: transparent; }
+    .switch input:checked + i::after { left: 22px; background: #fff; }
+
+    /* indikator auto-refresh */
+    .auto {
+      display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--muted);
+      padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer;
+      user-select: none;
+    }
+    .auto input { accent-color: var(--accent); margin: 0; }
+    .updated { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    /* --- responsif semua layar --- */
+    @media (max-width: 719px) {
+      header { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+      header .brand span:not(.live) { font-size: .92rem; }
+      .head-actions { width: 100%; justify-content: flex-start; }
+      .head-actions .btn, .head-actions button { height: 40px; padding: 0 10px; font-size: .82rem; }
+      main { padding: 14px 10px 64px; gap: 12px; }
+      .card { padding: 14px 12px 12px; border-radius: 14px; }
+      h2 { font-size: .98rem; }
+      .stat .n { font-size: 1.35rem; }
+      .series { gap: 3px; }
+      .series .d { font-size: .56rem; }
+      .bar-row { grid-template-columns: minmax(72px, 96px) 1fr 44px; }
+      .donut-row { gap: 10px; }
+      .donut { width: 72px; height: 72px; }
+      .donut > span { width: 48px; height: 48px; font-size: .76rem; }
+
+      /* tabel jadi kartu — tetap terbaca tanpa geser horizontal */
+      .table-wrap { border: 0; background: transparent; max-height: none !important; overflow: visible; }
+      table.dt { min-width: 0; display: block; }
+      table.dt thead { display: none; }
+      table.dt tbody, table.dt tr, table.dt td { display: block; width: 100%; }
+      table.dt tr {
+        border: 1px solid var(--border); border-radius: 12px; background: #0c0c12;
+        margin-bottom: 8px; padding: 6px 4px;
+      }
+      table.dt td {
+        display: flex; gap: 10px; align-items: baseline; justify-content: space-between;
+        border-bottom: 0; padding: 4px 10px; text-align: right;
+      }
+      table.dt td::before {
+        content: attr(data-label); color: var(--muted); font-size: .68rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em; text-align: left; flex: 0 0 auto;
+      }
+      table.dt td.empty { text-align: center; }
+      table.dt td.empty::before { display: none; }
+      .ua { max-width: 60vw; text-align: right; }
+    }
+    @media (min-width: 720px) and (max-width: 979px) {
+      .head-actions { gap: 6px; }
+    }
+    /* sentuh lebih nyaman */
+    @media (pointer: coarse) {
+      .btn, header button, .range-group button { min-height: 40px; }
+      .range-group button { min-width: 44px; }
+      .switch input { -webkit-tap-highlight-color: transparent; }
+    }
+    /* zoom 200% & layar sempit: jangan ada scroll horizontal halaman */
+    html, body { overflow-x: hidden; }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -212,8 +317,12 @@
       <span class="live" title="Data live dari beacon"><i></i> Live</span>
     </div>
     <div class="head-actions">
+      <label class="auto" title="Refresh stats otomatis saat tab aktif">
+        <input type="checkbox" id="auto-on" checked> auto
+      </label>
+      <span class="updated" id="updated-ago">—</span>
       <button type="button" id="refresh-stats">Refresh</button>
-      <button type="button" id="rebuild-stats" title="Hitung ulang rollup all-time dari log event (stats:evt:*)">Rebuild rollup</button>
+      <button type="button" id="rebuild-stats" title="Hitung ulang rollup all-time dari log event (stats:evt:*)">Rebuild</button>
       <span class="pill" id="user-pill">…</span>
       <button type="button" id="logout">Keluar</button>
     </div>
@@ -232,9 +341,14 @@
       <h3>Periode</h3>
       <div class="grid cols-3" id="period"></div>
 
-      <h3>14 hari · download</h3>
+      <h3 id="series-title">14 hari · download</h3>
       <div class="series-wrap">
-        <div class="series" id="series" aria-label="Tren 14 hari"></div>
+        <div class="range-group" id="range-group" role="group" aria-label="Rentang grafik" style="margin:0 0 10px 4px">
+          <button type="button" data-days="7">7h</button>
+          <button type="button" data-days="14" class="on">14h</button>
+          <button type="button" data-days="30">30h</button>
+        </div>
+        <div class="series" id="series" aria-label="Tren download"></div>
       </div>
     </section>
 
@@ -288,6 +402,10 @@
           <p class="muted">Sesi / extract / download real — IP, negara, label device.</p>
         </div>
       </div>
+      <div class="toolbar">
+        <input class="find" id="find-devices" type="search" placeholder="Cari IP, device, platform…" aria-label="Cari device">
+        <button type="button" class="btn secondary" id="csv-devices">Ekspor CSV</button>
+      </div>
       <div class="table-wrap" style="margin-top:12px;max-height:360px">
         <table class="dt" id="tbl-devices">
           <thead>
@@ -307,6 +425,10 @@
           <p class="muted">Probe: UA terlarang, path scan, login gagal, flood beacon. Bukan pengguna normal.</p>
         </div>
         <span class="pill" id="probe-count">0 hari ini</span>
+      </div>
+      <div class="toolbar">
+        <input class="find" id="find-probes" type="search" placeholder="Cari IP, alasan, path, UA…" aria-label="Cari log probe">
+        <button type="button" class="btn secondary" id="csv-probes">Ekspor CSV</button>
       </div>
       <h3>Top IP hari ini</h3>
       <div class="table-wrap" style="max-height:280px">
@@ -333,13 +455,26 @@
       <div class="split" id="health-pills" style="margin-top:14px"></div>
     </section>
 
+    <section class="card" id="services">
+      <div class="panel-title">
+        <div>
+          <h2>Status layanan</h2>
+          <p class="muted">Dicek live dari server saat tombol ditekan — web API, proxy, dash, halaman APK.</p>
+        </div>
+        <button type="button" class="btn secondary" id="check-services">Cek sekarang</button>
+      </div>
+      <div class="svc-list" id="svc-list">
+        <p class="muted">Belum dicek.</p>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Remote config</h2>
       <p class="muted">Mengatur web + app tanpa redeploy. Publik di <code>/api/public/config</code>.</p>
       <div class="grid" style="margin-top:12px">
         <div class="row">
           <div><b>Maintenance mode</b><div class="muted">Tampilkan pesan pemeliharaan</div></div>
-          <input type="checkbox" id="maintenance_mode">
+          <label class="switch"><input type="checkbox" id="maintenance_mode"><i></i></label>
         </div>
         <label>Pesan maintenance <textarea id="maintenance_message" rows="2"></textarea></label>
         <div class="grid cols-2">
@@ -375,7 +510,7 @@
         </div>
         <div class="row">
           <div><b>Default autoplay</b><div class="muted">Saran default untuk klien baru</div></div>
-          <input type="checkbox" id="default_autoplay">
+          <label class="switch"><input type="checkbox" id="default_autoplay"><i></i></label>
         </div>
         <label>Filename template
           <select id="default_filename_template">
@@ -399,9 +534,18 @@
     <section class="card" id="notify">
       <h2>Kirim pengumuman push</h2>
       <p class="muted">Ke semua subscriber DownloadAja (OneSignal). Sekali kirim, nggak bisa ditarik.</p>
-      <input id="notify-heading" placeholder="Judul (opsional)" maxlength="100" style="width:100%;margin:6px 0;padding:8px">
-      <textarea id="notify-message" placeholder="Isi pengumuman" maxlength="500" rows="3" style="width:100%;margin:6px 0;padding:8px"></textarea>
-      <button type="button" id="notify-send">Kirim pengumuman</button>
+      <div class="grid" style="margin-top:10px">
+        <label>Judul (opsional)
+          <input type="text" id="notify-heading" maxlength="100" placeholder="Judul pengumuman">
+        </label>
+        <label>Isi pengumuman
+          <textarea id="notify-message" maxlength="500" rows="3" placeholder="Tulis pengumuman untuk semua pengguna…"></textarea>
+          <div class="counter" id="notify-counter">0 / 500</div>
+        </label>
+        <div class="actions" style="margin-top:0">
+          <button type="button" class="btn primary" id="notify-send">Kirim pengumuman</button>
+        </div>
+      </div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -552,40 +696,49 @@
 
       // recent devices
       const devRows = (o.recent_devices || []).map((r) => `<tr>
-        <td class="mono">${esc(when(r.ts))}</td>
-        <td class="mono">${esc(r.ip || '—')}</td>
-        <td>${esc(r.cc || '—')}</td>
-        <td>${badge(r.client || 'web', r.client === 'apk' ? 'apk' : 'web')}</td>
-        <td>${badge(r.device || '—', r.device === 'bot' ? 'bot' : (r.device || ''))}</td>
-        <td>${esc(r.label || [r.os, r.browser, r.model].filter(Boolean).join(' · ') || '—')}</td>
-        <td>${esc(r.type || '—')}</td>
-        <td>${esc(r.platform || '—')}</td>
+        <td class="mono" data-label="Waktu">${esc(when(r.ts))}</td>
+        <td class="mono" data-label="IP">${esc(r.ip || '—')}</td>
+        <td data-label="CC">${esc(r.cc || '—')}</td>
+        <td data-label="Klien">${badge(r.client || 'web', r.client === 'apk' ? 'apk' : 'web')}</td>
+        <td data-label="Device">${badge(r.device || '—', r.device === 'bot' ? 'bot' : (r.device || ''))}</td>
+        <td data-label="Label">${esc(r.label || [r.os, r.browser, r.model].filter(Boolean).join(' · ') || '—')}</td>
+        <td data-label="Event">${esc(r.type || '—')}</td>
+        <td data-label="Platform">${esc(r.platform || '—')}</td>
       </tr>`).join('');
       fillTable('#tbl-devices', devRows);
+      window._rows = window._rows || {};
+      window._rows.devices = (o.recent_devices || []);
+      window._rows.series = o.series || [];
+      applyFilter('#find-devices', '#tbl-devices');
 
       // probe ips
       $('#probe-count').textContent = `${fmt(probes.today_count || 0)} probe hari ini`;
       const ipRows = (probes.top_ips_today || []).map((r) => `<tr>
-        <td class="mono">${esc(r.ip || '—')}</td>
-        <td>${esc(r.cc || '—')}</td>
-        <td><b>${fmt(r.count)}</b></td>
-        <td class="mono">${esc(reasonsStr(r.reasons))}</td>
-        <td>${esc(r.label || '—')}</td>
-        <td class="ua" title="${esc(r.last_ua || '')}">${esc(r.last_ua || '—')}</td>
-        <td class="mono">${esc(when(r.last_ts))}</td>
+        <td class="mono" data-label="IP">${esc(r.ip || '—')}</td>
+        <td data-label="CC">${esc(r.cc || '—')}</td>
+        <td data-label="Hits"><b>${fmt(r.count)}</b></td>
+        <td class="mono" data-label="Alasan">${esc(reasonsStr(r.reasons))}</td>
+        <td data-label="Label">${esc(r.label || '—')}</td>
+        <td class="ua" data-label="Last UA" title="${esc(r.last_ua || '')}">${esc(r.last_ua || '—')}</td>
+        <td class="mono" data-label="Terakhir">${esc(when(r.last_ts))}</td>
       </tr>`).join('');
       fillTable('#tbl-probe-ips', ipRows);
 
       const probeRows = (probes.recent || []).map((r) => `<tr>
-        <td class="mono">${esc(when(r.ts))}</td>
-        <td class="mono">${esc(r.ip || '—')}</td>
-        <td>${esc(r.cc || '—')}</td>
-        <td>${badge(r.reason || 'probe', 'probe')}</td>
-        <td class="mono">${esc(r.path || '—')}</td>
-        <td>${esc(r.label || '—')}</td>
-        <td class="ua" title="${esc(r.ua || '')}">${esc(r.ua || '—')}</td>
+        <td class="mono" data-label="Waktu">${esc(when(r.ts))}</td>
+        <td class="mono" data-label="IP">${esc(r.ip || '—')}</td>
+        <td data-label="CC">${esc(r.cc || '—')}</td>
+        <td data-label="Alasan">${badge(r.reason || 'probe', 'probe')}</td>
+        <td class="mono" data-label="Path">${esc(r.path || '—')}</td>
+        <td data-label="Label">${esc(r.label || '—')}</td>
+        <td class="ua" data-label="UA" title="${esc(r.ua || '')}">${esc(r.ua || '—')}</td>
       </tr>`).join('');
       fillTable('#tbl-probes', probeRows);
+      window._rows = window._rows || {};
+      window._rows.probes = (probes.recent || []);
+      window._rows.probeIps = (probes.top_ips_today || []);
+      applyFilter('#find-probes', '#tbl-probes');
+      applyFilter('#find-probes', '#tbl-probe-ips');
 
       $('#health-pills').innerHTML = [
         ['Produk', `<a href="${esc(o.product)}" target="_blank" rel="noopener">dlaja.xyverse.my.id</a>`],
@@ -630,8 +783,9 @@
     }
 
     async function loadStats() {
-      const ov = await api('/api/overview');
+      const ov = await api('/api/overview' + (window._days ? '?days=' + window._days : ''));
       renderOverview(ov.overview || {});
+      window._lastLoad = Date.now();
     }
 
     async function load() {
@@ -681,15 +835,108 @@
         .catch((e) => toast('Gagal: ' + e.message))
         .finally(() => { btn.disabled = false; btn.textContent = 'Rebuild rollup'; });
     };
+    /* ---- filter tabel (client-side) ---- */
+    function applyFilter(findSel, tableSel) {
+      const q = ($(findSel) && $(findSel).value || '').trim().toLowerCase();
+      const rows = $(tableSel).querySelectorAll('tbody tr');
+      rows.forEach((tr) => {
+        if (tr.querySelector('.empty')) return;
+        tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
+
+    /* ---- ekspor CSV ---- */
+    function downloadCSV(name, header, rows) {
+      const cell = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      const csv = [header.map(cell).join(',')].concat(
+        rows.map((r) => r.map((v) => cell(typeof v === 'object' && v && v.text !== undefined ? v.text : v)).join(','))
+      ).join('\r\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+
+    /* ---- status layanan live ---- */
+    async function checkServices() {
+      const box = $('#svc-list');
+      box.innerHTML = '<p class="muted">Mengecek…</p>';
+      try {
+        const d = await api('/api/health/live');
+        window._rows = window._rows || {};
+        window._rows.services = d.services || [];
+        box.innerHTML = (d.services || []).map((s) => `
+          <div class="svc ${s.ok ? 'ok' : 'bad'}">
+            <span class="dot"></span>
+            <div style="min-width:0">
+              <div class="nm">${esc(s.name)}</div>
+              <div class="info">${esc(s.url)}${s.info ? ' · ' + esc(s.info) : ''}</div>
+            </div>
+            <div class="ms">${s.status || 'ERR'} · ${fmt(s.ms)}ms</div>
+          </div>`).join('');
+      } catch (e) {
+        box.innerHTML = `<p class="muted">Gagal: ${esc(e.message)}</p>`;
+      }
+    }
+
+    $('#check-services').onclick = checkServices;
+
+    /* ---- rentang grafik ---- */
+    $('#range-group').querySelectorAll('button').forEach((b) => {
+      b.onclick = () => {
+        $('#range-group').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        window._days = parseInt(b.dataset.days, 10) || 14;
+        $('#series-title').textContent = window._days + ' hari · download';
+        loadStats().catch((e) => toast(e.message));
+      };
+    });
+
+    /* ---- filter + ekspor wiring ---- */
+    $('#find-devices').addEventListener('input', () => applyFilter('#find-devices', '#tbl-devices'));
+    $('#find-probes').addEventListener('input', () => {
+      applyFilter('#find-probes', '#tbl-probes');
+      applyFilter('#find-probes', '#tbl-probe-ips');
+    });
+    $('#csv-devices').onclick = () => {
+      const rows = (window._rows && window._rows.devices) || [];
+      downloadCSV('downloadaja-devices.csv',
+        ['Waktu', 'IP', 'CC', 'Klien', 'Device', 'Label', 'Event', 'Platform'],
+        rows.map((r) => [when(r.ts), r.ip, r.cc, r.client, r.device,
+          r.label || [r.os, r.browser, r.model].filter(Boolean).join(' · '), r.type, r.platform]));
+      toast('CSV device diunduh');
+    };
+    $('#csv-probes').onclick = () => {
+      const rows = (window._rows && window._rows.probes) || [];
+      downloadCSV('downloadaja-probes.csv',
+        ['Waktu', 'IP', 'CC', 'Alasan', 'Path', 'Label', 'UA'],
+        rows.map((r) => [when(r.ts), r.ip, r.cc, r.reason, r.path, r.label, r.ua]));
+      toast('CSV probe diunduh');
+    };
+
+    /* ---- indikator "diperbarui X lalu" + auto-refresh ---- */
+    setInterval(() => {
+      const el = $('#updated-ago');
+      if (!window._lastLoad) { el.textContent = '—'; return; }
+      const s = Math.round((Date.now() - window._lastLoad) / 1000);
+      el.textContent = s < 5 ? 'baru saja' : s < 60 ? s + ' dtk lalu' : Math.round(s / 60) + ' mnt lalu';
+    }, 5000);
+
+    $('#notify-message').addEventListener('input', (e) => {
+      $('#notify-counter').textContent = e.target.value.length + ' / 500';
+    });
+
     $('#logout').onclick = async () => {
       await api('/api/logout', { method: 'POST', body: '{}' });
       const g = (location.pathname.match(/\/g\/([^/]+)/) || [])[1];
       location.href = g ? `/g/${g}/login` : '/login.html';
     };
     load().catch((e) => toast(e.message));
-    // soft auto-refresh every 60s while tab visible
+    checkServices().catch(() => {});
+    // auto-refresh tiap 60s saat tab aktif (bisa dimatikan lewat saklar "auto")
     setInterval(() => {
-      if (document.visibilityState === 'visible') loadStats().catch(() => {});
+      if ($('#auto-on').checked && document.visibilityState === 'visible') loadStats().catch(() => {});
     }, 60000);
   </script>
 </body>

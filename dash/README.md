@@ -2,7 +2,7 @@
 
 Worker: `dlaja-dash`  
 Custom host: `https://dash.dlaja.xyverse.my.id`  
-Fallback: `https://dash.xyverse.my.id` (hostname stabil, bukan `*.workers.dev` yang bisa ikut berubah saat subdomain akun diganti)
+Kanonik: `https://dash.dlaja.projectkal.my.id` · Fallback: `https://dash.dlaja.xyverse.my.id`, `https://dash.xyverse.my.id` (hostname stabil, bukan `*.workers.dev` yang bisa ikut berubah saat subdomain akun diganti)
 
 ## Login URL
 

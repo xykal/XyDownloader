@@ -184,3 +184,45 @@ test('kunci lifetime-unique berumur 90 hari, bukan 800 hari', async () => {
   const ttl = kv.opts.get(lifeKey).expirationTtl;
   assert.equal(ttl, 60 * 60 * 24 * 90, `TTL ${ttl} detik = ${Math.round(ttl / 86400)} hari, harus 90`);
 });
+
+async function overviewDays(env, q) {
+  const path = '/api/overview' + (q ? `?days=${q}` : '');
+  const res = await dash.fetch(req({ method: 'GET', path, headers: { Cookie: adminCookie() } }), env, ctx);
+  const data = JSON.parse(await res.text());
+  return data.overview;
+}
+
+test('rentang grafik ?days=7|14|30 dengan pagar 3..30', async () => {
+  const kv = fakeKv();
+  const env = { CONFIG: kv, GATE_PATH: '', SESSION_SECRET: SECRET, PROBE_REPORT_SECRET: 'p' };
+  assert.equal((await overviewDays(env, 7)).series.length, 7, 'days=7 -> 7 kolom');
+  assert.equal((await overviewDays(env)).series.length, 14, 'default tetap 14');
+  assert.equal((await overviewDays(env, 30)).series.length, 30, 'days=30 -> 30 kolom');
+  assert.equal((await overviewDays(env, 999)).series.length, 30, 'lebih dari 30 dipagari ke 30');
+  assert.equal((await overviewDays(env, 1)).series.length, 3, 'terlalu kecil dipagari ke 3');
+});
+
+test('/api/health/live mengecek 4 layanan dan menolerir satu yang jatuh', async () => {
+  const kv = fakeKv();
+  const env = { CONFIG: kv, GATE_PATH: '', SESSION_SECRET: SECRET, PROBE_REPORT_SECRET: 'p' };
+  const asli = globalThis.fetch;
+  const dipanggil = [];
+  globalThis.fetch = async (url) => {
+    dipanggil.push(String(url));
+    if (String(url).includes('proxy.xyverse.my.id')) throw new Error('timeout pura-pura');
+    return new Response(JSON.stringify({ ok: true, service: 'tes' }), { status: 200 });
+  };
+  try {
+    const res = await dash.fetch(req({ method: 'GET', path: '/api/health/live', headers: { Cookie: adminCookie() } }), env, ctx);
+    assert.equal(res.status, 200);
+    const d = await res.json();
+    assert.equal(d.services.length, 4, 'empat target layanan');
+    assert.ok(d.services.every((s) => typeof s.ms === 'number' && s.name && s.url), 'tiap layanan punya nama/url/ms');
+    const proxy = d.services.find((s) => s.name === 'Proxy worker');
+    assert.equal(proxy.ok, false, 'layanan yang jatuh dilaporkan gagal, bukan bikin crash');
+    assert.ok(proxy.info, 'alasan kegagalan ikut terekam');
+    assert.ok(d.services.find((s) => s.name === 'Web API').ok, 'layanan sehat dilaporkan ok');
+  } finally {
+    globalThis.fetch = asli;
+  }
+});

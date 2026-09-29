@@ -50,6 +50,7 @@ _BLOCKED_UA = (
 
 
 DASH_BEACON = (
+    'https://dash.dlaja.projectkal.my.id/api/public/beacon',
     'https://dash.dlaja.xyverse.my.id/api/public/beacon',
     'https://dash.xyverse.my.id/api/public/beacon',
 )
