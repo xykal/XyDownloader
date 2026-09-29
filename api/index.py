@@ -25,7 +25,9 @@ if ROOT not in sys.path:
 from xydl import engine, netpolicy, signer  # noqa: E402
 from xydl.platforms import catalog  # noqa: E402
 
-PROXY_BASE = os.environ.get('XYDL_PROXY_BASE', 'http://127.0.0.1:8787')
+# Hostname proxy memakai nama domain sendiri (bukan *.workers.dev yang bisa
+# ikut berubah saat subdomain akun diganti — peristiwa 2026-09-28).
+PROXY_BASE = os.environ.get('XYDL_PROXY_BASE', 'https://proxy.xyverse.my.id')
 STREAM_CHUNK = 8 * 1024 * 1024
 READ_SIZE = 256 * 1024
 RATE_LIMIT = int(os.environ.get('XYDL_RATE_LIMIT', '25'))  # request extract / menit / IP
@@ -49,7 +51,7 @@ _BLOCKED_UA = (
 
 DASH_BEACON = (
     'https://dash.dlaja.xyverse.my.id/api/public/beacon',
-    'https://dlaja-dash.akuntiktok76y.workers.dev/api/public/beacon',
+    'https://dlaja-dash.dikanjut.workers.dev/api/public/beacon',
 )
 
 
