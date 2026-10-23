@@ -3,3 +3,4 @@
 -r requirements.txt
 uvicorn>=0.34
 pyyaml>=6
+python-dotenv>=1.0

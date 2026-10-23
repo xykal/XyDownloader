@@ -1,0 +1,38 @@
+{
+  "id": "twitter",
+  "name": "X / Twitter",
+  "region": "us",
+  "domains": [
+    "twitter.com",
+    "x.com",
+    "t.co",
+    "fxtwitter.com",
+    "vxtwitter.com"
+  ],
+  "color": "#111111",
+  "note": null,
+  "logo": "/logos/twitter.webp",
+  "custom_extractor": "XyTwitterIE",
+  "runtime": {
+    "attempts": [
+      {
+        "extractor_args": {
+          "twitter": {
+            "api": [
+              "syndication"
+            ]
+          }
+        }
+      },
+      {
+        "extractor_args": {
+          "twitter": {
+            "api": [
+              "graphql"
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

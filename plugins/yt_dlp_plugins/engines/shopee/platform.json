@@ -1,0 +1,13 @@
+{
+  "id": "shopee",
+  "name": "Shopee Video",
+  "region": "sg",
+  "domains": [
+    "shopee.co.id",
+    "shopee.sg",
+    "shp.ee"
+  ],
+  "color": "#EE4D2D",
+  "note": "Eksperimental",
+  "logo": "/logos/shopee.webp"
+}

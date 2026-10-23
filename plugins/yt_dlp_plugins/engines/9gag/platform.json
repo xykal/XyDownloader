@@ -1,0 +1,11 @@
+{
+  "id": "9gag",
+  "name": "9GAG",
+  "region": "global",
+  "domains": [
+    "9gag.com"
+  ],
+  "color": "#222222",
+  "note": null,
+  "logo": "/logos/9gag.webp"
+}

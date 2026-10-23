@@ -43,3 +43,6 @@ android/ffmpeg/out/
 # --- Playwright ---
 playwright-report/
 test-results/
+
+# Safe template only
+!.env.example

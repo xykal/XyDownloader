@@ -1,0 +1,11 @@
+{
+  "id": "toutiao",
+  "name": "Toutiao 头条",
+  "region": "cn",
+  "domains": [
+    "toutiao.com"
+  ],
+  "color": "#F04142",
+  "note": null,
+  "logo": "/logos/toutiao.webp"
+}

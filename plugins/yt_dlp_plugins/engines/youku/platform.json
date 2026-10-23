@@ -1,0 +1,11 @@
+{
+  "id": "youku",
+  "name": "Youku 优酷",
+  "region": "cn",
+  "domains": [
+    "youku.com"
+  ],
+  "color": "#1F9CFF",
+  "note": "Konten gratis",
+  "logo": "/logos/youku.webp"
+}

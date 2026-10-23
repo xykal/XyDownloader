@@ -1,0 +1,12 @@
+{
+  "id": "likee",
+  "name": "Likee",
+  "region": "sg",
+  "domains": [
+    "likee.video",
+    "likee.com"
+  ],
+  "color": "#FF3C6E",
+  "note": "Tergantung yt-dlp",
+  "logo": "/logos/likee.webp"
+}

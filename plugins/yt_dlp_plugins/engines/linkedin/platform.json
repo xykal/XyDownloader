@@ -1,0 +1,11 @@
+{
+  "id": "linkedin",
+  "name": "LinkedIn",
+  "region": "us",
+  "domains": [
+    "linkedin.com"
+  ],
+  "color": "#0A66C2",
+  "note": null,
+  "logo": "/logos/linkedin.webp"
+}

@@ -1,0 +1,1 @@
+"""NetEase Music engine configuration."""

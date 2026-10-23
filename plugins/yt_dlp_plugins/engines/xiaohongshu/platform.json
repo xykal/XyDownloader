@@ -1,0 +1,13 @@
+{
+  "id": "xiaohongshu",
+  "name": "Xiaohongshu 小红书",
+  "region": "cn",
+  "domains": [
+    "xiaohongshu.com",
+    "xhslink.com"
+  ],
+  "color": "#FF2442",
+  "note": "Pakai link share asli (ada xsec_token)",
+  "logo": "/logos/xiaohongshu.webp",
+  "custom_extractor": "XyXiaoHongShuIE"
+}

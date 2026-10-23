@@ -1,0 +1,11 @@
+{
+  "id": "ixigua",
+  "name": "Xigua 西瓜视频",
+  "region": "cn",
+  "domains": [
+    "ixigua.com"
+  ],
+  "color": "#F04142",
+  "note": "Kadang butuh cookie",
+  "logo": "/logos/ixigua.webp"
+}

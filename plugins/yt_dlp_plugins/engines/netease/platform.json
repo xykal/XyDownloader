@@ -1,0 +1,11 @@
+{
+  "id": "netease",
+  "name": "NetEase Music",
+  "region": "cn",
+  "domains": [
+    "music.163.com"
+  ],
+  "color": "#C20C0C",
+  "note": "Audio",
+  "logo": "/logos/netease.webp"
+}

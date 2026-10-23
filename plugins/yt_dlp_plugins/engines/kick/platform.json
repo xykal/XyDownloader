@@ -1,0 +1,11 @@
+{
+  "id": "kick",
+  "name": "Kick",
+  "region": "global",
+  "domains": [
+    "kick.com"
+  ],
+  "color": "#53FC18",
+  "note": "Clips & VOD",
+  "logo": "/logos/kick.webp"
+}

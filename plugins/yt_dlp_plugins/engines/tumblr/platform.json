@@ -1,0 +1,11 @@
+{
+  "id": "tumblr",
+  "name": "Tumblr",
+  "region": "us",
+  "domains": [
+    "tumblr.com"
+  ],
+  "color": "#36465D",
+  "note": null,
+  "logo": "/logos/tumblr.webp"
+}

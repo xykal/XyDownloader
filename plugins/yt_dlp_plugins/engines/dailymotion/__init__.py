@@ -1,0 +1,1 @@
+"""Dailymotion engine configuration."""

@@ -263,3 +263,10 @@ Gunakan hanya untuk konten milik sendiri atau yang kamu punya izin untuk mengund
 **Logo platform** di `public/logos/` adalah ikon aplikasi resmi (App Store / situs resmi, lihat `scripts/fetch_logos.py`) dan merupakan merek milik pemiliknya masing-masing — dipakai hanya untuk menunjukkan kompatibilitas. Tambah platform baru: edit `xydl/platforms.py` → `python scripts/fetch_logos.py <id>` → `python scripts/sync_android.py`.
 
 <p align="center"><img src="public/xyverse.svg" width="40" alt="XyVerse"><br><sub>Built in <b>XyVerse</b></sub></p>
+
+## Struktur engine modular
+
+Engine unggulan sekarang dipisah per platform di `plugins/yt_dlp_plugins/engines/`
+(contoh `tiktok/extractor.py` dan `tiktok/platform.json`). Katalog backend membaca
+metadata dari folder yang sama. Panduan perubahan, cara menjalankan, hasil pengujian,
+dan batasan validasi: [docs/REFACTOR-ID.md](docs/REFACTOR-ID.md).

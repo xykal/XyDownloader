@@ -1,0 +1,11 @@
+{
+  "id": "vqq",
+  "name": "Tencent Video",
+  "region": "cn",
+  "domains": [
+    "v.qq.com"
+  ],
+  "color": "#FF6A00",
+  "note": "Konten gratis",
+  "logo": "/logos/vqq.webp"
+}

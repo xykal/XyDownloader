@@ -1,0 +1,13 @@
+{
+  "id": "weibo",
+  "name": "Weibo 微博",
+  "region": "cn",
+  "domains": [
+    "weibo.com",
+    "weibo.cn"
+  ],
+  "color": "#E6162D",
+  "note": null,
+  "logo": "/logos/weibo.webp",
+  "custom_extractor": "XyWeiboIE"
+}

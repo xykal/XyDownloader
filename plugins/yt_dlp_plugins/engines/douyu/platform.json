@@ -1,0 +1,12 @@
+{
+  "id": "douyu",
+  "name": "Douyu 斗鱼",
+  "region": "cn",
+  "domains": [
+    "douyu.com",
+    "douyu.tv"
+  ],
+  "color": "#FF7700",
+  "note": null,
+  "logo": "/logos/douyu.webp"
+}

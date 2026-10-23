@@ -1,0 +1,11 @@
+{
+  "id": "kwai",
+  "name": "Kwai",
+  "region": "sg",
+  "domains": [
+    "kwai.com"
+  ],
+  "color": "#FF7A00",
+  "note": "Via generic extractor",
+  "logo": "/logos/kwai.webp"
+}
