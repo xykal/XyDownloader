@@ -56,6 +56,7 @@ def main():
             sh('input', 'swipe', str(w // 2), str(int(h * 0.72)), str(w // 2), str(int(h * 0.38)), '350')
             time.sleep(1)
     print(f'elemen tidak ditemukan: {pat}')
+    sys.exit(1)
 
 
 if __name__ == '__main__':
