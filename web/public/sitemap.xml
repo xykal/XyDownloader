@@ -1,2 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://dlaja.xyverse.my.id/</loc></url></urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://dlaja.xyverse.my.id/</loc>
+    <lastmod>2026-10-23</lastmod>
+    <image:image><image:loc>https://dlaja.xyverse.my.id/screenshots/home.webp</image:loc></image:image>
+    <image:image><image:loc>https://dlaja.xyverse.my.id/screenshots/downloads.webp</image:loc></image:image>
+    <image:image><image:loc>https://dlaja.xyverse.my.id/screenshots/settings.webp</image:loc></image:image>
+  </url>
+</urlset>

@@ -17,6 +17,9 @@ export default {
     if (!['GET', 'HEAD'].includes(request.method)) {
       return secure(new Response('Method not allowed', {status: 405, headers: {Allow: 'GET, HEAD'}}));
     }
+    if (url.hostname === 'dlaja-web.dikanjut.workers.dev') {
+      return secure(Response.redirect(CANONICAL + url.pathname + url.search, 308));
+    }
     if (url.hostname === 'dlaja.projectkal.my.id') {
       return secure(Response.redirect(CANONICAL + url.pathname + url.search, 308));
     }
@@ -45,6 +48,10 @@ export default {
       return secure(Response.redirect(CANONICAL + '/#download', 302));
     }
     const response = await env.ASSETS.fetch(request);
-    return secure(response);
+    const result = secure(response);
+    if (response.status >= 400 || url.pathname === '/releases.json' || url.pathname.endsWith('/provenance.json')) {
+      result.headers.set('X-Robots-Tag', 'noindex');
+    }
+    return result;
   },
 };
