@@ -1,0 +1,11 @@
+{
+  "id": "bigo",
+  "name": "Bigo Live",
+  "region": "sg",
+  "domains": [
+    "bigo.tv"
+  ],
+  "color": "#00DDCC",
+  "note": "Live",
+  "logo": "/logos/bigo.webp"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "bluesky",
+  "name": "Bluesky",
+  "region": "us",
+  "domains": [
+    "bsky.app"
+  ],
+  "color": "#1185FE",
+  "note": null,
+  "logo": "/logos/bluesky.webp",
+  "custom_extractor": "XyBlueskyIE"
+}

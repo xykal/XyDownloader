@@ -1,0 +1,11 @@
+{
+  "id": "vidio",
+  "name": "Vidio",
+  "region": "id",
+  "domains": [
+    "vidio.com"
+  ],
+  "color": "#EE2B24",
+  "note": "Konten gratis (bukan premium/DRM)",
+  "logo": "/logos/vidio.webp"
+}

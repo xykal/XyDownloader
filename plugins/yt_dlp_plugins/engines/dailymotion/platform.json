@@ -1,0 +1,12 @@
+{
+  "id": "dailymotion",
+  "name": "Dailymotion",
+  "region": "global",
+  "domains": [
+    "dailymotion.com",
+    "dai.ly"
+  ],
+  "color": "#0066DC",
+  "note": null,
+  "logo": "/logos/dailymotion.webp"
+}

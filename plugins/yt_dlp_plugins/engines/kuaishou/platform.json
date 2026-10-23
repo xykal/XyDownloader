@@ -1,0 +1,14 @@
+{
+  "id": "kuaishou",
+  "name": "Kuaishou 快手",
+  "region": "cn",
+  "domains": [
+    "kuaishou.com",
+    "chenzhongtech.com",
+    "gifshow.com"
+  ],
+  "color": "#FF4906",
+  "note": "Plugin DownloadAja",
+  "logo": "/logos/kuaishou.webp",
+  "custom_extractor": "XyKuaishouIE"
+}

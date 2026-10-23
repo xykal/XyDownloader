@@ -1,0 +1,11 @@
+{
+  "id": "acfun",
+  "name": "AcFun",
+  "region": "cn",
+  "domains": [
+    "acfun.cn"
+  ],
+  "color": "#FD4C5D",
+  "note": null,
+  "logo": "/logos/acfun.webp"
+}

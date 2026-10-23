@@ -1,0 +1,11 @@
+{
+  "id": "soundcloud",
+  "name": "SoundCloud",
+  "region": "us",
+  "domains": [
+    "soundcloud.com"
+  ],
+  "color": "#FF5500",
+  "note": "Audio",
+  "logo": "/logos/soundcloud.webp"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "zhihu",
+  "name": "Zhihu 知乎",
+  "region": "cn",
+  "domains": [
+    "zhihu.com"
+  ],
+  "color": "#0066FF",
+  "note": null,
+  "logo": "/logos/zhihu.webp"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "facebook",
+  "name": "Facebook",
+  "region": "us",
+  "domains": [
+    "facebook.com",
+    "fb.watch",
+    "fb.com"
+  ],
+  "color": "#1877F2",
+  "note": "Video & Reels publik",
+  "logo": "/logos/facebook.webp"
+}

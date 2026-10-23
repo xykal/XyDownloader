@@ -1,0 +1,1 @@
+"""Shopee Video engine configuration."""

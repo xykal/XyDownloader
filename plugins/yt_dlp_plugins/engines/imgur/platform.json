@@ -1,0 +1,11 @@
+{
+  "id": "imgur",
+  "name": "Imgur",
+  "region": "us",
+  "domains": [
+    "imgur.com"
+  ],
+  "color": "#1BB76E",
+  "note": null,
+  "logo": "/logos/imgur.webp"
+}

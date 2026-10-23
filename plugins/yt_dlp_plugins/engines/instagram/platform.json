@@ -1,0 +1,13 @@
+{
+  "id": "instagram",
+  "name": "Instagram",
+  "region": "us",
+  "domains": [
+    "instagram.com",
+    "instagr.am"
+  ],
+  "color": "#E1306C",
+  "note": "Reels & post publik",
+  "logo": "/logos/instagram.webp",
+  "custom_extractor": "XyInstagramIE"
+}

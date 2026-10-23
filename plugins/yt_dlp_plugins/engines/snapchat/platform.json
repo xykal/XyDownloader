@@ -1,0 +1,11 @@
+{
+  "id": "snapchat",
+  "name": "Snapchat",
+  "region": "us",
+  "domains": [
+    "snapchat.com"
+  ],
+  "color": "#FFFC00",
+  "note": "Spotlight",
+  "logo": "/logos/snapchat.webp"
+}

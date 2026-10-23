@@ -1,0 +1,11 @@
+{
+  "id": "huya",
+  "name": "Huya 虎牙",
+  "region": "cn",
+  "domains": [
+    "huya.com"
+  ],
+  "color": "#FF9600",
+  "note": null,
+  "logo": "/logos/huya.webp"
+}

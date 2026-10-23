@@ -1,0 +1,12 @@
+{
+  "id": "niconico",
+  "name": "Niconico",
+  "region": "jp",
+  "domains": [
+    "nicovideo.jp",
+    "nico.ms"
+  ],
+  "color": "#252525",
+  "note": null,
+  "logo": "/logos/niconico.webp"
+}

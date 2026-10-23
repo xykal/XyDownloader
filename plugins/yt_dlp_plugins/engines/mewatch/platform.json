@@ -1,0 +1,11 @@
+{
+  "id": "mewatch",
+  "name": "meWATCH",
+  "region": "sg",
+  "domains": [
+    "mewatch.sg"
+  ],
+  "color": "#6A1B9A",
+  "note": "Konten gratis",
+  "logo": "/logos/mewatch.webp"
+}

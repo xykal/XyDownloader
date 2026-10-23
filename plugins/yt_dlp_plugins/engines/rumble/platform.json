@@ -1,0 +1,11 @@
+{
+  "id": "rumble",
+  "name": "Rumble",
+  "region": "us",
+  "domains": [
+    "rumble.com"
+  ],
+  "color": "#85C742",
+  "note": null,
+  "logo": "/logos/rumble.webp"
+}

@@ -1,0 +1,1 @@
+"""9GAG engine configuration."""

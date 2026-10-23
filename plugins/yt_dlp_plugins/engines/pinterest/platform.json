@@ -1,0 +1,12 @@
+{
+  "id": "pinterest",
+  "name": "Pinterest",
+  "region": "us",
+  "domains": [
+    "pinterest.com",
+    "pin.it"
+  ],
+  "color": "#E60023",
+  "note": null,
+  "logo": "/logos/pinterest.webp"
+}

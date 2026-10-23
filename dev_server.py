@@ -7,7 +7,12 @@
 import mimetypes
 import os
 
-from api.index import app as api_app
+from dotenv import load_dotenv
+
+# Local secrets only; exported environment variables always take precedence.
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=False)
+
+from api.index import app as api_app  # noqa: E402
 
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'public'))
 mimetypes.add_type('application/javascript', '.js')
@@ -21,7 +26,7 @@ async def app(scope, receive, send):
     if path.endswith('/'):
         path += 'index.html'
     fp = os.path.realpath(os.path.join(ROOT, path.lstrip('/')))
-    if not fp.startswith(ROOT) or not os.path.isfile(fp):
+    if os.path.commonpath([ROOT, fp]) != ROOT or not os.path.isfile(fp):
         await send({'type': 'http.response.start', 'status': 404, 'headers': [(b'content-type', b'text/plain')]})
         await send({'type': 'http.response.body', 'body': b'not found'})
         return

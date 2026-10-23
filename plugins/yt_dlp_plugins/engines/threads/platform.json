@@ -1,0 +1,13 @@
+{
+  "id": "threads",
+  "name": "Threads",
+  "region": "us",
+  "domains": [
+    "threads.net",
+    "threads.com"
+  ],
+  "color": "#111111",
+  "note": "Plugin DownloadAja",
+  "logo": "/logos/threads.webp",
+  "custom_extractor": "XyThreadsIE"
+}

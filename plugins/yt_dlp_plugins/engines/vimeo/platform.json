@@ -1,0 +1,11 @@
+{
+  "id": "vimeo",
+  "name": "Vimeo",
+  "region": "us",
+  "domains": [
+    "vimeo.com"
+  ],
+  "color": "#1AB7EA",
+  "note": "Web: sering diblokir, pakai Android",
+  "logo": "/logos/vimeo.webp"
+}

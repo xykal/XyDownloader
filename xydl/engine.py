@@ -333,16 +333,13 @@ def _compose_attempts(url):
 def _attempt_opts(url):
     """Opsi tambahan per percobaan. X/Twitter: API syndication lebih stabil dari IP server,
     graphql (guest) sebagai cadangan."""
-    host = (urllib.parse.urlparse(url).hostname or '').lower()
-    if host.endswith(('twitter.com', 'x.com')):
-        return [{'extractor_args': {'twitter': {'api': ['syndication']}}},
-                {'extractor_args': {'twitter': {'api': ['graphql']}}}]
-    return [{}]
+    platform = detect_platform(url) or {}
+    return platform.get('runtime', {}).get('attempts', [{}])
 
 
 def _is_youtube(url):
-    host = (urllib.parse.urlparse(url).hostname or '').lower()
-    return host.endswith(('youtube.com', 'youtu.be', 'youtube-nocookie.com'))
+    platform = detect_platform(url) or {}
+    return bool(platform.get('runtime', {}).get('needs_js', False))
 
 
 # ---------------------------------------------------------------------------
@@ -894,7 +891,8 @@ def extract(text, proxy_base):
     if not is_public_url(url):
         raise XyError('invalid', 'Link tidak diizinkan.', status=400)
 
-    cached = _CACHE.get(url)
+    cache_key = (url, proxy_base)
+    cached = _CACHE.get(cache_key)
     if cached and time.time() - cached[0] < _CACHE_TTL:
         return cached[1]
 
@@ -967,7 +965,7 @@ def extract(text, proxy_base):
     }
     if len(_CACHE) > 200:
         _CACHE.clear()
-    _CACHE[url] = (time.time(), result)
+    _CACHE[cache_key] = (time.time(), result)
     return result
 
 

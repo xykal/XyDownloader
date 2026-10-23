@@ -1,0 +1,11 @@
+{
+  "id": "cnnindonesia",
+  "name": "CNN Indonesia",
+  "region": "id",
+  "domains": [
+    "cnnindonesia.com"
+  ],
+  "color": "#CC0000",
+  "note": null,
+  "logo": "/logos/cnnindonesia.webp"
+}

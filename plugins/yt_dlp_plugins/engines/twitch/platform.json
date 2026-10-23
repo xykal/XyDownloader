@@ -1,0 +1,11 @@
+{
+  "id": "twitch",
+  "name": "Twitch",
+  "region": "us",
+  "domains": [
+    "twitch.tv"
+  ],
+  "color": "#9146FF",
+  "note": "Clips & VOD",
+  "logo": "/logos/twitch.webp"
+}

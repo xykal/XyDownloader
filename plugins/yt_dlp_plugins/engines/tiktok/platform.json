@@ -1,0 +1,12 @@
+{
+  "id": "tiktok",
+  "name": "TikTok",
+  "region": "global",
+  "domains": [
+    "tiktok.com"
+  ],
+  "color": "#FE2C55",
+  "note": "Tanpa watermark",
+  "logo": "/logos/tiktok.webp",
+  "custom_extractor": "XyTikTokIE"
+}

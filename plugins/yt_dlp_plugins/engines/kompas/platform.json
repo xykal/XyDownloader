@@ -1,0 +1,12 @@
+{
+  "id": "kompas",
+  "name": "Kompas",
+  "region": "id",
+  "domains": [
+    "kompas.com",
+    "kompas.tv"
+  ],
+  "color": "#0F4C81",
+  "note": null,
+  "logo": "/logos/kompas.webp"
+}

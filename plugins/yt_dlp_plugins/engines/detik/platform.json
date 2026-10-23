@@ -1,0 +1,11 @@
+{
+  "id": "detik",
+  "name": "detikcom (20detik)",
+  "region": "id",
+  "domains": [
+    "detik.com"
+  ],
+  "color": "#1E3A8A",
+  "note": null,
+  "logo": "/logos/detik.webp"
+}

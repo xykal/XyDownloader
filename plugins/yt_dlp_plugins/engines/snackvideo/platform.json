@@ -1,0 +1,12 @@
+{
+  "id": "snackvideo",
+  "name": "SnackVideo",
+  "region": "id",
+  "domains": [
+    "snackvideo.com",
+    "sck.io"
+  ],
+  "color": "#FFC400",
+  "note": "Via generic extractor",
+  "logo": "/logos/snackvideo.webp"
+}
