@@ -7,6 +7,9 @@ on:
   pull_request:
     paths:
       - 'public/**'
+      - 'web/**'
+      - 'tests/landing/**'
+      - 'playwright.landing.config.mjs'
       - 'api/**'
       - 'xydl/**'
       - 'plugins/**'
@@ -21,6 +24,9 @@ on:
     branches: [main]
     paths:
       - 'public/**'
+      - 'web/**'
+      - 'tests/landing/**'
+      - 'playwright.landing.config.mjs'
       - 'api/**'
       - 'xydl/**'
       - 'plugins/**'
@@ -62,7 +68,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Jalankan tes E2E
-        run: npx playwright test
+        run: |
+          npx playwright test
+          npm run e2e:landing
 
       - name: Unggah laporan kalau gagal
         if: failure()

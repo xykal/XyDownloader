@@ -1,13 +1,19 @@
+> **Status produksi (23 Oktober 2026):** APK-first. Website aktif di Cloudflare
+> sebagai landing page + unduh APK; downloader Python versi web tidak lagi
+> dideploy. Android melakukan ekstraksi/download langsung di perangkat.
+> [Panduan hosting saat ini](docs/CLOUDFLARE-APK.md). Bagian backend web di bawah
+> tetap dipertahankan sebagai dokumentasi pengembangan, bukan arsitektur produksi aktif.
+
 <p align="center">
   <img src="public/logo.svg" width="96" alt="DownloadAja">
 </p>
 
 <h1 align="center">DownloadAja</h1>
-<p align="center"><b>Download video, MP3, foto slide & Live Photo dari semua platform — Web + Android native</b><br>
+<p align="center"><b>Download video, MP3, foto slide & Live Photo dari semua platform — Android native + website APK</b><br>
 TikTok · Douyin · Instagram · YouTube · Bilibili · Kuaishou · Xiaohongshu · X/Twitter · Facebook · Threads · pixiv · Vidio · Weibo · 1.700+ situs</p>
 
 <p align="center">
-  <a href="https://dlaja.xyverse.my.id"><b>Buka versi web</b></a> ·
+  <a href="https://dlaja.xyverse.my.id"><b>Website & unduh APK</b></a> ·
   <a href="https://github.com/xykal/XyDownloader/releases/latest"><b>Download APK</b></a> ·
   <a href="#cara-kerjanya">Cara kerja</a>
 </p>
@@ -270,3 +276,10 @@ Engine unggulan sekarang dipisah per platform di `plugins/yt_dlp_plugins/engines
 (contoh `tiktok/extractor.py` dan `tiktok/platform.json`). Katalog backend membaca
 metadata dari folder yang sama. Panduan perubahan, cara menjalankan, hasil pengujian,
 dan batasan validasi: [docs/REFACTOR-ID.md](docs/REFACTOR-ID.md).
+
+## Hosting produksi: APK-first di Cloudflare
+
+Website produksi kini adalah landing page + link APK (`web/`), bukan downloader
+Python berbasis web. Aplikasi Android tetap mengekstrak dan mengunduh langsung di
+perangkat. Deployment tidak lagi menggunakan Vercel/Railway.
+Lihat [panduan migrasi Cloudflare](docs/CLOUDFLARE-APK.md).
