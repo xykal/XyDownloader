@@ -20,3 +20,16 @@ test('release redirect, health and removed web API', async ({request}) => {
  expect((await request.get('/api/extract')).status()).toBe(410);
  expect((await request.get('/not-a-page')).status()).toBe(404);
 });
+test('authentic screenshots, structured data and social image are available', async ({page,request}) => {
+ await page.goto('/');
+ await expect(page.locator('.actual-phone img')).toBeVisible();
+ await expect(page.locator('.screens-grid img')).toHaveCount(3);
+ await expect(page.locator('.fake-input')).toHaveCount(0);
+ const schema = JSON.parse(await page.locator('#app-schema').textContent());
+ expect(schema['@graph'].some(e=>e['@type']==='SoftwareApplication')).toBeTruthy();
+ const og = await request.get('/og-cover.jpg');
+ expect(og.status()).toBe(200);expect(og.headers()['content-type']).toContain('image/jpeg');
+ expect((await request.get('/screenshots/home.webp')).status()).toBe(200);
+ expect((await request.get('/robots.txt')).status()).toBe(200);
+ expect((await request.get('/sitemap.xml')).status()).toBe(200);
+});

@@ -1,0 +1,23 @@
+{
+  "source": "https://github.com/xykal/XyDownloader/actions/runs/39934086497",
+  "commit": "842ffcf2a0f15e8abe64303abc4df93fdc428736",
+  "build_type": "Android CI development build, emulator, not v1.3.5 screenshots",
+  "processing": "Resized and converted to WebP only; app UI/content not reconstructed",
+  "images": [
+    {
+      "file": "home.webp",
+      "artifact_file": "03-tiktok-photo.png",
+      "caption": "Beranda dan pilihan foto"
+    },
+    {
+      "file": "downloads.webp",
+      "artifact_file": "09-downloads-mp3.png",
+      "caption": "Daftar unduhan foto dan audio"
+    },
+    {
+      "file": "settings.webp",
+      "artifact_file": "11-about.png",
+      "caption": "Pengaturan aplikasi"
+    }
+  ]
+}

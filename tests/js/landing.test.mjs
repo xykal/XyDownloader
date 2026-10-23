@@ -39,3 +39,12 @@ test('static responses carry security headers', async () => {
  assert.equal(r.headers.get('X-Frame-Options'), 'DENY');
  assert.match(r.headers.get('Content-Security-Policy'), /frame-ancestors 'none'/);
 });
+test('workers.dev mirror redirects to the canonical website', async () => {
+ const r = await worker.fetch(new Request('https://dlaja-web.dikanjut.workers.dev/'), env());
+ assert.equal(r.status, 308); assert.equal(r.headers.get('Location'), url + '/');
+});
+test('missing pages carry noindex rather than pretending to be content', async () => {
+ const bindings = {ASSETS: {fetch: async () => new Response('Missing', {status:404})}};
+ const r = await worker.fetch(new Request(url + '/missing'), bindings);
+ assert.equal(r.status, 404); assert.equal(r.headers.get('X-Robots-Tag'), 'noindex');
+});
