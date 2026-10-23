@@ -205,6 +205,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: DownloadAja ${{ env.VERSION_NAME }}
+          prerelease: true  # stable promotion requires review of emulator evidence
           files: |
             out/*.apk
             out/update-banner.webp
