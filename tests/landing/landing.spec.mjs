@@ -3,9 +3,11 @@ test('landing and APK links are usable without downloader backend', async ({page
  const errors = []; page.on('pageerror', e => errors.push(e.message));
  await page.goto('/');
  await expect(page.getByRole('heading', {level:1})).toContainText('Simpan yang');
- await expect(page.locator('[data-version]')).toContainText('v');
+ await expect(page.locator('[data-version]').first()).toContainText('v');
  await expect(page.locator('input')).toHaveCount(0);
- await page.getByRole('link', {name:'Unduh APK', exact:false}).click();
+ await expect(page.locator('.release-strip')).toContainText('Masih prerelease');
+ await expect(page.getByRole('link', {name:'Lihat prerelease'})).toHaveAttribute('href', 'https://github.com/xykal/XyDownloader/releases/tag/v1.3.5');
+ await page.locator('.nav-cta').click();
  await expect(page.locator('#download')).toBeInViewport();
  await expect(page.locator('a[href="/download/arm64-v8a"]')).toHaveCount(2);
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
