@@ -1,0 +1,25 @@
+{
+  "version": "v1.3.4",
+  "published_at": "2026-09-28T16:19:20Z",
+  "release_url": "https://github.com/xykal/XyDownloader/releases/tag/v1.3.4",
+  "assets": [
+    {
+      "arch": "arm64-v8a",
+      "name": "DownloadAja-1.3.4-arm64-v8a.apk",
+      "size": 19553565,
+      "url": "https://github.com/xykal/XyDownloader/releases/download/v1.3.4/DownloadAja-1.3.4-arm64-v8a.apk"
+    },
+    {
+      "arch": "armeabi-v7a",
+      "name": "DownloadAja-1.3.4-armeabi-v7a.apk",
+      "size": 18103263,
+      "url": "https://github.com/xykal/XyDownloader/releases/download/v1.3.4/DownloadAja-1.3.4-armeabi-v7a.apk"
+    },
+    {
+      "arch": "x86_64",
+      "name": "DownloadAja-1.3.4-x86_64.apk",
+      "size": 19319542,
+      "url": "https://github.com/xykal/XyDownloader/releases/download/v1.3.4/DownloadAja-1.3.4-x86_64.apk"
+    }
+  ]
+}
