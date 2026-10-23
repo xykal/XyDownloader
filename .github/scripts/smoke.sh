@@ -75,5 +75,7 @@ tail -n 40 "$OUT/logcat-xy.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   grep -n "FATAL EXCEPTION" -A 40 "$OUT/logcat.txt" | head -80
   echo "::error::aplikasi crash (lihat logcat)"
+  exit 1
 fi
+adb shell pidof "$PKG" >/dev/null || { echo "::error::aplikasi tidak hidup"; exit 1; }
 exit 0

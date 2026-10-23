@@ -2,6 +2,15 @@
 
 Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram, YouTube, Bilibili, Kuaishou, Xiaohongshu, X, Facebook, Threads, pixiv, Vidio & 1.700+ situs lainnya — langsung dari HP.
 
+### Yang baru di versi 1.3.5
+- **Engine modular**: 48 konfigurasi platform dan 11 extractor khusus dipisah per platform, tetap dibundel di APK.
+- **Langsung dari perangkat**: ekstraksi dan download utama tetap memakai yt-dlp di Android, tidak membutuhkan backend Vercel/Railway.
+- **Website Cloudflare**: halaman resmi kini khusus informasi dan unduh APK dari GitHub Releases.
+- **Pemeriksaan rilis lebih ketat**: isi paket engine, sertifikat signing, dan emulator diperiksa sebelum APK dipublikasikan. SHA-256 setiap APK tersedia bersama rilis.
+- Engine yt-dlp terbaru dibundel saat build. Pembaruan engine tetap tersedia dari aplikasi.
+
+**Batas dukungan:** kompatibilitas bergantung pada perubahan situs, login, wilayah dan anti-bot. Tidak ada jaminan seluruh tautan/platform selalu berhasil; konten privat/DRM tidak dijanjikan didukung.
+
 ### Yang baru di versi 1.3.4
 - **Antrean unduhan** — maksimal 2 unduhan berjalan bareng dengan urutan yang rapi. Yang belum giliran benar-benar menunggu (bukan sekadar tampilan), dan menekan Batal saat masih antre langsung mengeluarkannya dari antrean.
 - **Izin notifikasi tidak kepagian** — aplikasi tidak lagi meminta izin notifikasi saat pertama dibuka. Sekarang diminta tepat setelah unduhan pertama selesai — saat notifikasi "Download selesai" benar-benar ada gunanya. Diminta sekali saja; kalau ditolak, tidak diganggu lagi.
@@ -44,4 +53,4 @@ Download video, MP3, **foto slide & Live Photo** dari TikTok, Douyin, Instagram,
 
 Cara pakai: buka TikTok/IG/YouTube, tekan **Bagikan**, pilih **DownloadAja**. File tersimpan di `Download/DownloadAja`.
 
-Versi web: https://dlaja.xyverse.my.id
+Website & APK: https://dlaja.xyverse.my.id

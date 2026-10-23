@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BASE_VERSION: '1.3.2'
+  BASE_VERSION: '1.3.5'
   NDK_VERSION: '27.2.12479018'
 
 jobs:
@@ -96,8 +96,11 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
             echo "KEYSTORE_PATH=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "::error::Release wajib memakai signing key resmi; menolak debug key"
+            exit 1
           else
-            echo "::warning::KEYSTORE_BASE64 kosong — APK ditandatangani dengan debug key"
+            echo "::warning::Build non-release memakai debug key"
           fi
 
       - name: Build release APK (R8 + shrink resources)
@@ -120,52 +123,24 @@ jobs:
           python3 .github/scripts/check_apk.py out android/app/build/xy-jni android/app/build/xy-res/raw/ytdlp
           cp android/release-banner.webp out/update-banner.webp
 
+      - name: Verify release signature matches previous public APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/previous.apk" https://github.com/xykal/XyDownloader/releases/download/v1.3.4/DownloadAja-1.3.4-arm64-v8a.apk
+          verifier="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          previous=$("$verifier" verify --print-certs "$RUNNER_TEMP/previous.apk" | grep 'Signer #1 certificate SHA-256 digest:')
+          test -n "$previous"
+          for apk in out/*.apk; do
+            current=$("$verifier" verify --print-certs "$apk" | grep 'Signer #1 certificate SHA-256 digest:')
+            test "$previous" = "$current" || { echo "::error::Signing certificate mismatch: $apk"; exit 1; }
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: DownloadAja-${{ env.VERSION_NAME }}
           path: out/*.apk
           if-no-files-found: error
 
-      - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: DownloadAja ${{ env.VERSION_NAME }}
-          files: |
-            out/*.apk
-            out/update-banner.webp
-          body_path: android/RELEASE_NOTES.md
-
-      - name: Kirim notifikasi rilis (OneSignal)
-        if: startsWith(github.ref, 'refs/tags/v')
-        continue-on-error: true   # push notif gagal jangan bikin rilis dianggap gagal
-        env:
-          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
-          ONESIGNAL_APP_ID: 8d66b3fd-06ea-4df6-aa39-0487d1cf85aa
-        run: |
-          python3 - <<'PY'
-          import json, os, urllib.request
-          body = {
-              'app_id': os.environ['ONESIGNAL_APP_ID'],
-              'headings': {'en': 'DownloadAja ' + os.environ['VERSION_NAME'] + ' sudah rilis'},
-              'contents': {'en': 'Ketuk untuk memperbarui \u2014 perbaikan dan fitur baru sudah menunggu.'},
-              'included_segments': ['Total Subscriptions'],
-              'url': 'https://github.com/xykal/XyDownloader/releases/latest',
-              'large_icon': 'https://dlaja.xyverse.my.id/icon-192.png',
-          }
-          req = urllib.request.Request(
-              'https://api.onesignal.com/notifications',
-              data=json.dumps(body, ensure_ascii=False).encode('utf-8'),
-              headers={'Authorization': 'Key ' + os.environ['ONESIGNAL_REST_API_KEY'],
-                       'Content-Type': 'application/json'},
-              method='POST')
-          try:
-              with urllib.request.urlopen(req) as r:
-                  out = json.loads(r.read() or b'{}')
-              print('notifikasi:', out.get('id') or out.get('errors'))
-          except Exception as e:
-              print('notifikasi gagal (rilis tetap jalan):', e)
-          PY
 
   smoke:
     name: Smoke test (emulator)
@@ -203,3 +178,73 @@ jobs:
         with:
           name: smoke-${{ needs.build.outputs.version }}
           path: shots/
+
+  publish:
+    permissions:
+      contents: write
+      actions: write
+    name: Publish signed APK release
+    needs: [build, smoke]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      VERSION_NAME: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: DownloadAja-${{ needs.build.outputs.version }}
+          path: out
+      - name: Release banner and checksums
+        run: |
+          cp android/release-banner.webp out/update-banner.webp
+          cd out
+          sha256sum *.apk > SHA256SUMS.txt
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DownloadAja ${{ env.VERSION_NAME }}
+          files: |
+            out/*.apk
+            out/update-banner.webp
+            out/SHA256SUMS.txt
+          body_path: android/RELEASE_NOTES.md
+
+      - name: Kirim notifikasi rilis (OneSignal)
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true   # push notif gagal jangan bikin rilis dianggap gagal
+        env:
+          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
+          ONESIGNAL_APP_ID: 8d66b3fd-06ea-4df6-aa39-0487d1cf85aa
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          body = {
+              'app_id': os.environ['ONESIGNAL_APP_ID'],
+              'headings': {'en': 'DownloadAja ' + os.environ['VERSION_NAME'] + ' sudah rilis'},
+              'contents': {'en': 'Ketuk untuk memperbarui \u2014 perbaikan dan fitur baru sudah menunggu.'},
+              'included_segments': ['Total Subscriptions'],
+              'url': 'https://github.com/xykal/XyDownloader/releases/latest',
+              'large_icon': 'https://dlaja.xyverse.my.id/icon-192.png',
+          }
+          req = urllib.request.Request(
+              'https://api.onesignal.com/notifications',
+              data=json.dumps(body, ensure_ascii=False).encode('utf-8'),
+              headers={'Authorization': 'Key ' + os.environ['ONESIGNAL_REST_API_KEY'],
+                       'Content-Type': 'application/json'},
+              method='POST')
+          try:
+              with urllib.request.urlopen(req) as r:
+                  out = json.loads(r.read() or b'{}')
+              print('notifikasi:', out.get('id') or out.get('errors'))
+          except Exception as e:
+              print('notifikasi gagal (rilis tetap jalan):', e)
+          PY
+
+      # A release created with GITHUB_TOKEN does not trigger release workflows.
+      # Explicit dispatch refreshes the Cloudflare manifest after successful publish.
+      - name: Refresh production APK links
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

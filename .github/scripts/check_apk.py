@@ -7,7 +7,10 @@ import zipfile
 out_dir, jni_dir, ytdlp = sys.argv[1:4]
 failed = False
 ytdlp_size = os.path.getsize(ytdlp) if os.path.exists(ytdlp) else -1
-for apk in sorted(glob.glob(os.path.join(out_dir, '*.apk'))):
+apks = sorted(glob.glob(os.path.join(out_dir, '*.apk')))
+if len(apks) != 3:
+    raise SystemExit('Expected exactly 3 architecture APKs')
+for apk in apks:
     abi = next(a for a in ('arm64-v8a', 'armeabi-v7a', 'x86_64') if a in apk)
     z = zipfile.ZipFile(apk)
     infos = z.infolist()
@@ -24,6 +27,10 @@ for apk in sorted(glob.glob(os.path.join(out_dir, '*.apk'))):
     checks.append(('libqjs.so (QuickJS)', f'lib/{abi}/libqjs.so' in names))
     checks.append(('yt-dlp terbaru dibundel', any(i.file_size == ytdlp_size for i in infos if i.filename.startswith('res/'))))
     checks.append(('skrip daemon', 'assets/py/xydl_daemon.py' in names))
+    prefix = 'assets/ytdlp-plugins/xydl/yt_dlp_plugins/'
+    checks.append(('48 konfigurasi engine', sum(n.startswith(prefix + 'engines/') and n.endswith('/platform.json') for n in names) == 48))
+    checks.append(('11 extractor modular', sum(n.startswith(prefix + 'engines/') and n.endswith('/extractor.py') for n in names) == 11))
+    checks.append(('entry point plugin', prefix + 'extractor/xydl_extractors.py' in names))
     checks.append(('lisensi', 'assets/licenses/components.json' in names))
     for label, ok in checks:
         print(f"  [{'OK' if ok else 'GAGAL'}] {label}")

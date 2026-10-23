@@ -9,7 +9,7 @@ plugins {
 }
 
 // Versi diisi dari CI (tag v1.2.3 -> 1.2.3). Build lokal pakai default.
-val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.3.3-dev"
+val appVersionName: String = System.getenv("VERSION_NAME") ?: "1.3.5-dev"
 val appVersionCode: Int = (System.getenv("VERSION_CODE") ?: "1").toInt()
 
 // Signing release dari GitHub Secrets (KEYSTORE_BASE64 -> file, lihat workflow android.yml)
