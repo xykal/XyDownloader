@@ -32,6 +32,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Riwayat download (disimpan di SharedPreferences sebagai JSON). */
 data class DlRecord(
@@ -108,11 +110,13 @@ object Downloads {
     private val _records = MutableStateFlow<List<DlRecord>>(emptyList())
     val records: StateFlow<List<DlRecord>> = _records
     private var loaded = false
+    private val reconciling = AtomicBoolean(false)
 
     // ---- antrean: FIFO, maks 2 berjalan; yang belum giliran TIDAK diserahkan ke WorkManager ----
     private val pending = ArrayDeque<String>()   // taskId menunggu giliran
     private val handed = mutableSetOf<String>()  // taskId sudah di WorkManager & belum selesai
 
+    @Synchronized
     fun load(ctx: Context) {
         if (loaded) return
         loaded = true
@@ -273,31 +277,33 @@ object Downloads {
      * (janji di komentar load() — sekarang ditepati).
      */
     fun ensureStarted(ctx: Context) {
-        Thread {
-            synchronized(this) {
-                load(ctx)
-                for (rec in _records.value) {
+        if (!reconciling.compareAndSet(false, true)) return
+        val app = ctx.applicationContext
+        Thread({
+            try {
+                load(app)
+                val snapshot = _records.value
+                for (rec in snapshot) {
                     if (rec.status != DlRecord.STATUS_QUEUED && rec.status != DlRecord.STATUS_RUNNING) continue
-                    if (rec.payload == null) {
-                        if (rec.status == DlRecord.STATUS_RUNNING) {
-                            upsert(ctx, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
+                    // Never wait for database futures under the monitor also used by the UI.
+                    val alive = if (rec.payload == null) false else try {
+                        WorkManager.getInstance(app).getWorkInfosByTag("task-" + rec.id)
+                            .get(10, TimeUnit.SECONDS).any { !it.state.isFinished }
+                    } catch (_: Exception) { continue } // unknown is not evidence that a task disappeared
+                    synchronized(this) {
+                        val current = _records.value.firstOrNull { it.id == rec.id } ?: return@synchronized
+                        if (current.status != DlRecord.STATUS_QUEUED && current.status != DlRecord.STATUS_RUNNING) return@synchronized
+                        when {
+                            alive -> handed.add(rec.id)
+                            current.status == DlRecord.STATUS_RUNNING ->
+                                upsert(app, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
+                            current.payload != null && !pending.contains(rec.id) && !handed.contains(rec.id) -> pending.addLast(rec.id)
                         }
-                        continue
-                    }
-                    val hidup = try {
-                        WorkManager.getInstance(ctx).getWorkInfosByTag("task-" + rec.id).get()
-                            .any { !it.state.isFinished }
-                    } catch (e: Exception) { false }
-                    when {
-                        hidup -> if (!handed.contains(rec.id)) handed.add(rec.id)
-                        rec.status == DlRecord.STATUS_RUNNING ->
-                            upsert(ctx, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
-                        !pending.contains(rec.id) -> pending.addLast(rec.id)
                     }
                 }
-                pump(ctx)
-            }
-        }.start()
+                synchronized(this) { pump(app) }
+            } finally { reconciling.set(false) }
+        }, "xy-download-reconcile").start()
     }
 
     fun createChannels(ctx: Context) {
