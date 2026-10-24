@@ -40,6 +40,7 @@ from yt_dlp.networking import Request as YRequest  # noqa: E402
 
 from . import signer  # noqa: E402
 from .platforms import detect_platform  # noqa: E402
+from yt_dlp_plugins.engines import registry as engine_registry  # noqa: E402
 
 VERSION = '1.3.4'
 URL_RE = re.compile(r'https?://[^\s<>"\'\u3000-\u303f\uff00-\uffef]+', re.I)
@@ -333,13 +334,13 @@ def _compose_attempts(url):
 def _attempt_opts(url):
     """Opsi tambahan per percobaan. X/Twitter: API syndication lebih stabil dari IP server,
     graphql (guest) sebagai cadangan."""
-    platform = detect_platform(url) or {}
-    return platform.get('runtime', {}).get('attempts', [{}])
+    platform_engine = engine_registry.resolve(url)
+    return platform_engine.extraction_attempts() if platform_engine else [{}]
 
 
 def _is_youtube(url):
-    platform = detect_platform(url) or {}
-    return bool(platform.get('runtime', {}).get('needs_js', False))
+    platform_engine = engine_registry.resolve(url)
+    return bool(platform_engine and platform_engine.needs_js)
 
 
 # ---------------------------------------------------------------------------
@@ -908,7 +909,7 @@ def extract(text, proxy_base):
             proxy = extra.get('proxy')
             ydl = yt_dlp.YoutubeDL({**ydl_opts(need_js=_is_youtube(url)), **extra})
             try:
-                info = ydl.extract_info(url, download=False)
+                info = engine_registry.extract(ydl, url, download=False)
                 if proxy:
                     proxy_pool.get_pool().report(proxy, True)
                 break
@@ -1007,7 +1008,7 @@ def resolve_stream_format(page_url, format_id, meta=None):
         for c in cookie_jar:
             ydl.cookiejar.set_cookie(c)
     else:
-        info = ydl.extract_info(page_url, download=False)
+        info = engine_registry.extract(ydl, page_url, download=False)
         if info.get('entries'):
             info = next((e for e in info['entries'] if e), info)
         fmts = info.get('formats') or []

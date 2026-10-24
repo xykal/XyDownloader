@@ -29,6 +29,8 @@ for apk in apks:
     checks.append(('skrip daemon', 'assets/py/xydl_daemon.py' in names))
     prefix = 'assets/ytdlp-plugins/xydl/yt_dlp_plugins/'
     checks.append(('48 konfigurasi engine', sum(n.startswith(prefix + 'engines/') and n.endswith('/platform.json') for n in names) == 48))
+    checks.append(('48 entry point engine', sum(n.startswith(prefix + 'engines/') and n.endswith('/engine.py') for n in names) == 48))
+    checks.append(('postprocessor khusus Pixiv', prefix + 'engines/pixiv/postprocessor.py' in names))
     checks.append(('11 extractor modular', sum(n.startswith(prefix + 'engines/') and n.endswith('/extractor.py') for n in names) == 11))
     checks.append(('entry point plugin', prefix + 'extractor/xydl_extractors.py' in names))
     checks.append(('lisensi', 'assets/licenses/components.json' in names))

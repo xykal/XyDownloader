@@ -1,1 +1,0 @@
-"""Imgur engine configuration."""

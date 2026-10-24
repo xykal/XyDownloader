@@ -83,6 +83,7 @@ def main():
     os.makedirs(outdir or '.', exist_ok=True)
 
     t0 = time.time()
+    from yt_dlp_plugins.engines import registry as engine_registry
     from yt_dlp import YoutubeDL
     from yt_dlp.version import __version__ as version
 
@@ -94,9 +95,9 @@ def main():
             'cachedir': cachedir or False, 'socket_timeout': 25, 'retries': 3, 'extractor_retries': 1,
             'noplaylist': True, 'playlistend': 60, 'logger': logger, 'js_runtimes': dict(runtimes),
         }
-        api = req.get('twitter_api')
-        if api:
-            o['extractor_args'] = {'twitter': {'api': [api]}}
+        selected_engine = engine_registry.resolve(req['url'])
+        if selected_engine:
+            o.update(selected_engine.request_options(req))
         return o
 
     # ---- pemanasan: muat plugin + compile regex semua extractor (sekali saja)
@@ -142,7 +143,7 @@ def main():
         started = time.time()
         try:
             with YoutubeDL(options(req, logger)) as ydl:
-                info = ydl.extract_info(req['url'], download=False)
+                info = engine_registry.extract(ydl, req['url'], download=False)
                 info = ydl.sanitize_info(info)
                 _add_cookie_headers(ydl, info)
             name = hashlib.sha1(req['url'].encode('utf-8')).hexdigest()[:20] + '.json'

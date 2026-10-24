@@ -11,7 +11,7 @@ from xydl import engine
 from xydl.platforms import PLATFORMS, detect_platform
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINES = ROOT / 'plugins/yt_dlp_plugins/engines'
+ENGINES = ROOT / 'engines'
 
 
 def test_each_featured_platform_has_its_own_configuration():
@@ -68,3 +68,75 @@ def test_tiktok_gallery_retains_photo_and_music_contract():
     assert result['entries'][0]['xy_image'] is True
     assert result['entries'][0]['formats'][0]['url'] == 'https://cdn.example/a.jpg'
     assert result['xy_audio']['ext'] == 'mp3'
+
+
+@pytest.mark.parametrize('platform', PLATFORMS, ids=lambda p: p['id'])
+def test_every_platform_has_an_executed_engine_entry_point(platform):
+    from yt_dlp_plugins.engines import registry
+    from unittest.mock import Mock
+    import inspect
+    instance = registry.load_engine(platform['id'])
+    assert Path(inspect.getfile(type(instance))).resolve() == ENGINES / platform['id'] / 'engine.py'
+    assert instance.platform_id == platform['id']
+    assert instance.metadata == platform
+    downloader = Mock()
+    downloader.extract_info.return_value = {'id': 'fixture'}
+    url = 'https://' + platform['domains'][0] + '/fixture'
+    assert registry.resolve(url) is instance
+    assert registry.extract(downloader, url) == {'id': 'fixture'}
+    downloader.extract_info.assert_called_once_with(url, download=False)
+    with pytest.raises(ValueError):
+        instance.extract(downloader, 'https://not-the-platform.invalid/item')
+
+
+def test_unlisted_sites_keep_generic_upstream_support():
+    from yt_dlp_plugins.engines import registry
+    from unittest.mock import Mock
+    downloader = Mock()
+    registry.extract(downloader, 'https://unlisted.example/item', download=True)
+    downloader.extract_info.assert_called_once_with('https://unlisted.example/item', download=True)
+
+
+def test_platform_options_and_upstream_bindings_are_not_in_shared_code():
+    from yt_dlp_plugins.engines import registry
+    shared = (ENGINES / '_common/gallery.py').read_text()
+    assert '_YtDlpTikTokIE' not in shared
+    assert '_YtDlpDouyinIE' not in shared
+    assert registry.load_engine('twitter').request_options({'engine_variant': 'syndication'}) == {
+        'extractor_args': {'twitter': {'api': ['syndication']}}}
+    assert registry.load_engine('youtube').request_options({'engine_variant': 'syndication'}) == {}
+    assert 'isTwitter(' not in (ROOT / 'android/app/src/main/java/id/my/xyverse/xydownloader/Engine.kt').read_text()
+
+
+def test_discovery_registers_platform_owned_pixiv_postprocessor():
+    from yt_dlp.plugins import load_all_plugins
+    from yt_dlp.globals import plugin_pps
+    load_all_plugins()
+    assert 'XyUgoiraPP' in plugin_pps.value
+
+
+def test_android_shaped_plugin_bundle_runs_outside_repository(tmp_path):
+    """No repo/cwd/PYTHONPATH backdoor: exercise the actual Android bundle layout."""
+    import shutil
+    import textwrap
+    package = tmp_path / 'plugin-bundle/xydl/yt_dlp_plugins'
+    shutil.copytree(ROOT / 'plugins/yt_dlp_plugins', package, ignore=shutil.ignore_patterns('__pycache__'))
+    shutil.copytree(ENGINES, package / 'engines', dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__'))
+    code = textwrap.dedent('''
+        import json
+        from yt_dlp import YoutubeDL
+        from yt_dlp.globals import plugin_ies, plugin_pps
+        from yt_dlp.plugins import load_all_plugins
+        load_all_plugins()
+        from yt_dlp_plugins.engines import registry
+        assert len(registry.platforms()) == 48
+        for p in registry.platforms():
+            assert registry.load_engine(p['id']).platform_id == p['id']
+        assert 'XyTikTokIE' in plugin_ies.value
+        assert 'XyUgoiraPP' in plugin_pps.value
+        print('ANDROID_BUNDLE_OK')
+    ''')
+    output = subprocess.check_output(
+        [sys.executable, '-c', code], cwd=tmp_path,
+        env={**os.environ, 'PYTHONPATH': str(package.parent)}, text=True)
+    assert 'ANDROID_BUNDLE_OK' in output

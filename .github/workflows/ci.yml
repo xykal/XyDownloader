@@ -21,7 +21,7 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt pytest pyflakes pyyaml
       - name: Lint (pyflakes)
-        run: python -m pyflakes api xydl plugins tests scripts dev_server.py android/tools .github/scripts android/app/src/main/assets/py
+        run: python -m pyflakes api xydl plugins engines tests scripts dev_server.py android/tools .github/scripts android/app/src/main/assets/py
       - name: Unit test (offline)
         run: python -m pytest -q tests
       - name: Plugin yt-dlp termuat

@@ -3,7 +3,6 @@
 Catatan: ini hanya daftar "unggulan". Engine sebenarnya (yt-dlp + plugin DownloadAja)
 mendukung 1.700+ situs — link dari situs yang tidak ada di daftar ini tetap dicoba.
 """
-from urllib.parse import urlparse
 
 REGIONS = {
     'id': {'name': 'Indonesia', 'flag': '🇮🇩'},
@@ -25,25 +24,12 @@ from yt_dlp_plugins.engines import registry
 
 PLATFORMS = registry.platforms()
 
-_DOMAIN_INDEX = {}
-for _p in PLATFORMS:
-    for _d in _p['domains']:
-        _DOMAIN_INDEX[_d] = _p
+_PLATFORM_BY_ID = {platform['id']: platform for platform in PLATFORMS}
 
 
 def detect_platform(url):
-    """Kembalikan dict platform berdasarkan domain URL (atau None)."""
-    try:
-        host = (urlparse(url).hostname or '').lower()
-    except ValueError:
-        return None
-    parts = host.split('.')
-    # cocokkan dari domain terpanjang: v.qq.com -> qq.com
-    for i in range(len(parts) - 1):
-        cand = '.'.join(parts[i:])
-        if cand in _DOMAIN_INDEX:
-            return _DOMAIN_INDEX[cand]
-    return None
+    """Shared exact-domain router; platform behavior remains in its own folder."""
+    return _PLATFORM_BY_ID.get(registry.detect_id(url))
 
 
 def catalog():
