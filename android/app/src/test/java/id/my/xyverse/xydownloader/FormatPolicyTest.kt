@@ -13,12 +13,15 @@ class FormatPolicyTest {
     private fun json(vararg fs: JSONObject) = JSONObject().put("extractor_key", "Test").put("formats", JSONArray(fs.toList()))
 
     @Test fun preservesAllVariantsNotEightResolutions() {
-        val variants = (1..12).map { video("v$it", if (it % 2 == 0) "hevc" else "avc1") }
+        val variants = (1..12).map { video("v$it", if (it % 2 == 0) "hevc" else "avc1") } + video("audio", "none", 0, "aac")
         val options = InfoParser.videoOptions(json(*variants.toTypedArray()))
         assertEquals(12, options.size)
         assertEquals(setOf("HEVC", "H.264"), options.map { it.codec }.toSet())
         assertEquals(12, options.map { it.formatId }.distinct().size)
         assertTrue(options.all { it.selector == "${it.formatId}+ba" })
+    }
+    @Test fun silentSourceDoesNotRequireInventedAudio() {
+        assertEquals("silent", InfoParser.videoOptions(json(video("silent"))).single().selector)
     }
     @Test fun muxedSelectionIsExactAndNotDoubleAudio() {
         val option = InfoParser.videoOptions(json(video("muxed", audio = "aac"))).single()

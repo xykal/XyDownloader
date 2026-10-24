@@ -267,7 +267,7 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                                 item { SectionTitle("Audio asli dari sumber", R.drawable.ic_music) }
                                 items(info.audioOptions, key = { "original-${it.formatId}" }) { option ->
                                     OptionRow(R.drawable.ic_music, option.label,
-                                        "Tanpa konversi" + (option.sizeBytes?.let { " · ±${formatBytes(it)}" } ?: "")) {
+                                        "Format ${option.formatId} · tanpa konversi" + (option.sizeBytes?.let { " · ±${formatBytes(it)}" } ?: "")) {
                                         vm.download(info, "source-audio", label = option.label, selector = option.formatId)
                                         toast("Download audio asli dimulai")
                                     }

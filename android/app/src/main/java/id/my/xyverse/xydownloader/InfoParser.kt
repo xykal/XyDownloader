@@ -263,9 +263,13 @@ object InfoParser {
     fun videoOptions(json: JSONObject): List<VideoOption> {
         val formats = json.optJSONArray("formats") ?: if (json.optStr("vcodec") == "none") return emptyList() else return listOf(VideoOption(0, "Terbaik", null, null))
         var bestAudio = 0L
+        var separateAudioAvailable = false
         for (i in 0 until formats.length()) {
             val f = formats.optJSONObject(i) ?: continue
-            if (f.optStr("vcodec") == "none" && f.optStr("acodec") != "none") bestAudio = max(bestAudio, sizeOf(f) ?: 0L)
+            if (f.optStr("vcodec") == "none" && f.optStr("acodec") !in listOf(null, "none") && !f.optBoolean("has_drm", false)) {
+                separateAudioAvailable = true
+                bestAudio = max(bestAudio, sizeOf(f) ?: 0L)
+            }
         }
         val options = LinkedHashMap<String, VideoOption>()
         for (i in 0 until formats.length()) {
@@ -281,7 +285,7 @@ object InfoParser {
             val label = listOf(if (q > 0) "${q}p" else "Resolusi sumber", ext.uppercase(Locale.ROOT), codec,
                 if (fps > 0) "${fps}fps" else null).filterNotNull().joinToString(" · ")
             options[id] = VideoOption(q, label, size, codec, id,
-                FormatPolicy.videoSelector(id, f.optStr("acodec") == "none"), ext)
+                FormatPolicy.videoSelector(id, f.optStr("acodec") == "none" && separateAudioAvailable), ext)
         }
         return options.values.sortedWith(compareByDescending<VideoOption> { it.height }.thenBy { it.codec }.thenBy { it.formatId })
     }
