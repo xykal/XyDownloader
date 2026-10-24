@@ -18,6 +18,7 @@ top() { for i in 1 2 3; do adb shell input swipe 540 700 540 1900 250; done; }
 
 # Always retain diagnostics and real saved-file evidence, even when a UI step fails.
 collect_evidence() {
+  adb exec-out screencap -p > "$OUT/final-screen.png" 2>/dev/null || true
   { adb shell pidof "$PKG" || true; adb shell ls -la /sdcard/Download/DownloadAja/ || true; } > "$OUT/status.txt" 2>&1
   adb logcat -d > "$OUT/logcat.txt" 2>&1 || true
   adb shell 'find /sdcard/Download/DownloadAja -type f -size +0c' > "$OUT/downloaded-files.txt" 2> "$OUT/file-errors.txt" || true
@@ -60,7 +61,8 @@ $UI "Putar pratinjau" 0
 shot 08-preview 10
 adb shell input keyevent KEYCODE_BACK
 sleep 1
-$UI "MP3 · 192 kbps" 5
+# All actual video variants can span many screens; do not assume the old 8-row cap.
+$UI "MP3 · 192 kbps" 30
 sleep 45
 tab 1
 shot 09-downloads-mp3 4
