@@ -38,6 +38,12 @@ android {
         buildConfigField("String", "REPO_URL", "\"https://github.com/xykal/XyDownloader\"")
     }
 
+    // AAPT's default <dir>_* filter would silently drop Python's _common package.
+    // Keep underscore directories; retain the other standard junk-file filters.
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
+
     sourceSets["main"].jniLibs.srcDir(xyJniDir)
     sourceSets["main"].res.srcDir(xyResDir)
 

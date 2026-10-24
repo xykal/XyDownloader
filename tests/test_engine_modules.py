@@ -170,3 +170,44 @@ def test_pixiv_web_hook_resolves_by_owned_marker_and_builds_payload():
     result = engine.build_entry(context, info)
     assert result['ugoira']['frames'] == info['xy_ugoira']['frames']
     assert [f['mode'] for f in result['video']] == ['ugoira', 'ugoira']
+
+
+def test_owned_content_marker_takes_precedence_over_extractor_identity():
+    from yt_dlp_plugins.engines import registry
+    assert registry.resolve_info({'xy_ugoira': {}, 'extractor_key': 'BiliBili'},
+                                 'https://bilibili.com/video/1').platform_id == 'pixiv'
+
+
+@pytest.mark.parametrize('with_common', [False, True])
+def test_apk_guard_requires_the_shared_python_package(tmp_path, with_common):
+    """AAPT can silently omit underscore directories even when all 48 entries exist."""
+    import zipfile
+    out, native = tmp_path / 'out', tmp_path / 'native'
+    out.mkdir()
+    ytdlp = tmp_path / 'yt-dlp'
+    ytdlp.write_bytes(b'fixture-runtime')
+    prefix = 'assets/ytdlp-plugins/xydl/yt_dlp_plugins/'
+    assets = {}
+    for directory, relative in [(ROOT / 'plugins/yt_dlp_plugins', ''), (ENGINES, 'engines/')]:
+        for file in directory.rglob('*'):
+            if file.suffix not in ('.py', '.json') or '__pycache__' in file.parts:
+                continue
+            assets[prefix + relative + file.relative_to(directory).as_posix()] = file.read_bytes()
+    if not with_common:
+        assets = {k: v for k, v in assets.items() if '/engines/_common/' not in k}
+    assets['assets/py/xydl_daemon.py'] = b'# daemon'
+    assets['assets/licenses/components.json'] = b'[]'
+    assets['res/raw/ytdlp'] = ytdlp.read_bytes()
+    for abi in ('arm64-v8a', 'armeabi-v7a', 'x86_64'):
+        libs = native / abi
+        libs.mkdir(parents=True)
+        with zipfile.ZipFile(out / f'fixture-{abi}.apk', 'w') as z:
+            for name, content in assets.items():
+                z.writestr(name, content)
+            for name in ('libpython.zip.so', 'libffmpeg.so', 'libqjs.so'):
+                (libs / name).write_bytes(b'library')
+                z.writestr(f'lib/{abi}/{name}', b'library')
+    result = subprocess.run([sys.executable, str(ROOT / '.github/scripts/check_apk.py'),
+                             str(out), str(native), str(ytdlp)], capture_output=True, text=True)
+    assert result.returncode == (0 if with_common else 1), result.stdout + result.stderr
+    assert f"[{'OK' if with_common else 'GAGAL'}] modul bersama Python (_common)" in result.stdout

@@ -53,9 +53,11 @@ def extract(downloader, url, *, download=False):
 def resolve_info(info, page_url):
     """Choose by platform-owned metadata, then extractor identity, then URL."""
     key = str(info.get('extractor_key') or info.get('extractor') or '').lower()
-    for platform in platforms():
+    catalog = platforms()
+    for platform in catalog:
         if any(marker in info for marker in platform.get('runtime', {}).get('info_markers', [])):
             return load_engine(platform['id'])
+    for platform in catalog:
         custom_key = platform.get('custom_extractor', '').removesuffix('IE').lower()
         if key and (key.startswith(platform['id']) or (custom_key and key.startswith(custom_key))):
             return load_engine(platform['id'])
