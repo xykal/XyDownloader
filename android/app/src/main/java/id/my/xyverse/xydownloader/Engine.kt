@@ -200,7 +200,8 @@ object Engine {
         // Kalau URL media sudah kedaluwarsa, yt-dlp otomatis mengulang dari webpage_url.
         val info = infoPath?.let { File(it) }
             ?.takeIf { it.exists() && System.currentTimeMillis() - it.lastModified() < 40 * 60_000L }
-        val req = base(ctx, url, infoJson = info)
+        val policy = PlatformRuntime.forUrl(url)
+        val req = base(ctx, url, policy.attempts().firstOrNull(), infoJson = info)
         req.addOption("-o", File(outDir, "DownloadAja-%(title).40B-%(id).8B.%(ext)s").absolutePath)
         req.addOption("--no-mtime")
         req.addOption("--newline")
@@ -210,7 +211,7 @@ object Engine {
             kind == "images" -> req.addOption("--yes-playlist")
             else -> req.addOption("--no-playlist")
         }
-        if (PlatformRuntime.forUrl(url).configureDownload(req, kind)) return req
+        if (policy.configureDownload(req, kind)) return req
         when (kind) {
             // gambar (pixiv dll): format default = file asli, semua halaman
             "images" -> Unit
