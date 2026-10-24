@@ -1,1 +1,0 @@
-"""pixiv engine configuration."""

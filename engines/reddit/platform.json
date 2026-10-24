@@ -1,0 +1,18 @@
+{
+  "id": "reddit",
+  "name": "Reddit",
+  "region": "us",
+  "domains": [
+    "reddit.com",
+    "redd.it"
+  ],
+  "color": "#FF4500",
+  "note": "Web: kadang diblokir, pakai Android",
+  "logo": "/logos/reddit.webp",
+  "runtime": {
+    "proxy_domains": [
+      "reddit.com",
+      "redd.it"
+    ]
+  }
+}

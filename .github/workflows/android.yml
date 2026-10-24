@@ -10,6 +10,7 @@ on:
     paths:
       - 'android/**'
       - 'plugins/**'
+      - 'engines/**'
       - 'licenses/**'
       - '.github/workflows/android.yml'
       - '.github/scripts/**'
@@ -19,6 +20,7 @@ on:
     paths:
       - 'android/**'
       - 'plugins/**'
+      - 'engines/**'
       - 'licenses/**'
       - '.github/workflows/android.yml'
       - '.github/scripts/**'

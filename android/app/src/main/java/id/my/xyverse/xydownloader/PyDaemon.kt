@@ -161,7 +161,7 @@ object PyDaemon {
      * Ambil info link -> file JSON (format sama dengan `yt-dlp --dump-single-json`, ditambah
      * header Cookie per format). Lempar [ExtractError] atau [Unavailable].
      */
-    suspend fun info(ctx: Context, url: String, twitterApi: String?, timeoutMs: Long = 100_000): File =
+    suspend fun info(ctx: Context, url: String, engineVariant: String?, timeoutMs: Long = 100_000): File =
         withContext(Dispatchers.IO) {
             mutex.withLock {
                 try {
@@ -173,7 +173,7 @@ object PyDaemon {
                 }
                 val id = nextId++
                 val req = JSONObject().put("id", id).put("op", "info").put("url", url)
-                    .put("twitter_api", twitterApi ?: JSONObject.NULL)
+                    .put("engine_variant", engineVariant ?: JSONObject.NULL)
                 try {
                     writer!!.apply { write(req.toString()); newLine(); flush() }
                 } catch (e: Exception) {

@@ -5,6 +5,7 @@ import android.content.res.AssetManager
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import id.my.xyverse.xydownloader.engines.PlatformRuntime
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
@@ -119,18 +120,13 @@ object Engine {
     }
 
     // ------------------------------------------------------------ request builder
-    private fun isTwitter(url: String): Boolean {
-        val host = hostOf(url)
-        return host == "x.com" || host.endsWith(".x.com") || host.endsWith("twitter.com")
-    }
-
     fun hostOf(url: String): String = try {
         java.net.URI(url).host?.lowercase(Locale.ROOT)?.removePrefix("www.") ?: ""
     } catch (e: Exception) {
         ""
     }
 
-    private fun base(ctx: Context, url: String?, twitterApi: String? = "syndication", infoJson: File? = null): YoutubeDLRequest {
+    private fun base(ctx: Context, url: String?, engineVariant: String? = null, infoJson: File? = null): YoutubeDLRequest {
         val req = if (infoJson != null) {
             // info sudah diambil saat "proses link" -> langsung download tanpa membaca ulang halaman
             YoutubeDLRequest(emptyList<String>()).addOption("--load-info-json", infoJson.absolutePath)
@@ -142,7 +138,7 @@ object Engine {
         req.addOption("--no-warnings")
         val qjs = PyEnv.qjs(ctx)
         if (qjs.exists()) req.addOption("--js-runtimes", "quickjs:${qjs.absolutePath}")
-        if (twitterApi != null && url != null && isTwitter(url)) req.addOption("--extractor-args", "twitter:api=$twitterApi")
+        PlatformRuntime.forUrl(url).apply(req, engineVariant)
         return req
     }
 
@@ -158,7 +154,7 @@ object Engine {
      */
     suspend fun fetchInfo(ctx: Context, url: String): MediaInfo {
         if (!init(ctx)) throw IllegalStateException("Engine gagal dimuat: $initError")
-        val attempts = if (isTwitter(url)) listOf("syndication", null) else listOf("syndication")
+        val attempts = PlatformRuntime.forUrl(url).attempts()
         var lastError: Exception? = null
         var daemonOk = true
         for (api in attempts) {
@@ -204,7 +200,8 @@ object Engine {
         // Kalau URL media sudah kedaluwarsa, yt-dlp otomatis mengulang dari webpage_url.
         val info = infoPath?.let { File(it) }
             ?.takeIf { it.exists() && System.currentTimeMillis() - it.lastModified() < 40 * 60_000L }
-        val req = base(ctx, url, infoJson = info)
+        val policy = PlatformRuntime.forUrl(url)
+        val req = base(ctx, url, policy.attempts().firstOrNull(), infoJson = info)
         req.addOption("-o", File(outDir, "DownloadAja-%(title).40B-%(id).8B.%(ext)s").absolutePath)
         req.addOption("--no-mtime")
         req.addOption("--newline")
@@ -214,11 +211,10 @@ object Engine {
             kind == "images" -> req.addOption("--yes-playlist")
             else -> req.addOption("--no-playlist")
         }
+        if (policy.configureDownload(req, kind)) return req
         when (kind) {
             // gambar (pixiv dll): format default = file asli, semua halaman
             "images" -> Unit
-            // ugoira pixiv: unduh ZIP frame lalu plugin XyUgoiraPP mengubahnya jadi MP4
-            "ugoira" -> req.addOption("--use-postprocessor", "XyUgoira")
             "mp3" -> {
                 req.addOption("-f", "ba/b")
                 req.addOption("-x")

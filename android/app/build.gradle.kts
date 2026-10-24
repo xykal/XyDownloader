@@ -38,6 +38,12 @@ android {
         buildConfigField("String", "REPO_URL", "\"https://github.com/xykal/XyDownloader\"")
     }
 
+    // AAPT's default <dir>_* filter would silently drop Python's _common package.
+    // Keep underscore directories; retain the other standard junk-file filters.
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
+
     sourceSets["main"].jniLibs.srcDir(xyJniDir)
     sourceSets["main"].res.srcDir(xyResDir)
 
@@ -88,6 +94,8 @@ android {
         }
     }
 
+    sourceSets.getByName("main").java.srcDir(rootProject.file("../engines"))
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -114,6 +122,9 @@ abstract class CopyRepoAssetsTask : DefaultTask() {
     abstract val plugins: DirectoryProperty
 
     @get:InputDirectory
+    abstract val engines: DirectoryProperty
+
+    @get:InputDirectory
     abstract val licenses: DirectoryProperty
 
     @get:OutputDirectory
@@ -126,8 +137,9 @@ abstract class CopyRepoAssetsTask : DefaultTask() {
         // yt-dlp --plugin-dirs mengharapkan: <dir>/<nama-paket>/yt_dlp_plugins/extractor/*.py
         val target = File(out, "ytdlp-plugins/xydl/yt_dlp_plugins")
         plugins.get().asFile.copyRecursively(target, overwrite = true)
+        engines.get().asFile.copyRecursively(File(target, "engines"), overwrite = true)
         target.walkBottomUp()
-            .filter { it.name == "__pycache__" || it.name.endsWith(".pyc") }
+            .filter { it.name == "__pycache__" || it.name.endsWith(".pyc") || it.extension == "kt" || it.extension == "md" }
             .forEach { it.deleteRecursively() }
         licenses.get().asFile.copyRecursively(File(out, "licenses"), overwrite = true)
     }
@@ -135,6 +147,7 @@ abstract class CopyRepoAssetsTask : DefaultTask() {
 
 val copyRepoAssets = tasks.register<CopyRepoAssetsTask>("copyRepoAssets") {
     plugins.set(rootProject.layout.projectDirectory.dir("../plugins/yt_dlp_plugins"))
+    engines.set(rootProject.layout.projectDirectory.dir("../engines"))
     licenses.set(rootProject.layout.projectDirectory.dir("../licenses"))
 }
 

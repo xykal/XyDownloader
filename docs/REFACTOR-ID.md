@@ -1,3 +1,7 @@
+> **Catatan struktur terbaru:** isi di bawah merupakan catatan refactor tahap awal.
+> Sumber engine telah dipindahkan ke `engines/<id>/` di root, dengan entry point aktif
+> untuk seluruh 48 platform. Lihat [struktur terkini](../engines/README.md).
+
 # Refactor engine per platform
 
 ## Yang berubah

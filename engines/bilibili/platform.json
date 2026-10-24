@@ -1,0 +1,20 @@
+{
+  "id": "bilibili",
+  "name": "Bilibili",
+  "region": "cn",
+  "domains": [
+    "bilibili.com",
+    "b23.tv",
+    "bilibili.tv"
+  ],
+  "color": "#00A1D6",
+  "note": "Web: sering diblokir dari server cloud. Paling stabil lewat aplikasi Android.",
+  "logo": "/logos/bilibili.webp",
+  "custom_extractor": "XyBiliBiliIE",
+  "runtime": {
+    "proxy_domains": [
+      "bilibili.com",
+      "b23.tv"
+    ]
+  }
+}

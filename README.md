@@ -283,3 +283,12 @@ Website produksi kini adalah landing page + link APK (`web/`), bukan downloader
 Python berbasis web. Aplikasi Android tetap mengekstrak dan mengunduh langsung di
 perangkat. Deployment tidak lagi menggunakan Vercel/Railway.
 Lihat [panduan migrasi Cloudflare](docs/CLOUDFLARE-APK.md).
+
+
+## Struktur engine per platform
+
+Sumber engine sekarang ada langsung di **[`engines/`](engines/README.md)** di root repo,
+bukan digabung dalam satu file. Seluruh 48 platform unggulan punya `engine.py` aktif
+masing-masing. Contoh: `engines/tiktok/`, `engines/youtube/`, `engines/instagram/`.
+Extractor custom, kebijakan runtime khusus platform, dan postprocessor Pixiv berada
+di folder platform pemiliknya. Loader plugin lama hanya menjadi jembatan discovery.

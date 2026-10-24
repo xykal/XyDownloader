@@ -1,1 +1,0 @@
-"""Niconico engine configuration."""

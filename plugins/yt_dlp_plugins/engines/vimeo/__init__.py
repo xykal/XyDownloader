@@ -1,1 +1,0 @@
-"""Vimeo engine configuration."""
