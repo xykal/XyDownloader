@@ -3,11 +3,14 @@ package id.my.xyverse.xydownloader
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
-import java.util.TreeMap
 import kotlin.math.max
 import kotlin.math.min
 
-data class VideoOption(val height: Int, val label: String, val sizeBytes: Long?, val codec: String?)
+data class VideoOption(
+    val height: Int, val label: String, val sizeBytes: Long?, val codec: String?,
+    val formatId: String? = null, val selector: String? = null, val container: String? = null,
+)
+data class AudioOption(val formatId: String, val label: String, val sizeBytes: Long?)
 
 data class EntryInfo(val index: Int, val title: String, val thumbnail: String?, val duration: Double?)
 
@@ -47,6 +50,7 @@ data class MediaInfo(
     val platform: String,
     val videoOptions: List<VideoOption>,
     val hasAudio: Boolean,
+    val audioOptions: List<AudioOption> = emptyList(),
     val entries: List<EntryInfo> = emptyList(),
     /** Ugoira pixiv (animasi) -> dikonversi ke MP4 oleh plugin XyUgoiraPP. */
     val isUgoira: Boolean = false,
@@ -141,6 +145,7 @@ object InfoParser {
             platform = platform,
             videoOptions = videoOptions(json),
             hasAudio = hasAudio,
+            audioOptions = audioOptions(json),
             preview = formats?.let { pickPreview(it) },
             infoPath = infoPath,
         )
@@ -190,17 +195,17 @@ object InfoParser {
     private fun pickPreview(formats: JSONArray): PreviewSource? {
         val list = (0 until formats.length()).mapNotNull { formats.optJSONObject(it) }
             .filter { it.optStr("url") != null && hasVideo(it) && (it.optStr("ext") ?: "") !in imageExts }
-        val near720 = compareBy<JSONObject>({ shortSide(it) in 1..720 }, {
-            val q = shortSide(it); if (q <= 720) q else -q
+        val near480 = compareBy<JSONObject>({ shortSide(it) in 1..480 }, {
+            val q = shortSide(it); if (q <= 480) q else -q
         }, { codecScore(it) })
         val muxed = list.filter { it.optStr("acodec") != "none" && !watermarked(it) }
-        muxed.filter { isDirect(it) }.maxWithOrNull(near720)?.let { return preview(it, null, false) }
-        muxed.filter { isHls(it) }.maxWithOrNull(near720)?.let { return preview(it, null, true) }
+        muxed.filter { isDirect(it) }.maxWithOrNull(near480)?.let { return preview(it, null, false) }
+        muxed.filter { isHls(it) }.maxWithOrNull(near480)?.let { return preview(it, null, true) }
         val videoOnly = list.filter { it.optStr("acodec") == "none" && isDirect(it) && codecScore(it) >= 2 }
         val audio = (0 until formats.length()).mapNotNull { formats.optJSONObject(it) }
             .filter { it.optStr("url") != null && it.optStr("vcodec") == "none" && it.optStr("acodec") != "none" && isDirect(it) }
             .maxWithOrNull(compareBy({ (it.optStr("ext") ?: "") == "m4a" }, { it.optDouble("abr", 0.0) }))
-        val v = videoOnly.maxWithOrNull(near720)
+        val v = videoOnly.maxWithOrNull(near480)
         if (v != null && audio != null) return preview(v, audio, false)
         return null
     }
@@ -256,29 +261,48 @@ object InfoParser {
     }
 
     fun videoOptions(json: JSONObject): List<VideoOption> {
-        val formats = json.optJSONArray("formats") ?: return listOf(VideoOption(0, "Terbaik", null, null))
+        val formats = json.optJSONArray("formats") ?: if (json.optStr("vcodec") == "none") return emptyList() else return listOf(VideoOption(0, "Terbaik", null, null))
         var bestAudio = 0L
+        var separateAudioAvailable = false
         for (i in 0 until formats.length()) {
             val f = formats.optJSONObject(i) ?: continue
-            if (f.optStr("vcodec") == "none" && f.optStr("acodec") != "none") bestAudio = max(bestAudio, sizeOf(f) ?: 0L)
+            if (f.optStr("vcodec") == "none" && f.optStr("acodec") !in listOf(null, "none") && !f.optBoolean("has_drm", false)) {
+                separateAudioAvailable = true
+                bestAudio = max(bestAudio, sizeOf(f) ?: 0L)
+            }
         }
-        val byHeight = TreeMap<Int, Pair<Long?, String?>>(Comparator.reverseOrder())
+        val options = LinkedHashMap<String, VideoOption>()
         for (i in 0 until formats.length()) {
             val f = formats.optJSONObject(i) ?: continue
-            val vcodec = f.optStr("vcodec")
-            if (vcodec == "none") continue
-            if ((f.optStr("ext") ?: "") in imageExts) continue
-            val w = f.optInt("width", 0)
-            val h = f.optInt("height", 0)
-            val q = if (w > 0 && h > 0) min(w, h) else h
-            if (q <= 0) continue
+            if (!hasVideo(f) || (f.optStr("ext") ?: "") in imageExts || f.optBoolean("has_drm", false)) continue
+            val id = f.optStr("format_id") ?: continue
+            if (!FormatPolicy.validId(id)) continue
+            val q = shortSide(f)
+            val codec = codecLabel(f.optStr("vcodec")) ?: f.optStr("vcodec") ?: "Codec tidak diketahui"
+            val ext = f.optStr("ext") ?: "sumber"
+            val fps = f.optDouble("fps", 0.0).toInt()
             val size = sizeOf(f)?.let { if (f.optStr("acodec") == "none") it + bestAudio else it }
-            val prev = byHeight[q]
-            val codec = codecLabel(vcodec)
-            if (prev == null || (size ?: 0L) > (prev.first ?: 0L)) byHeight[q] = Pair(size, codec ?: prev?.second)
+            val label = listOf(if (q > 0) "${q}p" else "Resolusi sumber", ext.uppercase(Locale.ROOT), codec,
+                if (fps > 0) "${fps}fps" else null).filterNotNull().joinToString(" · ")
+            options[id] = VideoOption(q, label, size, codec, id,
+                FormatPolicy.videoSelector(id, f.optStr("acodec") == "none" && separateAudioAvailable), ext)
         }
-        if (byHeight.isEmpty()) return listOf(VideoOption(0, "Terbaik", sizeOf(json), null))
-        return byHeight.entries.take(8).map { (q, v) -> VideoOption(q, "${q}p", v.first, v.second) }
+        return options.values.sortedWith(compareByDescending<VideoOption> { it.height }.thenBy { it.codec }.thenBy { it.formatId })
+    }
+
+    fun audioOptions(json: JSONObject): List<AudioOption> {
+        val formats = json.optJSONArray("formats") ?: return emptyList()
+        return (0 until formats.length()).mapNotNull { index ->
+            val f = formats.optJSONObject(index) ?: return@mapNotNull null
+            val id = f.optStr("format_id") ?: return@mapNotNull null
+            if (!FormatPolicy.validId(id) || f.optStr("vcodec") != "none" || f.optStr("acodec") in listOf(null, "none") || f.optBoolean("has_drm", false)) return@mapNotNull null
+            val codec = f.optStr("acodec") ?: "audio"
+            val ext = f.optStr("ext") ?: "audio"
+            val abr = f.optDouble("abr", 0.0).toInt()
+            val language = f.optStr("language")
+            val label = listOf(ext.uppercase(Locale.ROOT), codec, if (abr > 0) "${abr} kbps" else null, language).filterNotNull().joinToString(" · ")
+            AudioOption(id, label, sizeOf(f))
+        }.distinctBy { it.formatId }
     }
 
     private fun codecLabel(v: String?): String? {

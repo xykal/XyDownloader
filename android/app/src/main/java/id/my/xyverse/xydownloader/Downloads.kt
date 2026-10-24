@@ -32,6 +32,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Riwayat download (disimpan di SharedPreferences sebagai JSON). */
 data class DlRecord(
@@ -87,6 +89,8 @@ object Downloads {
     const val K_HEIGHT = "height"
     const val K_KBPS = "kbps"
     const val K_ITEM = "item"
+    const val K_SELECTOR = "format_selector"
+    const val K_NORMALIZE = "normalize_audio"
     const val K_INFO = "info"
     const val K_FILES = "files"
     const val K_PROGRESS = "p"
@@ -106,11 +110,13 @@ object Downloads {
     private val _records = MutableStateFlow<List<DlRecord>>(emptyList())
     val records: StateFlow<List<DlRecord>> = _records
     private var loaded = false
+    private val reconciling = AtomicBoolean(false)
 
     // ---- antrean: FIFO, maks 2 berjalan; yang belum giliran TIDAK diserahkan ke WorkManager ----
     private val pending = ArrayDeque<String>()   // taskId menunggu giliran
     private val handed = mutableSetOf<String>()  // taskId sudah di WorkManager & belum selesai
 
+    @Synchronized
     fun load(ctx: Context) {
         if (loaded) return
         loaded = true
@@ -136,6 +142,7 @@ object Downloads {
         if (idx < 0) return
         val before = list[idx]
         val after = transform(before)
+        if (after == before) return
         list[idx] = after
         _records.value = list
         if (before.status != after.status || before.uri != after.uri) persist(ctx)
@@ -157,7 +164,7 @@ object Downloads {
 
     fun enqueue(
         ctx: Context, info: MediaInfo, kind: String, height: Int, kbps: Int, item: Int, label: String, title: String,
-        infoPath: String? = info.infoPath,
+        infoPath: String? = info.infoPath, selector: String? = null,
     ) {
         load(ctx)
         val taskId = UUID.randomUUID().toString()
@@ -165,6 +172,8 @@ object Downloads {
             put(K_TASK, taskId); put(K_URL, info.sourceUrl); put(K_TITLE, title); put(K_KIND, kind)
             put(K_HEIGHT, height); put(K_KBPS, kbps); put(K_ITEM, item)
             if (infoPath != null) put(K_INFO, infoPath)
+            if (selector != null) put(K_SELECTOR, selector)
+            put(K_NORMALIZE, AppSettings.normalizeExports(ctx) && kind in listOf("video", "mp3", "m4a"))
         }
         addRecord(ctx, DlRecord(
             id = taskId, title = title, label = label, kind = kind,
@@ -268,31 +277,33 @@ object Downloads {
      * (janji di komentar load() — sekarang ditepati).
      */
     fun ensureStarted(ctx: Context) {
-        Thread {
-            synchronized(this) {
-                load(ctx)
-                for (rec in _records.value) {
+        if (!reconciling.compareAndSet(false, true)) return
+        val app = ctx.applicationContext
+        Thread({
+            try {
+                load(app)
+                val snapshot = _records.value
+                for (rec in snapshot) {
                     if (rec.status != DlRecord.STATUS_QUEUED && rec.status != DlRecord.STATUS_RUNNING) continue
-                    if (rec.payload == null) {
-                        if (rec.status == DlRecord.STATUS_RUNNING) {
-                            upsert(ctx, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
+                    // Never wait for database futures under the monitor also used by the UI.
+                    val alive = if (rec.payload == null) false else try {
+                        WorkManager.getInstance(app).getWorkInfosByTag("task-" + rec.id)
+                            .get(10, TimeUnit.SECONDS).any { !it.state.isFinished }
+                    } catch (_: Exception) { continue } // unknown is not evidence that a task disappeared
+                    synchronized(this) {
+                        val current = _records.value.firstOrNull { it.id == rec.id } ?: return@synchronized
+                        if (current.status != DlRecord.STATUS_QUEUED && current.status != DlRecord.STATUS_RUNNING) return@synchronized
+                        when {
+                            alive -> handed.add(rec.id)
+                            current.status == DlRecord.STATUS_RUNNING ->
+                                upsert(app, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
+                            current.payload != null && !pending.contains(rec.id) && !handed.contains(rec.id) -> pending.addLast(rec.id)
                         }
-                        continue
-                    }
-                    val hidup = try {
-                        WorkManager.getInstance(ctx).getWorkInfosByTag("task-" + rec.id).get()
-                            .any { !it.state.isFinished }
-                    } catch (e: Exception) { false }
-                    when {
-                        hidup -> if (!handed.contains(rec.id)) handed.add(rec.id)
-                        rec.status == DlRecord.STATUS_RUNNING ->
-                            upsert(ctx, rec.id) { it.copy(status = DlRecord.STATUS_FAILED, error = "Terputus") }
-                        !pending.contains(rec.id) -> pending.addLast(rec.id)
                     }
                 }
-                pump(ctx)
-            }
-        }.start()
+                synchronized(this) { pump(app) }
+            } finally { reconciling.set(false) }
+        }, "xy-download-reconcile").start()
     }
 
     fun createChannels(ctx: Context) {
@@ -370,6 +381,8 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         val kbps = inputData.getInt(Downloads.K_KBPS, 192)
         val item = inputData.getInt(Downloads.K_ITEM, 0)
         val infoPath = inputData.getString(Downloads.K_INFO)
+        val selector = inputData.getString(Downloads.K_SELECTOR)
+        val normalize = inputData.getBoolean(Downloads.K_NORMALIZE, false)
 
         if (kind == "files") {
             try { setForeground(foreground(title, 0f, "Menyiapkan…")) } catch (_: Exception) { }
@@ -380,7 +393,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
 
         if (!Engine.init(ctx)) return fail(taskId, "Engine gagal dimuat: ${Engine.initError}")
         val tmp = File(ctx.cacheDir, "dl/$taskId").apply { deleteRecursively(); mkdirs() }
-        val request = Engine.downloadRequest(ctx, url, kind, height, kbps, item, tmp, infoPath)
+        val request = Engine.downloadRequest(ctx, url, kind, height, kbps, item, tmp, infoPath, selector)
         var lastUpdate = 0L
         return try {
             runInterruptible(Dispatchers.IO) {
@@ -396,16 +409,20 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                     }
                 }
             }
-            val outputs = Engine.findOutputs(tmp, kind)
+            val rawOutputs = Engine.findOutputs(tmp, kind)
+            val outputs = if (normalize) {
+                Downloads.upsert(ctx, taskId) { it.copy(line = "Menormalkan audio (video tidak dienkode ulang)…") }
+                runInterruptible(Dispatchers.IO) { AudioNormalizer.normalize(ctx, rawOutputs, if (kind == "mp3") kbps else 192) }
+            } else rawOutputs
             if (outputs.isEmpty()) throw IllegalStateException("File hasil tidak ditemukan")
             Downloads.upsert(ctx, taskId) { it.copy(progress = 1f, line = "Menyimpan ke Download/DownloadAja…") }
             var firstUri: Uri? = null
             for (out in outputs) {
-                val uri = Storage.saveToDownloads(ctx, out, out.name, Engine.mimeOf(out.name))
+                val uri = Storage.saveToDownloads(ctx, out, out.name, Engine.mimeOf(out.name, kind == "source-audio"))
                 if (firstUri == null) firstUri = uri
             }
             val first = outputs.first()
-            val mime = Engine.mimeOf(first.name)
+            val mime = Engine.mimeOf(first.name, kind == "source-audio")
             val uri = firstUri!!
             Downloads.upsert(ctx, taskId) {
                 it.copy(status = DlRecord.STATUS_DONE, progress = 1f, uri = uri.toString(), mime = mime,

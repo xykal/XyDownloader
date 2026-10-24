@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +69,9 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
     val focus = LocalFocusManager.current
     val engine by vm.engine.collectAsState()
     val cs = MaterialTheme.colorScheme
-    val detected = PlatformCatalog.detect(MainViewModel.extractUrl(vm.url))
+    val detected = remember(vm.url) { PlatformCatalog.detect(MainViewModel.extractUrl(vm.url)) }
+    val gallery = (vm.state as? HomeState.Loaded)?.info?.gallery.orEmpty()
+    val galleryRows = remember(gallery) { gallery.chunked(3) }
 
     LazyColumn(
         Modifier.statusBarsPadding(),
@@ -168,6 +171,18 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
             is HomeState.Loaded -> {
                 val info = s.info
                 item { InfoCard(info, onPreview = if (info.preview != null) ({ vm.showPreview = true }) else null) }
+                info.preview?.let { preview ->
+                    item(key = "inline-preview") {
+                        XyCard(padding = 0.dp) {
+                            VideoPlayer(
+                                if (vm.showPreview) null else PlaySpec(preview.video, preview.audio, preview.hls),
+                                Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                                autoplay = AppSettings.autoplayVideo(context) && !AppSettings.dataSaver(context),
+                                boostAudio = AppSettings.previewBoost(context),
+                            )
+                        }
+                    }
+                }
                 when {
                     info.isUgoira -> {
                         item { SectionTitle("Animasi (ugoira)", R.drawable.ic_video) }
@@ -180,7 +195,7 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                     }
                     info.gallery.isNotEmpty() -> {
                         item { XyCard(padding = 14.dp) { GalleryHeader(vm, info) } }
-                        val rows = info.gallery.chunked(3)
+                        val rows = galleryRows
                         items(rows.size, key = { "g-$it" }) { r ->
                             GalleryRow(vm, rows[r]) { picked -> vm.viewerIndex = info.gallery.indexOf(picked) }
                         }
@@ -231,35 +246,45 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                         }
                     }
                     else -> {
-                        item { SectionTitle("Video", R.drawable.ic_video) }
+                        if (info.videoOptions.isNotEmpty()) item { SectionTitle("Video", R.drawable.ic_video) }
                         val recH = AppSettings.pickVideoHeight(context, info.videoOptions)
-                        items(info.videoOptions, key = { "v-${it.height}" }) { o ->
+                        items(info.videoOptions, key = { "v-${it.formatId ?: it.height}" }) { o ->
                             val rec = o.height == recH && recH > 0
                             OptionRow(
                                 R.drawable.ic_video,
                                 buildString {
-                                    append(if (o.height > 0) o.label else "Kualitas terbaik")
+                                    append(o.label)
                                     if (rec) append(" · disarankan")
                                 },
-                                listOfNotNull("MP4", o.codec, o.sizeBytes?.let { "±" + formatBytes(it) }).joinToString(" · "),
+                                listOfNotNull(o.formatId?.let { "Format $it" }, "Wadah akhir mengikuti kompatibilitas codec", o.sizeBytes?.let { "±" + formatBytes(it) }).joinToString(" · "),
                             ) {
-                                vm.download(info, "video", o.height, label = if (o.height > 0) "${o.label} · MP4" else "Video terbaik")
+                                vm.download(info, "video", o.height, label = o.label, selector = o.selector)
                                 toast("Download ${o.label} dimulai — cek tab Unduhan")
                             }
                         }
                         if (info.hasAudio) {
-                            item { SectionTitle("Audio", R.drawable.ic_music) }
+                            if (info.audioOptions.isNotEmpty()) {
+                                item { SectionTitle("Audio asli dari sumber", R.drawable.ic_music) }
+                                items(info.audioOptions, key = { "original-${it.formatId}" }) { option ->
+                                    OptionRow(R.drawable.ic_music, option.label,
+                                        "Format ${option.formatId} · tanpa konversi" + (option.sizeBytes?.let { " · ±${formatBytes(it)}" } ?: "")) {
+                                        vm.download(info, "source-audio", label = option.label, selector = option.formatId)
+                                        toast("Download audio asli dimulai")
+                                    }
+                                }
+                            }
+                            item { SectionTitle("Konversi audio", R.drawable.ic_music) }
                             val wantKbps = AppSettings.defaultAudioKbps(context)
                             val audio = listOf(
                                 Triple("mp3", 320, "MP3 · 320 kbps"), Triple("mp3", 192, "MP3 · 192 kbps"),
-                                Triple("mp3", 128, "MP3 · 128 kbps"), Triple("m4a", 0, "M4A · kualitas asli"),
+                                Triple("mp3", 128, "MP3 · 128 kbps"), Triple("m4a", 0, "M4A · kompatibel"),
                             )
                             items(audio, key = { "a-${it.third}" }) { (kind, kbps, label) ->
                                 val rec = (kind == "mp3" && kbps == wantKbps) || (kind == "m4a" && wantKbps == 0)
                                 OptionRow(
                                     R.drawable.ic_music,
                                     if (rec) "$label · disarankan" else label,
-                                    if (kind == "mp3") "Dikonversi dengan FFmpeg di HP" else "Tanpa konversi",
+                                    if (kind == "mp3") "Dikonversi dengan FFmpeg di HP" else "Konversi bila sumber bukan M4A",
                                 ) {
                                     vm.download(info, kind, kbps = if (kbps > 0) kbps else 192, label = label)
                                     toast("Download $label dimulai — cek tab Unduhan")
@@ -430,7 +455,7 @@ private fun InfoCard(info: MediaInfo, onPreview: (() -> Unit)?) {
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (onPreview != null) {
-                    Text("Pratinjau siap — ketuk play bila di-pause", style = MaterialTheme.typography.bodySmall, color = cs.primary,
+                    Text("Pratinjau tampil otomatis di bawah", style = MaterialTheme.typography.bodySmall, color = cs.primary,
                         modifier = Modifier.padding(top = 2.dp))
                 }
             }

@@ -41,6 +41,8 @@ fun SettingsScreen() {
     var dataSaver by remember { mutableStateOf(AppSettings.dataSaver(ctx)) }
     var videoTier by remember { mutableStateOf(AppSettings.defaultVideoTier(ctx)) }
     var audioKbps by remember { mutableStateOf(AppSettings.defaultAudioKbps(ctx)) }
+    var previewBoost by remember { mutableStateOf(AppSettings.previewBoost(ctx)) }
+    var normalizeExports by remember { mutableStateOf(AppSettings.normalizeExports(ctx)) }
     var liveMode by remember { mutableStateOf(AppSettings.livePhotoMode(ctx)) }
 
     LazyColumn(
@@ -61,7 +63,7 @@ fun SettingsScreen() {
             XyCard {
                 Text("Pratinjau", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                SettingSwitch("Autoplay video", "Putar otomatis setelah proses (bisa di-mute dulu)") {
+                SettingSwitch("Autoplay video", "Preview langsung muncul di hasil; putar otomatis kecuali mode hemat data") {
                     Switch(checked = autoplayVideo, onCheckedChange = {
                         autoplayVideo = it; AppSettings.setAutoplayVideo(ctx, it)
                     })
@@ -80,6 +82,17 @@ fun SettingsScreen() {
                     Switch(checked = dataSaver, onCheckedChange = {
                         dataSaver = it; AppSettings.setDataSaver(ctx, it)
                     })
+                }
+            }
+        }
+        item {
+            XyCard {
+                Text("Audio", style = MaterialTheme.typography.titleSmall)
+                SettingSwitch("Penguat preview +3 dB", "Opsional untuk sumber yang pelan; tidak mengubah volume sistem") {
+                    Switch(checked = previewBoost, onCheckedChange = { previewBoost = it; AppSettings.setPreviewBoost(ctx, it) })
+                }
+                SettingSwitch("Normalisasi hasil unduhan", "Opsional MP3/MP4/M4A dari pilihan video/konversi. Lebih lama, audio dienkode ulang; video disalin. Audio asli & galeri tidak diubah.") {
+                    Switch(checked = normalizeExports, onCheckedChange = { normalizeExports = it; AppSettings.setNormalizeExports(ctx, it) })
                 }
             }
         }

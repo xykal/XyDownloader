@@ -18,6 +18,12 @@ object AppSettings {
     fun notificationAsked(ctx: Context) = p(ctx).getBoolean("notificationAsked", false)
     fun setNotificationAsked(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("notificationAsked", v).apply()
 
+    // Optional: never force the system volume or modify original exports by default.
+    fun previewBoost(ctx: Context) = p(ctx).getBoolean("previewBoost", false)
+    fun setPreviewBoost(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("previewBoost", v).apply()
+    fun normalizeExports(ctx: Context) = p(ctx).getBoolean("normalizeExports", false)
+    fun setNormalizeExports(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("normalizeExports", v).apply()
+
     fun autoplayVideo(ctx: Context) = p(ctx).getBoolean("autoplayVideo", true)
     fun setAutoplayVideo(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("autoplayVideo", v).apply()
 

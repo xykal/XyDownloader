@@ -145,6 +145,8 @@ androidComponents {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     val ytdl = "0.18.1"
     implementation("io.github.junkfood02.youtubedl-android:library:$ytdl") {
         // library tidak memakai AppCompat sama sekali (dicek dari bytecode) -> hemat ukuran APK

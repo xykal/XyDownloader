@@ -20,6 +20,14 @@ def size():
 def find(pattern):
     sh('uiautomator', 'dump', '/sdcard/ui.xml')
     xml = sh('cat', '/sdcard/ui.xml')
+    # Known first-boot emulator failure, not the app under test. Never dismiss
+    # DownloadAja ANRs or generic error dialogs; only stop the named launcher.
+    if 'Pixel Launcher isn' in xml and 'responding' in xml:
+        print('TEST ENV: Pixel Launcher ANR; stopping only com.google.android.apps.nexuslauncher', flush=True)
+        sh('am', 'force-stop', 'com.google.android.apps.nexuslauncher')
+        time.sleep(1)
+        sh('uiautomator', 'dump', '/sdcard/ui.xml')
+        xml = sh('cat', '/sdcard/ui.xml')
     w, h = size()
     for m in re.finditer(r'<node [^>]*>', xml):
         node = m.group(0)
@@ -56,6 +64,7 @@ def main():
             sh('input', 'swipe', str(w // 2), str(int(h * 0.72)), str(w // 2), str(int(h * 0.38)), '350')
             time.sleep(1)
     print(f'elemen tidak ditemukan: {pat}')
+    sys.exit(1)
 
 
 if __name__ == '__main__':

@@ -50,6 +50,8 @@ import id.my.xyverse.xydownloader.Popup
 import id.my.xyverse.xydownloader.Screen
 import id.my.xyverse.xydownloader.R
 import androidx.compose.material.icons.outlined.Settings
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -57,11 +59,13 @@ import kotlinx.coroutines.launch
 fun XyRoot(vm: MainViewModel) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val records by vm.records.collectAsState()
-    val running = records.count { it.status == DlRecord.STATUS_RUNNING || it.status == DlRecord.STATUS_QUEUED }
+    val runningFlow = remember(vm) {
+        vm.records.map { rows -> rows.count { it.status == DlRecord.STATUS_RUNNING || it.status == DlRecord.STATUS_QUEUED } }.distinctUntilChanged()
+    }
+    val running by runningFlow.collectAsState(initial = 0)
     var showSplash by rememberSaveable { mutableStateOf(true) }
     LaunchedEffect(Unit) {
-        delay(1200)
+        delay(300)
         showSplash = false
     }
     // popup "yang baru" / pembaruan baru ditampilkan setelah splash selesai
