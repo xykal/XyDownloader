@@ -34,6 +34,7 @@ curl -fsSL --retry 3 -o /tmp/old.apk https://github.com/xykal/XyDownloader/relea
 
 echo "== upgrade ke APK baru: $APK"
 adb install -r -g "$APK" || { echo "::error::install gagal"; exit 1; }
+python3 .github/scripts/audio_test.py "$APK_DIR" "$OUT/audio-fixtures" --fixtures-only
 adb logcat -c
 adb shell am start -W -n $PKG/.MainActivity >/dev/null
 shot 01-whats-new-popup 25
