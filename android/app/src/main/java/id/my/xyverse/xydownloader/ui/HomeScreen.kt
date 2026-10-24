@@ -69,7 +69,9 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
     val focus = LocalFocusManager.current
     val engine by vm.engine.collectAsState()
     val cs = MaterialTheme.colorScheme
-    val detected = PlatformCatalog.detect(MainViewModel.extractUrl(vm.url))
+    val detected = remember(vm.url) { PlatformCatalog.detect(MainViewModel.extractUrl(vm.url)) }
+    val gallery = (vm.state as? HomeState.Loaded)?.info?.gallery.orEmpty()
+    val galleryRows = remember(gallery) { gallery.chunked(3) }
 
     LazyColumn(
         Modifier.statusBarsPadding(),
@@ -193,7 +195,7 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                     }
                     info.gallery.isNotEmpty() -> {
                         item { XyCard(padding = 14.dp) { GalleryHeader(vm, info) } }
-                        val rows = remember(info.gallery) { info.gallery.chunked(3) }
+                        val rows = galleryRows
                         items(rows.size, key = { "g-$it" }) { r ->
                             GalleryRow(vm, rows[r]) { picked -> vm.viewerIndex = info.gallery.indexOf(picked) }
                         }
@@ -244,7 +246,7 @@ fun HomeScreen(vm: MainViewModel, toast: (String) -> Unit) {
                         }
                     }
                     else -> {
-                        item { SectionTitle("Video", R.drawable.ic_video) }
+                        if (info.videoOptions.isNotEmpty()) item { SectionTitle("Video", R.drawable.ic_video) }
                         val recH = AppSettings.pickVideoHeight(context, info.videoOptions)
                         items(info.videoOptions, key = { "v-${it.formatId ?: it.height}" }) { o ->
                             val rec = o.height == recH && recH > 0
