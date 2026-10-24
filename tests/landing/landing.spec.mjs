@@ -9,7 +9,7 @@ test('landing and APK links are usable without downloader backend', async ({page
  await expect(page.getByRole('link', {name:'Lihat prerelease'})).toHaveAttribute('href', 'https://github.com/xykal/XyDownloader/releases/tag/v1.3.5');
  await page.locator('.nav-cta').click();
  await expect(page.locator('#download')).toBeInViewport();
- await expect(page.locator('a[href="/download/arm64-v8a"]')).toHaveCount(2);
+ await expect(page.locator('a[href="/download/arm64-v8a"]')).toHaveCount(1);
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
  expect(errors).toEqual([]);
 });
@@ -32,4 +32,27 @@ test('authentic screenshots, structured data and social image are available', as
  expect((await request.get('/screenshots/home.webp')).status()).toBe(200);
  expect((await request.get('/robots.txt')).status()).toBe(200);
  expect((await request.get('/sitemap.xml')).status()).toBe(200);
+});
+
+test('universal download chooser hides architecture until opened; SVG icons load', async ({page}) => {
+ await page.goto('/');
+ await expect(page.locator('#download-options')).not.toHaveAttribute('open', '');
+ await expect(page.locator('.apk-option').first()).not.toBeVisible();
+ await expect(page.locator('.hero-actions .primary')).toHaveText('Unduh aplikasi');
+ await expect(page.locator('.hero-actions .primary')).toHaveAttribute('href', '#download');
+ await page.locator('.hero-actions .primary').click();
+ await expect(page.locator('.apk-option')).toHaveCount(3);
+ await expect(page.locator('.apk-option').first()).toBeVisible();
+ await expect(page.locator('.platforms img')).toHaveCount(5);
+ expect(await page.locator('.platforms img').evaluateAll(imgs=>imgs.every(i=>i.complete&&i.naturalWidth>0))).toBeTruthy();
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+});
+test('native architecture selection works without JavaScript', async ({browser,baseURL}) => {
+ const context = await browser.newContext({javaScriptEnabled:false});
+ const page = await context.newPage();
+ await page.goto(baseURL);
+ await page.locator('#download-options > summary').click();
+ await expect(page.locator('.apk-option').first()).toBeVisible();
+ await expect(page.locator('.apk-option')).toHaveCount(3);
+ await context.close();
 });
