@@ -31,7 +31,8 @@ def ff(*args):
 
 
 def measure(path):
-    output = ff('-i', path, '-vn', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-')
+    output = ff('-i', path, '-vn', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json',
+                '-c:a', 'aac', '-ar', '48000', '-f', 'null', '-')
     matches = re.findall(r'\{\s*"input_i".*?\}', output, re.S)
     if not matches:
         raise AssertionError('Native FFmpeg did not produce loudness statistics')
