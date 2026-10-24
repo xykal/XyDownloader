@@ -4,7 +4,7 @@
 #  2. share link foto slide TikTok -> galeri, viewer, unduh foto terpilih (HTTP langsung)
 #  3. video TikTok -> pratinjau (ExoPlayer) + unduh MP3 (yt-dlp --load-info-json + FFmpeg minimal)
 #  4. halaman Tentang, Pembaruan & Lisensi
-set -u
+set -euo pipefail
 APK_DIR=$1
 OUT=$2
 mkdir -p "$OUT"
@@ -26,7 +26,7 @@ adb install -r -g "$APK" || { echo "::error::install gagal"; exit 1; }
 adb logcat -c
 adb shell am start -W -n $PKG/.MainActivity >/dev/null
 shot 01-whats-new-popup 25
-$UI "ketuk untuk melihat" 0
+$UI "ketuk untuk melihat" 0 || true
 shot 02-update-screen 6
 adb shell input keyevent KEYCODE_BACK
 
@@ -78,4 +78,9 @@ if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   exit 1
 fi
 adb shell pidof "$PKG" >/dev/null || { echo "::error::aplikasi tidak hidup"; exit 1; }
+# A live process does not prove downloads worked. Check actual non-empty files.
+adb shell 'find /sdcard/Download/DownloadAja -type f -size +0c' > "$OUT/downloaded-files.txt"
+test -s "$OUT/downloaded-files.txt" || { echo "::error::tidak ada bukti file unduhan"; exit 1; }
+grep -Ei '\.(mp3)$' "$OUT/downloaded-files.txt" >/dev/null || { echo "::error::MP3 belum terbukti tersimpan"; exit 1; }
+grep -Ei '\.(jpg|jpeg|png|webp)$' "$OUT/downloaded-files.txt" >/dev/null || { echo "::error::foto belum terbukti tersimpan"; exit 1; }
 exit 0

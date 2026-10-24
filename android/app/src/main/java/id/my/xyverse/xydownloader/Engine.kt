@@ -198,7 +198,7 @@ object Engine {
      */
     fun downloadRequest(
         ctx: Context, url: String, kind: String, height: Int, kbps: Int, item: Int, outDir: File,
-        infoPath: String? = null,
+        infoPath: String? = null, selector: String? = null,
     ): YoutubeDLRequest {
         // info JSON dari "proses link" masih segar -> pakai (hemat 1 kali baca halaman).
         // Kalau URL media sudah kedaluwarsa, yt-dlp otomatis mengulang dari webpage_url.
@@ -232,12 +232,18 @@ object Engine {
                 req.addOption("--audio-format", "m4a")
                 req.addOption("--embed-metadata")
             }
+            "source-audio" -> {
+                require(selector != null && FormatPolicy.validId(selector))
+                req.addOption("-f", selector)
+                // Preserve source codec/container and loudness; no extraction conversion.
+            }
             else -> {
-                req.addOption("-f", "bv*+ba/b")
+                require(selector == null || FormatPolicy.validSelector(selector))
+                req.addOption("-f", selector ?: "bv*+ba/b")
                 // res = sisi terpendek (720 = 720p, termasuk video vertikal). Utamakan H.264 + AAC (paling kompatibel).
                 val sort = if (height > 0) "res:$height,vcodec:h264,acodec:aac" else "res,fps,vcodec:h264,acodec:aac"
                 req.addOption("-S", sort)
-                req.addOption("--merge-output-format", "mp4")
+                req.addOption("--merge-output-format", "mp4/mkv")
             }
         }
         return req
@@ -256,7 +262,13 @@ object Engine {
         return listOfNotNull(main)
     }
 
-    fun mimeOf(name: String): String = when (name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+    fun mimeOf(name: String, audioOnly: Boolean = false): String {
+        if (audioOnly) when (name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+            "webm" -> return "audio/webm"
+            "mp4" -> return "audio/mp4"
+            "mkv" -> return "audio/x-matroska"
+        }
+        return when (name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
         "mp4", "m4v" -> "video/mp4"
         "webm" -> "video/webm"
         "mkv" -> "video/x-matroska"
@@ -265,7 +277,8 @@ object Engine {
         "flv" -> "video/x-flv"
         "ts" -> "video/mp2t"
         "mp3" -> "audio/mpeg"
-        "m4a", "aac" -> "audio/mp4"
+        "m4a" -> "audio/mp4"
+        "aac" -> "audio/aac"
         "opus", "ogg" -> "audio/ogg"
         "flac" -> "audio/flac"
         "wav" -> "audio/wav"
@@ -274,6 +287,7 @@ object Engine {
         "gif" -> "image/gif"
         "webp" -> "image/webp"
         else -> "application/octet-stream"
+        }
     }
 
     /** Pesan error yang ramah (bahasa Indonesia). */

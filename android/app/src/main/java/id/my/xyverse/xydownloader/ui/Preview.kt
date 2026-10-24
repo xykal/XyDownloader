@@ -1,6 +1,7 @@
 package id.my.xyverse.xydownloader.ui
 
 import android.content.Context
+import android.media.audiofx.LoudnessEnhancer
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.exoplayer.DefaultLoadControl
+import id.my.xyverse.xydownloader.AppSettings
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -105,13 +113,28 @@ private fun mediaSource(context: Context, spec: PlaySpec): MediaSource {
 /** Pemutar ExoPlayer untuk Compose. spec = null -> berhenti. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
-fun VideoPlayer(spec: PlaySpec?, modifier: Modifier = Modifier, muted: Boolean = false) {
+fun VideoPlayer(spec: PlaySpec?, modifier: Modifier = Modifier, muted: Boolean = false,
+    autoplay: Boolean = true, boostAudio: Boolean = false) {
+    if (spec == null) {
+        Box(modifier.background(Color.Black))
+        return
+    }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var sessionId by remember { mutableStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var buffering by remember { mutableStateOf(true) }
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(context.applicationContext)
+            .setLoadControl(DefaultLoadControl.Builder()
+                .setBufferDurationsMs(3000, 15000, 700, 1500)
+                .setTargetBufferBytes(12 * 1024 * 1024)
+                .setPrioritizeTimeOverSizeThresholds(false).build())
+            .build().apply {
+            setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+            setHandleAudioBecomingNoisy(true)
             addListener(object : Player.Listener {
+                override fun onAudioSessionIdChanged(audioSessionId: Int) { sessionId = audioSessionId }
                 override fun onPlayerError(e: PlaybackException) {
                     error = "Pratinjau gagal dimuat (${e.errorCodeName.removePrefix("ERROR_CODE_").lowercase()}). " +
                         "Download tetap bisa dicoba."
@@ -123,19 +146,35 @@ fun VideoPlayer(spec: PlaySpec?, modifier: Modifier = Modifier, muted: Boolean =
             })
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release() } }
-    LaunchedEffect(spec) {
-        error = null
-        if (spec == null) {
-            player.stop()
-            player.clearMediaItems()
-            return@LaunchedEffect
+    DisposableEffect(player) { onDispose { player.release() } }
+    DisposableEffect(sessionId, boostAudio) {
+        val enhancer = if (boostAudio && sessionId != 0) runCatching {
+            LoudnessEnhancer(sessionId).apply { setTargetGain(300); enabled = true }
+        }.getOrNull() else null
+        onDispose { enhancer?.release() }
+    }
+    DisposableEffect(player, lifecycleOwner) {
+        var resume = false
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                resume = player.playWhenReady
+                player.pause()
+            } else if (event == Lifecycle.Event.ON_RESUME && resume) {
+                player.play()
+                resume = false
+            }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); player.pause() }
+    }
+    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
+    LaunchedEffect(spec, autoplay) {
+        error = null
         player.setMediaSource(mediaSource(context, spec))
         player.repeatMode = if (spec.loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
         player.volume = if (muted) 0f else 1f
         player.prepare()
-        player.playWhenReady = true
+        player.playWhenReady = autoplay && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
     }
     Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         AndroidView(
@@ -182,11 +221,14 @@ private fun DialogTopBar(title: String, subtitle: String?, onClose: () -> Unit, 
 /** Pratinjau video sebelum download (layar penuh). */
 @Composable
 fun PreviewDialog(preview: PreviewSource, title: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             VideoPlayer(
                 PlaySpec(preview.video, preview.audio, preview.hls),
                 Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 56.dp),
+                autoplay = AppSettings.autoplayVideo(context) && !AppSettings.dataSaver(context),
+                boostAudio = AppSettings.previewBoost(context),
             )
             DialogTopBar(title, "Pratinjau", onDismiss)
         }
@@ -228,6 +270,8 @@ fun GalleryViewer(
                             PlaySpec(item.video!!, loop = item.type == ItemType.LIVE),
                             Modifier.fillMaxSize(),
                             muted = item.type == ItemType.LIVE,
+                            autoplay = AppSettings.autoplayVideo(context) && !AppSettings.dataSaver(context),
+                            boostAudio = AppSettings.previewBoost(context),
                         )
                     } else {
                         val src = item.image?.url ?: item.thumb

@@ -136,9 +136,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     Analytics.track(ctx, "extract", platform = info.platform ?: PlatformCatalog.detect(target)?.id)
                 }
                 // Auto-buka pratinjau video jika diizinkan & ada sumber
-                showPreview = info.preview != null
-                    && AppSettings.autoplayVideo(ctx)
-                    && !AppSettings.dataSaver(ctx)
+                // Preview is inline now; do not steal focus with a full-screen dialog.
+                showPreview = false
                 loaded
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -154,13 +153,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clear() {
+        job?.cancel()
+        showPreview = false
+        viewerIndex = null
         url = ""
         state = HomeState.Idle
     }
 
-    fun download(info: MediaInfo, kind: String, height: Int = 0, kbps: Int = 192, item: Int = 0, label: String) {
+    fun download(info: MediaInfo, kind: String, height: Int = 0, kbps: Int = 192, item: Int = 0, label: String, selector: String? = null) {
         val title = if (item > 0) info.entries.firstOrNull { it.index == item }?.title ?: info.title else info.title
-        Downloads.enqueue(ctx, info, kind, height, kbps, item, label, title)
+        Downloads.enqueue(ctx, info, kind, height, kbps, item, label, title, selector = selector)
     }
 
     // ------------------------------------------------------------------ galeri

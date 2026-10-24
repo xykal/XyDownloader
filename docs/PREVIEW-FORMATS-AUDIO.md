@@ -1,0 +1,21 @@
+# Preview, formats and audio changes
+
+## Android
+- Preview is inline after extraction. Autoplay and data-saver preferences remain authoritative; fullscreen is optional. Players release on disposal, pause in background, request media audio focus, and handle headphone disconnection.
+- Preview prefers a direct <=480p muxed stream and caps target buffer at 12 MiB / max 15 seconds. This is not a cap on all app memory or a measured performance guarantee.
+- Root navigation observes distinct active-download counts rather than each progress update. Identical download state updates do not emit/persist again. Artificial splash delay is reduced from 1200 to 300 ms.
+- Source video variants retain exact format ID, source container, codec and FPS. No eight-resolution cap or resolution-only deduplication. Exact selector is persisted into queued/retried jobs. Video-only formats merge best available audio; muxed formats are not given duplicate audio. DRM/storyboards are excluded. yt-dlp format IDs currently accepted: letters, digits, underscore, period, colon and hyphen; malformed selector expressions are rejected.
+- Original audio variants are distinct from MP3/M4A conversions. Original audio does not get transcoded or normalized. Video's final merge container follows codec compatibility (MP4/MKV); a source container label does not promise a forced MP4 output.
+- **No source link was supplied to reproduce the quietness. No proven root cause or verified loudness fix is claimed.** Normal playback stays at 1.0 stream gain (not system volume). Optional preview gain (+3 dB) uses Android LoudnessEnhancer when supported by the device.
+- Optional export normalization uses FFmpeg loudnorm (-16 LUFS, -1.5 dBTP, LRA 11), transcodes audio, copies video, leaves originals untouched until success. Supported MP3/MP4/M4A/MOV; not gallery/direct-file downloads or "original audio". Default off: user must opt in; extra CPU/time and lossy audio re-encoding apply. MP3 keeps selected output bitrate; other outputs use AAC 192 kbps. FFmpeg build adds loudnorm; this requires a rebuilt native binary, not only a Kotlin APK update.
+- Source format availability varies with login, region, extractor and expiring URLs. No hidden fallback to another video codec when an exact selected format fails.
+
+## Validation / rollout gate
+Unit tests cover format variants, exact muxed selectors, DRM/storyboard exclusion, original audio variants and preview preference. The Android workflow must compile/run unit tests, rebuild FFmpeg, produce all 3 ABIs and pass strict emulator evidence; the earlier false-positive smoke gate from PR #33 is incorporated here. No promotion to stable based on green compilation alone. Real-device performance, playback, downloaded sound and update signature require verification before a stable release.
+
+## Website
+Universal "Unduh aplikasi" links open a native disclosure of Android architectures; APK-specific links exist only inside that selection. The native chooser still works without JS (one extra summary click). Original genuine screenshots and prior-build disclaimer are retained. Platform icons are local Simple Icons SVGs (CC0, downloaded from https://github.com/simple-icons/simple-icons/tree/develop/icons); trademarks belong to their owners, not an endorsement. UI SVGs are local inline line drawings; no remote font/CDN.
+
+## iOS feasibility (not implemented)
+APK cannot install on iOS. A separate signed iOS implementation and a compatible on-device extraction strategy are needed; Android's Python/FFmpeg packages cannot just be copied over. App review/distribution policies and content permissions must be evaluated before promising App Store availability. No backend or paid service was commissioned.
+Apple's standard developer membership is USD 99/year (regional currency/taxes can vary): https://developer.apple.com/programs/whats-included/ . Free Personal Team device testing expires after 7 days and is not public App Store distribution: https://developer.apple.com/support/compare-memberships/ . Mac/Xcode access, development and any required infrastructure are separate costs. A landing page added to Home Screen is not an equivalent functioning downloader: this project has no web extraction backend.

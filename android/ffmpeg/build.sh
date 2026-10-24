@@ -62,7 +62,7 @@ DECODERS=aac,aac_fixed,aac_latm,mp3,mp3float,opus,vorbis,flac,alac,pcm_s16le,pcm
 ENCODERS=libmp3lame,aac,mpeg4
 PARSERS=aac,aac_latm,h264,hevc,mpegaudio,opus,vorbis,flac,vp8,vp9,av1,mjpeg,png,gif,mpeg4video,ac3
 BSFS=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb,extract_extradata,vp9_superframe,vp9_superframe_split,av1_frame_merge,av1_frame_split,setts,dump_extradata,null
-FILTERS=aresample,aformat,anull,null,scale,format,pad,fps,setpts,asetpts,copy,acopy,crop,transpose,hflip,vflip,trim,atrim,split,concat
+FILTERS=loudnorm,aresample,aformat,anull,null,scale,format,pad,fps,setpts,asetpts,copy,acopy,crop,transpose,hflip,vflip,trim,atrim,split,concat
 
 COMMON_FLAGS=(
   --enable-pic --enable-static --disable-shared --enable-small

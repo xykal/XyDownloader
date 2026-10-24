@@ -87,6 +87,8 @@ object Downloads {
     const val K_HEIGHT = "height"
     const val K_KBPS = "kbps"
     const val K_ITEM = "item"
+    const val K_SELECTOR = "format_selector"
+    const val K_NORMALIZE = "normalize_audio"
     const val K_INFO = "info"
     const val K_FILES = "files"
     const val K_PROGRESS = "p"
@@ -136,6 +138,7 @@ object Downloads {
         if (idx < 0) return
         val before = list[idx]
         val after = transform(before)
+        if (after == before) return
         list[idx] = after
         _records.value = list
         if (before.status != after.status || before.uri != after.uri) persist(ctx)
@@ -157,7 +160,7 @@ object Downloads {
 
     fun enqueue(
         ctx: Context, info: MediaInfo, kind: String, height: Int, kbps: Int, item: Int, label: String, title: String,
-        infoPath: String? = info.infoPath,
+        infoPath: String? = info.infoPath, selector: String? = null,
     ) {
         load(ctx)
         val taskId = UUID.randomUUID().toString()
@@ -165,6 +168,8 @@ object Downloads {
             put(K_TASK, taskId); put(K_URL, info.sourceUrl); put(K_TITLE, title); put(K_KIND, kind)
             put(K_HEIGHT, height); put(K_KBPS, kbps); put(K_ITEM, item)
             if (infoPath != null) put(K_INFO, infoPath)
+            if (selector != null) put(K_SELECTOR, selector)
+            put(K_NORMALIZE, AppSettings.normalizeExports(ctx) && kind in listOf("video", "mp3", "m4a"))
         }
         addRecord(ctx, DlRecord(
             id = taskId, title = title, label = label, kind = kind,
@@ -370,6 +375,8 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         val kbps = inputData.getInt(Downloads.K_KBPS, 192)
         val item = inputData.getInt(Downloads.K_ITEM, 0)
         val infoPath = inputData.getString(Downloads.K_INFO)
+        val selector = inputData.getString(Downloads.K_SELECTOR)
+        val normalize = inputData.getBoolean(Downloads.K_NORMALIZE, false)
 
         if (kind == "files") {
             try { setForeground(foreground(title, 0f, "Menyiapkan…")) } catch (_: Exception) { }
@@ -380,7 +387,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
 
         if (!Engine.init(ctx)) return fail(taskId, "Engine gagal dimuat: ${Engine.initError}")
         val tmp = File(ctx.cacheDir, "dl/$taskId").apply { deleteRecursively(); mkdirs() }
-        val request = Engine.downloadRequest(ctx, url, kind, height, kbps, item, tmp, infoPath)
+        val request = Engine.downloadRequest(ctx, url, kind, height, kbps, item, tmp, infoPath, selector)
         var lastUpdate = 0L
         return try {
             runInterruptible(Dispatchers.IO) {
@@ -396,16 +403,20 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                     }
                 }
             }
-            val outputs = Engine.findOutputs(tmp, kind)
+            val rawOutputs = Engine.findOutputs(tmp, kind)
+            val outputs = if (normalize) {
+                Downloads.upsert(ctx, taskId) { it.copy(line = "Menormalkan audio (video tidak dienkode ulang)…") }
+                runInterruptible(Dispatchers.IO) { AudioNormalizer.normalize(ctx, rawOutputs, if (kind == "mp3") kbps else 192) }
+            } else rawOutputs
             if (outputs.isEmpty()) throw IllegalStateException("File hasil tidak ditemukan")
             Downloads.upsert(ctx, taskId) { it.copy(progress = 1f, line = "Menyimpan ke Download/DownloadAja…") }
             var firstUri: Uri? = null
             for (out in outputs) {
-                val uri = Storage.saveToDownloads(ctx, out, out.name, Engine.mimeOf(out.name))
+                val uri = Storage.saveToDownloads(ctx, out, out.name, Engine.mimeOf(out.name, kind == "source-audio"))
                 if (firstUri == null) firstUri = uri
             }
             val first = outputs.first()
-            val mime = Engine.mimeOf(first.name)
+            val mime = Engine.mimeOf(first.name, kind == "source-audio")
             val uri = firstUri!!
             Downloads.upsert(ctx, taskId) {
                 it.copy(status = DlRecord.STATUS_DONE, progress = 1f, uri = uri.toString(), mime = mime,
