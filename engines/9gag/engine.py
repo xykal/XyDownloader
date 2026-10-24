@@ -9,9 +9,6 @@ from .._common.runtime import PlatformEngine
 class Engine9Gag(PlatformEngine):
     platform_id = '9gag'
 
-    def extraction_attempts(self):
-        return super().extraction_attempts()
-
     def extract(self, downloader, url, *, download=False):
         return self.extract_with(downloader, url, download=download)
 

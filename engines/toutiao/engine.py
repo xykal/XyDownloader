@@ -9,9 +9,6 @@ from .._common.runtime import PlatformEngine
 class EngineToutiao(PlatformEngine):
     platform_id = 'toutiao'
 
-    def extraction_attempts(self):
-        return super().extraction_attempts()
-
     def extract(self, downloader, url, *, download=False):
         return self.extract_with(downloader, url, download=download)
 

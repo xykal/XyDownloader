@@ -140,3 +140,9 @@ def test_android_shaped_plugin_bundle_runs_outside_repository(tmp_path):
         [sys.executable, '-c', code], cwd=tmp_path,
         env={**os.environ, 'PYTHONPATH': str(package.parent)}, text=True)
     assert 'ANDROID_BUNDLE_OK' in output
+
+
+def test_optional_upstream_bindings_tolerate_missing_module_or_class():
+    from yt_dlp_plugins.engines._common.gallery import optional_ie
+    assert optional_ie('common', 'NoSuchExtractorClass') is None
+    assert optional_ie('no_such_extractor_module', 'NoSuchClass') is None

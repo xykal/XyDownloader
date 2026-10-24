@@ -9,9 +9,6 @@ from .._common.runtime import PlatformEngine
 class EngineVqq(PlatformEngine):
     platform_id = 'vqq'
 
-    def extraction_attempts(self):
-        return super().extraction_attempts()
-
     def extract(self, downloader, url, *, download=False):
         return self.extract_with(downloader, url, download=download)
 

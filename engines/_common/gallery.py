@@ -31,7 +31,7 @@ def optional_ie(module, name):
     try:
         mod = __import__(f'yt_dlp.extractor.{module}', fromlist=[name])
         return getattr(mod, name)
-    except ImportError:  # compatibility with older yt-dlp releases
+    except (ImportError, AttributeError):  # compatibility with older yt-dlp releases
         return None
 
 _UA_DESKTOP = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
