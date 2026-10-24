@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import re
+import shlex
 import struct
 import subprocess
 import sys
@@ -26,7 +27,7 @@ def run(*args):
 
 
 def ff(*args):
-    return run('adb', 'shell', REMOTE + '/ffmpeg', '-nostdin', '-y', '-hide_banner', *args)
+    return run('adb', 'shell', shlex.join([REMOTE + '/ffmpeg', '-nostdin', '-y', '-hide_banner', *args]))
 
 
 def measure(path):
@@ -116,6 +117,21 @@ def main():
                 run('adb', 'pull', f'{REMOTE}/{name}.{ext}', str(output_dir / f'{name}.{ext}'))
             results.append(result)
             print(json.dumps(result), flush=True)
+        # Also measure the actual MP3 saved by the app's preceding download smoke.
+        paths = run('adb', 'shell', "find /sdcard/Download/DownloadAja -type f -name '*.mp3'").splitlines()
+        assert paths, 'No real downloaded MP3 to audit'
+        source = paths[0].strip()
+        target = REMOTE + '/download-normalized.mp3'
+        before = measure(source)
+        ff('-loglevel', 'error', '-i', source, '-map', '0:v?', '-map', '0:a:0', '-map_metadata', '0',
+           '-c:v', 'copy', '-c:a', 'libmp3lame', '-b:a', '192k', '-threads', '2',
+           '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', target)
+        after = measure(target)
+        assert abs(after['input_i'] + 16) <= 1.5 and after['input_tp'] <= -1.0, after
+        actual = {'format': 'downloaded-mp3', 'source_file': Path(source).name, 'before': before, 'after': after,
+                  'gain_lu': round(after['input_i'] - before['input_i'], 2)}
+        results.append(actual)
+        print(json.dumps(actual), flush=True)
         report = {'apk': apk.name, 'ffmpeg_sha256': hashlib.sha256(binary).hexdigest(),
                   'source': 'Self-generated 8-second two-tone PCM and original 32x32 image',
                   'scope': 'Native Android FFmpeg command; not a real-device listening test or preview gain measurement',
