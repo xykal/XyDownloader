@@ -44,7 +44,6 @@ from yt_dlp_plugins.engines import registry as engine_registry  # noqa: E402
 
 VERSION = '1.3.4'
 URL_RE = re.compile(r'https?://[^\s<>"\'\u3000-\u303f\uff00-\uffef]+', re.I)
-IP_BOUND_HOSTS = ('googlevideo.com',)  # URL format YouTube terikat IP server yang meng-extract
 MAX_ENTRIES = 12
 MAX_GALLERY = 60  # foto slide bisa puluhan (TikTok/Douyin s.d. 35, Weibo/XHS s.d. 18)
 
@@ -290,7 +289,7 @@ def ydl_opts(need_js=False):
 def _domain_in_proxy_scope(url):
     """Domain yang rawan blokir IP datacenter (XYDL_PROXY_DOMAINS, dipisah koma)."""
     domains = [d.strip().lower() for d in os.environ.get(
-        'XYDL_PROXY_DOMAINS', 'youtube.com,youtu.be,bilibili.com,b23.tv,douyin.com,reddit.com,redd.it').split(',') if d.strip()]
+        'XYDL_PROXY_DOMAINS', ','.join(engine_registry.domain_policy('proxy_domains'))).split(',') if d.strip()]
     host = (urllib.parse.urlparse(url).hostname or '').lower()
     return any(host == d or host.endswith('.' + d) for d in domains)
 
@@ -531,7 +530,7 @@ class _Ctx:
         src = {'type': kind, 'proto': proto, 'ext': f.get('ext'), 'size': _size(f), 'format_id': f.get('format_id')}
         meta = {'s': self.page_url, 'fid': f.get('format_id'), 'f': filename, 'k': kind,
                 'h': _short_side(f), 'e': f.get('ext')}
-        if host.endswith(IP_BOUND_HOSTS):
+        if engine_registry.is_ip_bound(host):
             src.update(via='server', url=f'/api/stream?t={signer.sign(meta)}')
             return src
         token = signer.sign({'u': url, 'h': self.headers_for(f), 'f': filename, 'a': [site_suffix(host)]})
@@ -580,22 +579,6 @@ def _entry_meta(ctx, info, title):
 
 
 
-def _build_ugoira_entry(ctx, info, title, base_name):
-    """Ugoira pixiv: ZIP berisi frame + delay -> dikonversi ke MP4/GIF di browser (ffmpeg.wasm)."""
-    entry = _entry_meta(ctx, info, title)
-    fmt = next((f for f in info.get('formats') or [] if f.get('url')), None)
-    if fmt is None:
-        return entry
-    src = ctx.source(fmt, 'frames', branded_name(info, title, ctx.page_url, tag='ugoira', ext='zip'))
-    frames = (info.get('xy_ugoira') or {}).get('frames') or []
-    entry['ugoira'] = {'frames': frames}
-    q = _short_side(fmt)
-    for ext, label, codec in (('mp4', 'MP4', 'H.264'), ('gif', 'GIF', None)):
-        entry['video'].append({
-            'id': f'ugoira-{ext}', 'label': label, 'quality': q, 'ext': ext, 'codec': codec, 'size': None,
-            'no_audio': False, 'mode': 'ugoira', 'filename': branded_name(info, title, ctx.page_url, tag=ext, ext=ext), 'sources': [src],
-        })
-    return entry
 
 
 def _is_gallery_item(info):
@@ -730,8 +713,12 @@ def build_gallery(ydl, info, entries, proxy_base, page_url):
 def build_entry(ctx, info):
     title = info.get('title') or info.get('id') or 'video'
     base_name = safe_filename(title)
-    if info.get('xy_ugoira'):
-        return _build_ugoira_entry(ctx, info, title, base_name)
+    selected_engine = engine_registry.resolve_info(info, ctx.page_url)
+    if selected_engine:
+        special = selected_engine.build_special_entry(ctx, info, title, base_name, {
+            'entry_meta': _entry_meta, 'branded_name': branded_name, 'short_side': _short_side})
+        if special is not None:
+            return special
     formats = [f for f in (info.get('formats') or ([info] if info.get('url') else [])) if _usable(f)]
 
     videos = [f for f in formats if _has_video(f)]
@@ -751,9 +738,8 @@ def build_entry(ctx, info):
     # Tidak ada audio terpisah untuk di-merge -> buang format video-only (hasilnya bisu) kalau ada versi muxed
     if best_audio is None and muxed_videos:
         videos = muxed_videos
-    # YouTube: format muxed (mis. 18) sering hilang-timbul antar request -> pakai DASH (video + audio) yang stabil
-    if best_audio is not None and 'youtube' in (info.get('extractor_key') or '').lower():
-        videos = [f for f in videos if not _has_audio(f)] or videos
+    if selected_engine:
+        videos = selected_engine.filter_video_choices(videos, best_audio, info, _has_audio)
 
     # ---- opsi video per resolusi ------------------------------------------------
     buckets = {}

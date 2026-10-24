@@ -8,7 +8,7 @@ Dijalankan oleh aplikasi:
     libpython.so -u xydl_daemon.py <yt-dlp dir/zip> <plugin pkg dir> <cache dir> <qjs path> <out dir>
 
 Protokol: satu JSON per baris (stdin -> stdout).
-    -> {"id": 1, "op": "info", "url": "https://...", "twitter_api": "syndication"}
+    -> {"id": 1, "op": "info", "url": "https://...", "engine_variant": "syndication"}
     <- {"id": 1, "ok": true, "path": "<out dir>/<hash>.json", "ms": 1234}
     <- {"id": 1, "ok": false, "error": "ERROR: ..."}
     -> {"id": 2, "op": "ping"}

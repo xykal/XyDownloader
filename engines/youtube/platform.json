@@ -11,6 +11,13 @@
   "note": "Web: diblokir anti-bot YouTube untuk server cloud. Pakai aplikasi Android.",
   "logo": "/logos/youtube.webp",
   "runtime": {
-    "needs_js": true
+    "needs_js": true,
+    "ip_bound_domains": [
+      "googlevideo.com"
+    ],
+    "proxy_domains": [
+      "youtube.com",
+      "youtu.be"
+    ]
   }
 }

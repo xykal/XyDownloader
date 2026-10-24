@@ -22,6 +22,8 @@ engines/
 ├── pixiv/
 │   ├── engine.py
 │   ├── extractor.py
+│   ├── web.py              # payload ugoira API/library hanya milik Pixiv
+│   ├── AndroidPolicy.kt    # konfigurasi unduhan ugoira
 │   ├── postprocessor.py    # konversi ugoira hanya milik Pixiv
 │   └── platform.json
 ├── instagram/ ...          # dan seluruh platform unggulan lainnya
@@ -35,6 +37,7 @@ engines/
 ## Aturan pemisahan
 
 - Perbaikan TikTok hanya masuk `tiktok/`; YouTube hanya `youtube/`; demikian seterusnya.
+- Aturan DASH/CDN terikat IP YouTube, domain proxy default, serta marker ugoira ditentukan folder platform pemiliknya, bukan if/else nama situs dalam engine bersama.
 - Binding upstream TikTok/Douyin/Bilibili/dll berada di extractor masing-masing, tidak ditumpuk dalam helper bersama.
 - Jangan mengimpor engine platform lain dari folder suatu platform. Gunakan `_common` untuk mekanisme yang benar-benar sama.
 - Tidak menyalin seluruh library yt-dlp ke repo. **37 platform memakai backend upstream yt-dlp**, dengan entry point lokal masing-masing untuk routing dan pengembangan khusus situs. **11 platform memiliki extractor custom lokal.** Ini bukan klaim menulis ulang 48 parser dari nol.

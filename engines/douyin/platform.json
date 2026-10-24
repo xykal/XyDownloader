@@ -9,5 +9,10 @@
   "color": "#FE2C55",
   "note": "Tanpa watermark. Web kadang ditolak (IP cloud), Android paling stabil.",
   "logo": "/logos/douyin.webp",
-  "custom_extractor": "XyDouyinIE"
+  "custom_extractor": "XyDouyinIE",
+  "runtime": {
+    "proxy_domains": [
+      "douyin.com"
+    ]
+  }
 }

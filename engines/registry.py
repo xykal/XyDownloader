@@ -48,3 +48,26 @@ def extract(downloader, url, *, download=False):
         return engine.extract(downloader, url, download=download)
     # Non-featured yt-dlp sites still work; no fabricated per-site support claims.
     return downloader.extract_info(url, download=download)
+
+
+def resolve_info(info, page_url):
+    """Choose by platform-owned metadata, then extractor identity, then URL."""
+    key = str(info.get('extractor_key') or info.get('extractor') or '').lower()
+    for platform in platforms():
+        if any(marker in info for marker in platform.get('runtime', {}).get('info_markers', [])):
+            return load_engine(platform['id'])
+        custom_key = platform.get('custom_extractor', '').removesuffix('IE').lower()
+        if key and (key.startswith(platform['id']) or (custom_key and key.startswith(custom_key))):
+            return load_engine(platform['id'])
+    return resolve(page_url)
+
+
+@lru_cache(maxsize=8)
+def domain_policy(name):
+    return tuple(domain for platform in platforms()
+                 for domain in platform.get('runtime', {}).get(name, []))
+
+
+def is_ip_bound(host):
+    return any(host == domain or host.endswith('.' + domain)
+               for domain in domain_policy('ip_bound_domains'))

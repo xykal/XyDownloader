@@ -210,11 +210,10 @@ object Engine {
             kind == "images" -> req.addOption("--yes-playlist")
             else -> req.addOption("--no-playlist")
         }
+        if (PlatformRuntime.forUrl(url).configureDownload(req, kind)) return req
         when (kind) {
             // gambar (pixiv dll): format default = file asli, semua halaman
             "images" -> Unit
-            // ugoira pixiv: unduh ZIP frame lalu plugin XyUgoiraPP mengubahnya jadi MP4
-            "ugoira" -> req.addOption("--use-postprocessor", "XyUgoira")
             "mp3" -> {
                 req.addOption("-f", "ba/b")
                 req.addOption("-x")

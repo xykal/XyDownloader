@@ -146,3 +146,27 @@ def test_optional_upstream_bindings_tolerate_missing_module_or_class():
     from yt_dlp_plugins.engines._common.gallery import optional_ie
     assert optional_ie('common', 'NoSuchExtractorClass') is None
     assert optional_ie('no_such_extractor_module', 'NoSuchClass') is None
+
+
+def test_source_specific_domain_policies_live_beside_their_engine():
+    from yt_dlp_plugins.engines import registry
+    assert 'googlevideo.com' in registry.load_engine('youtube').metadata['runtime']['ip_bound_domains']
+    assert registry.is_ip_bound('r1.googlevideo.com')
+    assert not registry.is_ip_bound('evilgooglevideo.com')
+    assert not registry.is_ip_bound('googlevideo.com.evil.test')
+    assert 'douyin.com' in registry.domain_policy('proxy_domains')
+
+
+def test_pixiv_web_hook_resolves_by_owned_marker_and_builds_payload():
+    from yt_dlp_plugins.engines import registry
+    from unittest.mock import Mock
+    info = {'id': 'art1', 'title': 'Fixture', 'xy_ugoira': {'frames': [{'file': '1.jpg', 'delay': 100}]},
+            'formats': [{'format_id': 'zip', 'url': 'https://cdn.example/frames.zip', 'ext': 'zip', 'width': 32, 'height': 32}]}
+    # Marker ownership works even when extractor metadata is absent.
+    assert registry.resolve_info(info, 'https://example.org/item').platform_id == 'pixiv'
+    downloader = Mock()
+    downloader.cookiejar.get_cookie_header.return_value = None
+    context = engine._Ctx(downloader, info, 'https://proxy.example', 'https://pixiv.net/artworks/1')
+    result = engine.build_entry(context, info)
+    assert result['ugoira']['frames'] == info['xy_ugoira']['frames']
+    assert [f['mode'] for f in result['video']] == ['ugoira', 'ugoira']

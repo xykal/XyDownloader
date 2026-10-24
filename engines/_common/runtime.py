@@ -28,6 +28,12 @@ class PlatformEngine:
     def extraction_attempts(self):
         return deepcopy(self.metadata.get('runtime', {}).get('attempts', [{}]))
 
+    def filter_video_choices(self, videos, best_audio, info, has_audio):
+        return videos
+
+    def build_special_entry(self, ctx, info, title, base_name, helpers):
+        return None
+
     def request_options(self, request):
         return {}
 

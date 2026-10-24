@@ -8,5 +8,10 @@
   "color": "#0096FA",
   "note": "Ilustrasi & manga resolusi asli, ugoira jadi MP4/GIF",
   "logo": "/logos/pixiv.webp",
-  "custom_extractor": "XyPixivIE"
+  "custom_extractor": "XyPixivIE",
+  "runtime": {
+    "info_markers": [
+      "xy_ugoira"
+    ]
+  }
 }
