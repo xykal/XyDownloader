@@ -1,3 +1,10 @@
+// Keep real anchors and native <details> usable if JavaScript/network fails.
+const chooser = document.querySelector('#download-options');
+for (const link of document.querySelectorAll('[data-download-chooser]')) {
+  link.addEventListener('click', () => { if (chooser) chooser.open = true; });
+}
+if (location.hash === '#download' && chooser) chooser.open = true;
+
 (async () => {
   try {
     const response = await fetch('/releases.json');
