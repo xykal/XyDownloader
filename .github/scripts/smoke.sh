@@ -76,6 +76,8 @@ $UI "Lisensi open source" 2
 shot 12-licenses 3
 adb shell input keyevent KEYCODE_BACK
 
+python3 .github/scripts/audio_test.py "$APK_DIR" "$OUT/audio-audit"
+
 collect_evidence
 echo "== status"
 { adb shell pidof $PKG && echo "PROSES HIDUP" || echo "PROSES MATI"
